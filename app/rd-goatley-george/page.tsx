@@ -1,35 +1,18 @@
 import type { Metadata } from "next"
 import { GoatleyFooter } from "@/components/goatley-footer"
-import { GoatleyLiveAssistant } from "@/components/goatley-live-assistant"
+import { GoatleyGeorgeLiveAssistant } from "@/components/goatley-george-live-assistant"
 import { GoatleyNavigation } from "@/components/goatley-navigation"
 
 export const metadata: Metadata = {
   title: "R & D Goatley | Meet George",
-  description:
-    "George for R & D Goatley. Ask about windows, doors, conservatories, pergolas, pricing guidance and booking a visit.",
-  alternates: { canonical: "https://guardxnetwork.com/rd-goatley-george" },
-  openGraph: {
-    title: "R & D Goatley | Meet George",
-    description:
-      "George for R & D Goatley. Ask about windows, doors, conservatories, pergolas, pricing guidance and booking a visit.",
-    url: "https://guardxnetwork.com/rd-goatley-george",
-    type: "website",
-    images: [
-      {
-        url: "https://guardxnetwork.com/goatleys-logo.jpg",
-        width: 1048,
-        height: 310,
-        alt: "R & D Goatley Ltd",
-      },
-    ],
-  },
+  description: "George for R & D Goatley. A live digital member of staff themed to match the Goatley website, with the Goatley enquiry form underneath.",
 }
 
 export default function RDGoatleyGeorgePage() {
   return (
-    <main className="min-h-screen bg-[#111111] text-[#f4ecd2]">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#121212_0%,#1a1a1a_55%,#111111_100%)] text-white">
       <GoatleyNavigation />
-      <GoatleyLiveAssistant />
+      <GoatleyGeorgeLiveAssistant />
       <GoatleyFooter />
     </main>
   )
