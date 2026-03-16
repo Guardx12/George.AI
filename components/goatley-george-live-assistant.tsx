@@ -146,10 +146,10 @@ function detectCaptureMode(transcript: string) {
 function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMessage[]) {
   const emailMatch = transcript.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
   const phoneMatch = transcript.match(/(?:\+?44\s?7\d{3}|0\d{4}|0\d{3}|0\d{2})[\s\d]{6,12}/)
-  const postcodeMatch = transcript.match(/([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})/i)
+  const postcodeMatch = transcript.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i)
 
   const title = matchFirst(transcript, [
-    /(?:title is|i am|i'm|this is)\s+(mr and mr|miss and miss|doctor|mr\.?|mrs\.?|miss|ms|mx)/i,
+    /(?:title is|i am|i'm|this is)\s+(mr and mr|miss and miss|doctor|mr\.?|mrs\.?|miss|ms|mx)\b/i,
   ])
 
   let firstName = ""
@@ -168,16 +168,14 @@ function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMess
   }
 
   const street = matchFirst(transcript, [
-    /(?:address is|building name and street is|street is)\s+([^,.
-]{4,80})/i,
-    /(?:i live at|we are at)\s+([^,.
-]{4,80})/i,
+    /(?:address is|building name and street is|street is)\s+([^,.\n]{4,80})/i,
+    /(?:i live at|we are at)\s+([^,.\n]{4,80})/i,
   ])
   const town = matchFirst(transcript, [/(?:town is|in the town of)\s+([A-Za-z][A-Za-z' -]{2,40})/i])
   const county = matchFirst(transcript, [/(?:county is)\s+([A-Za-z][A-Za-z' -]{2,40})/i])
 
-  const personalHints = /(my house|my home|our house|i need|i'm looking|i am looking|for my property|for my house)/i.test(transcript)
-  const businessHints = /(company|business|office|shop|premises|commercial|for our business|for the business)/i.test(transcript)
+  const personalHints = /\b(my house|my home|our house|i need|i'm looking|i am looking|for my property|for my house)\b/i.test(transcript)
+  const businessHints = /\b(company|business|office|shop|premises|commercial|for our business|for the business)\b/i.test(transcript)
 
   const interest = inferInterest(transcript)
 
