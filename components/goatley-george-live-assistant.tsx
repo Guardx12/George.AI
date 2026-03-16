@@ -88,9 +88,7 @@ function buildTranscript(messages: LiveMessage[]) {
   return messages
     .filter((message) => message.role === "assistant" || message.role === "user")
     .map((message) => `${message.role === "assistant" ? "George" : "Visitor"}: ${normalizeWhitespace(message.content)}`)
-    .join("
-
-")
+    .join("\n\n")
 }
 
 function lastUserMessages(messages: LiveMessage[], count = 4) {
@@ -396,8 +394,7 @@ export function GoatleyGeorgeLiveAssistant() {
             return ""
           })
           .filter(Boolean)
-          .join("
-")
+          .join("\n")
         if (transcript) appendOrUpdateAssistantPartial(transcript, true)
         break
       }
