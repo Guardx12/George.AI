@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, CheckCircle2, Loader2, Mic, PhoneOff, Radio, Volume2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Loader2, Mic, PhoneOff, Radio, Sparkles, Volume2 } from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -88,7 +88,9 @@ function buildTranscript(messages: LiveMessage[]) {
   return messages
     .filter((message) => message.role === "assistant" || message.role === "user")
     .map((message) => `${message.role === "assistant" ? "George" : "Visitor"}: ${normalizeWhitespace(message.content)}`)
-    .join("\n\n")
+    .join("
+
+")
 }
 
 function lastUserMessages(messages: LiveMessage[], count = 4) {
@@ -137,13 +139,19 @@ function inferInterest(text: string) {
   return ""
 }
 
+function detectCaptureMode(transcript: string) {
+  return /(?:take|get|grab|collect|leave|confirm|fill(?:ing)?\s+in)\s+(?:your\s+)?details|what(?:'s| is)\s+the\s+best\s+(?:email|number)|can i take your|ready to send|hit send/i.test(
+    transcript,
+  )
+}
+
 function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMessage[]) {
   const emailMatch = transcript.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
   const phoneMatch = transcript.match(/(?:\+?44\s?7\d{3}|0\d{4}|0\d{3}|0\d{2})[\s\d]{6,12}/)
-  const postcodeMatch = transcript.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i)
+  const postcodeMatch = transcript.match(/([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})/i)
 
   const title = matchFirst(transcript, [
-    /(?:title is|i am|i'm|this is)\s+(mr and mr|miss and miss|doctor|mr\.?|mrs\.?|miss|ms|mx)\b/i,
+    /(?:title is|i am|i'm|this is)\s+(mr and mr|miss and miss|doctor|mr\.?|mrs\.?|miss|ms|mx)/i,
   ])
 
   let firstName = ""
@@ -162,20 +170,24 @@ function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMess
   }
 
   const street = matchFirst(transcript, [
-    /(?:address is|building name and street is|street is)\s+([^,.\n]{4,80})/i,
-    /(?:i live at|we are at)\s+([^,.\n]{4,80})/i,
+    /(?:address is|building name and street is|street is)\s+([^,.
+]{4,80})/i,
+    /(?:i live at|we are at)\s+([^,.
+]{4,80})/i,
   ])
   const town = matchFirst(transcript, [/(?:town is|in the town of)\s+([A-Za-z][A-Za-z' -]{2,40})/i])
   const county = matchFirst(transcript, [/(?:county is)\s+([A-Za-z][A-Za-z' -]{2,40})/i])
 
-  const personalHints = /\b(my house|my home|our house|i need|i'm looking|i am looking|for my property|for my house)\b/i.test(transcript)
-  const businessHints = /\b(company|business|office|shop|premises|commercial|for our business|for the business)\b/i.test(transcript)
+  const personalHints = /(my house|my home|our house|i need|i'm looking|i am looking|for my property|for my house)/i.test(transcript)
+  const businessHints = /(company|business|office|shop|premises|commercial|for our business|for the business)/i.test(transcript)
 
   const interest = inferInterest(transcript)
 
   const recentNeed = lastUserMessages(messages, 3).join(" ")
   const summary = recentNeed
-    ? (recentNeed.length > 260 ? `${recentNeed.slice(0, 257)}...` : recentNeed)
+    ? recentNeed.length > 260
+      ? `${recentNeed.slice(0, 257)}...`
+      : recentNeed
     : ""
 
   return {
@@ -193,6 +205,7 @@ function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMess
     customerType: businessHints && !personalHints ? "Business" : personalHints ? "Personal" : "",
     interestedIn: interest,
     summary,
+    captureMode: detectCaptureMode(transcript),
   }
 }
 
@@ -210,6 +223,7 @@ export function GoatleyGeorgeLiveAssistant() {
   const [statusText, setStatusText] = useState("Ready when you are")
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [captureMode, setCaptureMode] = useState(false)
   const [leadForm, setLeadForm] = useState<LeadFormState>({
     customerType: "Personal",
     title: "None",
@@ -249,6 +263,7 @@ export function GoatleyGeorgeLiveAssistant() {
 
     const transcript = buildTranscript(messages)
     const details = extractLeadDetailsFromTranscript(transcript, messages)
+    setCaptureMode(details.captureMode)
 
     setLeadForm((prev) => ({
       ...prev,
@@ -381,7 +396,8 @@ export function GoatleyGeorgeLiveAssistant() {
             return ""
           })
           .filter(Boolean)
-          .join("\n")
+          .join("
+")
         if (transcript) appendOrUpdateAssistantPartial(transcript, true)
         break
       }
@@ -411,6 +427,7 @@ export function GoatleyGeorgeLiveAssistant() {
     setError(null)
     setStatusText("Connecting George…")
     setMessages(INITIAL_MESSAGES)
+    setCaptureMode(false)
 
     try {
       const tokenResponse = await fetch("/api/goatley-session", { method: "GET", cache: "no-store" })
@@ -494,39 +511,46 @@ export function GoatleyGeorgeLiveAssistant() {
     setError(null)
     setConnectionState("idle")
     setStatusText("Ready when you are")
+    setCaptureMode(false)
   }
 
+  const inputClass =
+    "w-full rounded-2xl border border-[#8d6b25]/40 bg-[linear-gradient(180deg,rgba(20,20,20,0.95)_0%,rgba(8,8,8,0.98)_100%)] px-4 py-3 text-[15px] text-[#f6e8ba] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_35px_rgba(0,0,0,0.25)] outline-none transition placeholder:text-[#8f8059] focus:border-[#f0cb6d] focus:shadow-[0_0_0_1px_rgba(240,203,109,0.5),0_18px_35px_rgba(0,0,0,0.35)]"
+
   return (
-    <section className="mx-auto w-full max-w-5xl px-4 pb-14 pt-8 text-[#2a2417] sm:px-6 lg:px-8">
-      <div className="space-y-6">
-        <div className="mx-auto max-w-4xl overflow-hidden rounded-[28px] border border-[#d9cfb4] bg-[linear-gradient(180deg,#fffdf8_0%,#f7f0de_100%)] p-8 text-center shadow-[0_24px_60px_rgba(30,25,10,0.08)] sm:p-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[#9f7d2c]">Meet George</p>
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-[#1f1b14] sm:text-5xl">
+    <section className="mx-auto w-full max-w-6xl px-4 pb-16 pt-8 text-white sm:px-6 lg:px-8">
+      <div className="space-y-7">
+        <div className="mx-auto max-w-4xl overflow-hidden rounded-[32px] border border-[#d7b65d]/35 bg-[linear-gradient(145deg,rgba(22,22,22,0.98)_0%,rgba(10,10,10,0.96)_48%,rgba(34,26,10,0.98)_100%)] p-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-[#f0cb6d]/10 backdrop-blur sm:p-10">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[#f0cb6d]/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.34em] text-[#f5d57b] shadow-[0_10px_30px_rgba(201,168,79,0.15)] sm:text-xs">
+            <Sparkles className="h-4 w-4" /> Meet George
+          </div>
+          <h1 className="mt-5 bg-[linear-gradient(180deg,#fff9e9_0%,#f1cd72_100%)] bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-5xl">
             Your digital member of staff for R &amp; D Goatley.
           </h1>
-          <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-[#5b5340] sm:text-lg">
-            George can answer questions, explain products and options, guide visitors naturally toward an enquiry, and help collect the details R &amp; D Goatley needs when someone is ready.
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-[#d8c9a4] sm:text-lg">
+            George answers questions, explains products and options, guides visitors naturally toward an enquiry, and helps collect the right details when someone is ready.
           </p>
+          <div className="mx-auto mt-6 h-px w-40 bg-[linear-gradient(90deg,transparent_0%,rgba(240,203,109,0.9)_50%,transparent_100%)]" />
         </div>
 
-        <div className="overflow-hidden rounded-[30px] border border-[#ddd3ba] bg-white shadow-[0_20px_50px_rgba(40,32,12,0.1)]">
-          <div className="flex items-center gap-3 border-b border-[#e6dcc4] bg-[linear-gradient(180deg,#fffaf0_0%,#f3ead4_100%)] px-5 py-4 sm:px-6">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f1d882,#b69137)] text-lg font-semibold text-[#181818] shadow-[0_10px_24px_rgba(182,145,55,0.28)]">
+        <div className="overflow-hidden rounded-[32px] border border-[#d7b65d]/25 bg-[linear-gradient(180deg,rgba(20,20,20,0.98)_0%,rgba(8,8,8,0.99)_100%)] shadow-[0_35px_90px_rgba(0,0,0,0.5)] ring-1 ring-[#f0cb6d]/10 backdrop-blur">
+          <div className="flex flex-wrap items-center gap-3 border-b border-[#d7b65d]/20 bg-[linear-gradient(180deg,rgba(42,32,13,0.95)_0%,rgba(15,15,15,0.95)_100%)] px-5 py-4 sm:px-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#ffe8a3_0%,#dfb95a_35%,#8e6720_100%)] text-lg font-semibold text-[#111] shadow-[0_12px_30px_rgba(223,185,90,0.35)] animate-pulse">
               G
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1f1b14] sm:text-lg">George</p>
-              <p className="text-sm text-[#6a624f]">R &amp; D Goatley digital member of staff</p>
+              <p className="text-base font-semibold text-[#fff6db] sm:text-lg">George</p>
+              <p className="text-sm text-[#c9bb95]">R &amp; D Goatley digital member of staff</p>
             </div>
             <span
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium sm:text-sm ${
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-[0_10px_24px_rgba(0,0,0,0.28)] sm:text-sm ${
                 connectionState === "connected"
-                  ? "bg-[#edf6e8] text-[#2f6b1f]"
+                  ? "border-[#2c7e42]/40 bg-[#0f2416] text-[#8ce6a8]"
                   : connectionState === "connecting"
-                    ? "bg-[#fff1cf] text-[#8a6410]"
+                    ? "border-[#a57b20]/40 bg-[#24190a] text-[#f4cd6a]"
                     : connectionState === "error"
-                      ? "bg-[#fde8e8] text-[#a63c3c]"
-                      : "bg-[#f3efe6] text-[#6a624f]"
+                      ? "border-[#8f2f2f]/40 bg-[#2a1111] text-[#ff9a9a]"
+                      : "border-[#6e5825]/35 bg-[#18140c] text-[#d6c082]"
               }`}
             >
               {connectionState === "connected" ? <Volume2 className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
@@ -534,17 +558,17 @@ export function GoatleyGeorgeLiveAssistant() {
             </span>
           </div>
 
-          <div ref={scrollRef} className="max-h-[560px] overflow-y-auto bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f8f3e4_56%,#f1ead7_100%)] px-4 py-6 sm:px-6 sm:py-8">
+          <div ref={scrollRef} className="max-h-[560px] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(76,58,20,0.35)_0%,rgba(18,18,18,0.94)_36%,rgba(6,6,6,0.98)_100%)] px-4 py-6 sm:px-6 sm:py-8">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[86%] sm:text-[16px] ${
+                    className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-[0_15px_35px_rgba(0,0,0,0.28)] sm:max-w-[86%] sm:text-[16px] ${
                       message.role === "user"
-                        ? "rounded-br-md bg-[#c9a84f] text-[#171717]"
+                        ? "rounded-br-md border border-[#d7b65d]/35 bg-[linear-gradient(180deg,#f0cb6d_0%,#bb8e2d_100%)] text-[#17130b]"
                         : message.role === "assistant"
-                          ? "rounded-bl-md border border-[#e0d7bf] bg-white text-[#241f12]"
-                          : "rounded-bl-md border border-[#d8caa0] bg-[#f7f0de] text-[#5f5331]"
+                          ? "rounded-bl-md border border-[#d7b65d]/18 bg-[linear-gradient(180deg,rgba(255,248,228,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#f7ebc5] backdrop-blur"
+                          : "rounded-bl-md border border-[#8d6b25]/35 bg-[#18140d] text-[#d7c08a]"
                     }`}
                   >
                     {message.content}
@@ -554,7 +578,7 @@ export function GoatleyGeorgeLiveAssistant() {
 
               {connectionState === "connecting" && (
                 <div className="flex justify-start">
-                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#e0d7bf] bg-white px-5 py-4 text-[#241f12] shadow-sm">
+                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#d7b65d]/18 bg-[linear-gradient(180deg,rgba(255,248,228,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-5 py-4 text-[#f7ebc5] shadow-[0_15px_35px_rgba(0,0,0,0.28)]">
                     <Loader2 className="h-4 w-4 animate-spin" /> George is joining the call…
                   </div>
                 </div>
@@ -562,19 +586,19 @@ export function GoatleyGeorgeLiveAssistant() {
             </div>
           </div>
 
-          <div className="border-t border-[#e6dcc4] bg-[#fffdfa] px-4 py-4 sm:px-6">
+          <div className="border-t border-[#d7b65d]/18 bg-[linear-gradient(180deg,rgba(20,20,20,0.98)_0%,rgba(11,11,11,0.98)_100%)] px-4 py-4 sm:px-6">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-[#675f4c]">
+              <p className="text-sm leading-6 text-[#c9bb95]">
                 {connectionState === "connected"
-                  ? "You’re in a live conversation. Just speak naturally. George should reply automatically and can help fill in the enquiry form below as you talk."
-                  : "Start the live conversation and George will greet you, listen, reply automatically, and guide the visitor naturally toward an enquiry when it makes sense."}
+                  ? "You’re in a live conversation. Just speak naturally. George will reply automatically and should pre-fill the enquiry form as he collects the details."
+                  : "Start the live conversation and George will greet the visitor, reply automatically, and guide them naturally toward an enquiry when the timing is right."}
               </p>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={startConversation}
                   disabled={!canStart}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#c9a84f] px-5 py-3 text-sm font-semibold text-[#171717] transition hover:bg-[#e0be62] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] px-5 py-3 text-sm font-semibold text-[#16110a] shadow-[0_18px_36px_rgba(194,145,45,0.25)] transition hover:scale-[1.02] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Mic className="h-4 w-4" />
                   {connectionState === "connected" ? "Live conversation on" : "Start live conversation"}
@@ -583,30 +607,39 @@ export function GoatleyGeorgeLiveAssistant() {
                   <button
                     type="button"
                     onClick={stopConversation}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#d8cfb7] bg-transparent px-5 py-3 text-sm font-semibold text-[#3b3323] transition hover:bg-[#f3eee2]"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#8d6b25]/35 bg-transparent px-5 py-3 text-sm font-semibold text-[#e7d09a] transition hover:border-[#f0cb6d]/45 hover:bg-[#1b160d]"
                   >
                     <PhoneOff className="h-4 w-4" /> End conversation
                   </button>
                 )}
               </div>
             </div>
-            {error ? <p className="mx-auto mt-3 w-full max-w-4xl text-sm text-[#b24040]">{error}</p> : null}
+            {error ? <p className="mx-auto mt-3 w-full max-w-4xl text-sm text-[#ff9a9a]">{error}</p> : null}
           </div>
 
-          <div className="border-t border-[#e6dcc4] bg-[#f7f2e5] px-5 py-6 text-[#1d1b16] sm:px-6 sm:py-8">
+          <div className="border-t border-[#d7b65d]/18 bg-[radial-gradient(circle_at_top,rgba(95,73,26,0.26)_0%,rgba(14,14,14,0.98)_35%,rgba(7,7,7,1)_100%)] px-5 py-6 text-white sm:px-6 sm:py-8">
             <div className="mx-auto w-full max-w-4xl">
-              <h2 className="text-2xl font-semibold text-[#1d1b16]">Customer Enquiry Form</h2>
-              <p className="mt-3 text-sm leading-6 text-[#5b5340]">
-                George should fill this in from the conversation as details are collected. Just check everything looks right, then press send and it will go through to R &amp; D Goatley.
-              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold text-[#fff6db]">Customer Enquiry Form</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c9bb95]">
+                    George should pre-fill this from the conversation as details are collected. The visitor can then check it, press send, and it will go straight through to R &amp; D Goatley.
+                  </p>
+                </div>
+                {captureMode ? (
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[#211808] px-4 py-2 text-sm font-medium text-[#f4cd6a] shadow-[0_16px_34px_rgba(0,0,0,0.28)]">
+                    <Sparkles className="h-4 w-4" /> George is collecting details now
+                  </div>
+                ) : null}
+              </div>
 
               {formMostlyReady ? (
-                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#c9d8b5] bg-[#edf6e8] px-4 py-2 text-sm font-medium text-[#2f6b1f]">
+                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#2c7e42]/35 bg-[#0f2416] px-4 py-2 text-sm font-medium text-[#8ce6a8] shadow-[0_16px_34px_rgba(0,0,0,0.28)]">
                   <CheckCircle2 className="h-4 w-4" /> If this all looks okay, hit send and it will go through to R &amp; D Goatley.
                 </div>
               ) : null}
 
-              <form action="https://formspree.io/f/mrbypyzv" method="POST" className="mt-6 space-y-5">
+              <form action="https://formspree.io/f/mrbypyzv" method="POST" className="mt-6 space-y-5 rounded-[28px] border border-[#d7b65d]/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.01)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_30px_60px_rgba(0,0,0,0.32)] sm:p-6">
                 <input type="hidden" name="source" value="R & D Goatley George page" />
                 <input type="hidden" name="page" value={typeof window !== "undefined" ? window.location.href : "https://guardxnetwork.com/rd-goatley-george"} />
                 <input type="hidden" name="submissionMode" value="manual_submit" />
@@ -617,10 +650,17 @@ export function GoatleyGeorgeLiveAssistant() {
                 <input type="hidden" name="_replyto" value={leadForm.email} />
 
                 <div>
-                  <p className="text-sm font-semibold text-[#1d1b16]">Customer</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#f0cb6d]">Customer</p>
                   <div className="mt-3 flex flex-wrap gap-3">
                     {(["Personal", "Business"] as const).map((option) => (
-                      <label key={option} className={`inline-flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm font-medium transition ${leadForm.customerType === option ? "border-[#1d1b16] bg-[#1d1b16] text-[#f5f0de]" : "border-[#ccb67b] bg-white text-[#1d1b16] hover:border-[#1d1b16]"}`}>
+                      <label
+                        key={option}
+                        className={`inline-flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
+                          leadForm.customerType === option
+                            ? "border-[#f0cb6d]/45 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] text-[#16110a] shadow-[0_14px_26px_rgba(194,145,45,0.24)]"
+                            : "border-[#8d6b25]/35 bg-[#121212] text-[#f1dfac] hover:border-[#f0cb6d]/45"
+                        }`}
+                      >
                         <input
                           type="radio"
                           name="customerType"
@@ -637,8 +677,8 @@ export function GoatleyGeorgeLiveAssistant() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Title*</label>
-                    <select name="title" value={leadForm.title} onChange={(event) => setLeadForm((prev) => ({ ...prev, title: event.target.value }))} className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]">
+                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Title*</label>
+                    <select name="title" value={leadForm.title} onChange={(event) => setLeadForm((prev) => ({ ...prev, title: event.target.value }))} className={inputClass}>
                       {TITLE_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
@@ -646,45 +686,45 @@ export function GoatleyGeorgeLiveAssistant() {
                   </div>
                   <div />
                   <div>
-                    <label className="mb-2 block text-sm font-medium">First Name</label>
-                    <input name="firstName" value={leadForm.firstName} onChange={(event) => setLeadForm((prev) => ({ ...prev, firstName: event.target.value }))} placeholder="Type here..." className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">First Name</label>
+                    <input name="firstName" value={leadForm.firstName} onChange={(event) => setLeadForm((prev) => ({ ...prev, firstName: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Last Name*</label>
-                    <input name="lastName" value={leadForm.lastName} onChange={(event) => setLeadForm((prev) => ({ ...prev, lastName: event.target.value }))} placeholder="Type here..." required className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Last Name*</label>
+                    <input name="lastName" value={leadForm.lastName} onChange={(event) => setLeadForm((prev) => ({ ...prev, lastName: event.target.value }))} placeholder="Type here..." required className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Email*</label>
-                    <input type="email" name="email" value={leadForm.email} onChange={(event) => setLeadForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="Type here..." required className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Email*</label>
+                    <input type="email" name="email" value={leadForm.email} onChange={(event) => setLeadForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="Type here..." required className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Phone*</label>
-                    <input name="phone" value={leadForm.phone} onChange={(event) => setLeadForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder="Type here..." required className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Phone*</label>
+                    <input name="phone" value={leadForm.phone} onChange={(event) => setLeadForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder="Type here..." required className={inputClass} />
                   </div>
                 </div>
 
                 <div>
-                  <p className="mb-3 text-sm font-semibold text-[#1d1b16]">Address</p>
+                  <p className="mb-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#f0cb6d]">Address</p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <label className="mb-2 block text-sm font-medium">Building Name &amp; Street*</label>
-                      <input name="street" value={leadForm.street} onChange={(event) => setLeadForm((prev) => ({ ...prev, street: event.target.value }))} placeholder="Type here..." className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                      <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Building Name &amp; Street*</label>
+                      <input name="street" value={leadForm.street} onChange={(event) => setLeadForm((prev) => ({ ...prev, street: event.target.value }))} placeholder="Type here..." className={inputClass} />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Town</label>
-                      <input name="town" value={leadForm.town} onChange={(event) => setLeadForm((prev) => ({ ...prev, town: event.target.value }))} placeholder="Type here..." className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                      <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Town</label>
+                      <input name="town" value={leadForm.town} onChange={(event) => setLeadForm((prev) => ({ ...prev, town: event.target.value }))} placeholder="Type here..." className={inputClass} />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium">County</label>
-                      <input name="county" value={leadForm.county} onChange={(event) => setLeadForm((prev) => ({ ...prev, county: event.target.value }))} placeholder="Type here..." className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                      <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">County</label>
+                      <input name="county" value={leadForm.county} onChange={(event) => setLeadForm((prev) => ({ ...prev, county: event.target.value }))} placeholder="Type here..." className={inputClass} />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Post Code</label>
-                      <input name="postcode" value={leadForm.postcode} onChange={(event) => setLeadForm((prev) => ({ ...prev, postcode: event.target.value }))} placeholder="Type here..." className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                      <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Post Code</label>
+                      <input name="postcode" value={leadForm.postcode} onChange={(event) => setLeadForm((prev) => ({ ...prev, postcode: event.target.value }))} placeholder="Type here..." className={inputClass} />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Interested In</label>
-                      <select name="interestedIn" value={leadForm.interestedIn} onChange={(event) => setLeadForm((prev) => ({ ...prev, interestedIn: event.target.value }))} className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]">
+                      <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Interested In</label>
+                      <select name="interestedIn" value={leadForm.interestedIn} onChange={(event) => setLeadForm((prev) => ({ ...prev, interestedIn: event.target.value }))} className={inputClass}>
                         <option value="">Select Interest</option>
                         {INTEREST_OPTIONS.map((option) => (
                           <option key={option} value={option}>{option}</option>
@@ -695,17 +735,17 @@ export function GoatleyGeorgeLiveAssistant() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium">Additional Information</label>
-                  <input name="additionalInformation" value={leadForm.additionalInformation} onChange={(event) => setLeadForm((prev) => ({ ...prev, additionalInformation: event.target.value }))} className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                  <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Additional Information</label>
+                  <input name="additionalInformation" value={leadForm.additionalInformation} onChange={(event) => setLeadForm((prev) => ({ ...prev, additionalInformation: event.target.value }))} className={inputClass} />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium">Your Message</label>
-                  <textarea name="message" value={leadForm.message} onChange={(event) => setLeadForm((prev) => ({ ...prev, message: event.target.value }))} placeholder="Message*" rows={6} className="w-full rounded-xl border border-[#d2c5a4] bg-white px-4 py-3 outline-none focus:border-[#1d1b16]" />
+                  <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Your Message</label>
+                  <textarea name="message" value={leadForm.message} onChange={(event) => setLeadForm((prev) => ({ ...prev, message: event.target.value }))} placeholder="Message*" rows={6} className={`${inputClass} min-h-[160px] resize-y`} />
                 </div>
 
-                <div className="flex justify-start">
-                  <button type="submit" className="rounded-full bg-[#1d1b16] px-6 py-3 text-sm font-semibold text-[#f5f0de] transition hover:bg-[#000000]">
+                <div className="flex justify-start pt-1">
+                  <button type="submit" className="rounded-full border border-[#f0cb6d]/30 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] px-7 py-3 text-sm font-semibold text-[#16110a] shadow-[0_18px_36px_rgba(194,145,45,0.25)] transition hover:scale-[1.02] hover:brightness-110">
                     Send
                   </button>
                 </div>
@@ -717,7 +757,7 @@ export function GoatleyGeorgeLiveAssistant() {
         <div className="flex justify-center pt-2">
           <a
             href="https://www.randdgoatley.co.uk/"
-            className="inline-flex items-center gap-2 rounded-full bg-[#c9a84f] px-8 py-4 text-base font-semibold text-[#171717] transition hover:bg-[#e0be62]"
+            className="inline-flex items-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] px-8 py-4 text-base font-semibold text-[#16110a] shadow-[0_18px_36px_rgba(194,145,45,0.25)] transition hover:scale-[1.02] hover:brightness-110"
           >
             <ArrowLeft className="h-5 w-5" /> Back to R &amp; D Goatleys
           </a>

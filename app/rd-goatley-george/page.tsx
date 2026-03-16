@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function RDGoatleyGeorgePage() {
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#121212_0%,#1a1a1a_55%,#111111_100%)] text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#34270d_0%,#121212_24%,#060606_60%,#000000_100%)] text-white">
       <GoatleyNavigation />
       <GoatleyGeorgeLiveAssistant />
     </main>
