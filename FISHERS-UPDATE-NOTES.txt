@@ -1,0 +1,14 @@
+Added in this package:
+- app/fishers/page.tsx
+- app/goatley/page.tsx
+- app/api/fishers-session/route.ts
+- components/fishers-live-assistant.tsx
+
+Important routes after deploy:
+- /fishers
+- /goatley
+- /rd-goatley-george (old route still there)
+- /api/fishers-session
+- /api/goatley-session
+
+This zip is packaged with the project files at the root level so the repository should see real content changes when copied in.
