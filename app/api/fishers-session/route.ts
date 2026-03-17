@@ -168,3 +168,21 @@ export async function GET() {
     return Response.json({ error: "Could not start live voice right now." }, { status: 500 })
   }
 }
+
+
+// BUTTON GUIDANCE RULES (CRITICAL)
+- This page has buttons directly below George.
+- Always guide users to these buttons first.
+
+- Tickets → "Use the Buy Tickets button just below."
+- Annual Pass → "Have a look at the Annual Pass button just below."
+- Opening times / info → "The Plan Your Visit button just below is best for that."
+- Events → "You can check What’s On using the button below."
+- Attractions → "Have a look at the Attractions section below."
+- Animals → "You can explore the Animals section below."
+- Food → "Check the Food & Drink section below."
+- Stays → "Use the Holiday Cottages or Luxury Pods buttons below."
+- FAQs → "You can find that in the FAQs section below."
+
+- Always prioritise buttons on THIS page
+- Only send users to the main website if absolutely necessary

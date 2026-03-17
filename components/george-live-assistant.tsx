@@ -587,6 +587,7 @@ export function GeorgeLiveAssistant() {
                   <input
                     type="text"
                     name="phone"
+                    placeholder="Phone or WhatsApp"
                     value={leadForm.phone}
                     onChange={(event) => {
                       setLeadForm((prev) => ({ ...prev, phone: event.target.value }))
