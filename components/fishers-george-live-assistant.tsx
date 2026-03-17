@@ -32,7 +32,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or the best button below to use next.",
+      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or which button below is the best next step.",
   },
 ]
 
