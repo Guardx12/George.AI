@@ -1,19 +1,16 @@
 import type { Metadata } from "next"
-import { FishersFooter } from "@/components/fishers-footer"
-import { FishersGeorgeLiveAssistant } from "@/components/fishers-george-live-assistant"
-import { FishersNavigation } from "@/components/fishers-navigation"
+import { FishersLiveAssistant } from "@/components/fishers-live-assistant"
 
 export const metadata: Metadata = {
-  title: "Fishers Farm Park | Ask George",
-  description: "George for Fishers Farm Park. A live English-speaking digital member of staff that reads approved Fishers pages and helps visitors plan, book, and explore.",
+  title: "Fishers Farm Park | Meet George",
+  description:
+    "George for Fishers Farm Park. A live English-speaking digital member of staff trained from approved Fishers website pages.",
 }
 
-export default function FishersGeorgePage() {
+export default function FishersPage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8ffef_0%,#eff8dc_22%,#fdf9e8_100%)] text-[#23401a]">
-      <FishersNavigation />
-      <FishersGeorgeLiveAssistant />
-      <FishersFooter />
+    <main className="min-h-screen bg-[linear-gradient(180deg,#fbf7e8_0%,#f2eccd_32%,#edf4df_100%)] text-[#1f3518]">
+      <FishersLiveAssistant />
     </main>
   )
 }
