@@ -32,7 +32,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or which button below is best.",
+      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or where to go next on the Fishers website.",
   },
 ]
 
@@ -40,7 +40,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Mention that you can help with tickets, opening times, attractions, animals, events, food, and short breaks, and that the main buttons are just below. Then ask what the visitor would like help with.",
+      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Mention that you can help with tickets, opening times, attractions, animals, events, food, and short breaks, then ask what the visitor would like help with.",
   },
 }
 
@@ -224,32 +224,56 @@ export function FishersGeorgeLiveAssistant() {
     setMessages(INITIAL_MESSAGES)
 
     try {
-      const tokenResponse = await fetch("/api/fishers-session", { cache: "no-store" })
+      const tokenResponse = await fetch("/api/fishers-session", {
+        method: "GET",
+        cache: "no-store",
+      })
+
       const tokenData = await tokenResponse.json().catch(() => null)
-      if (!tokenResponse.ok || !tokenData?.value) {
-        throw new Error(tokenData?.error || "Could not start George right now.")
+      if (!tokenResponse.ok) {
+        throw new Error(
+          typeof tokenData?.error === "string" ? tokenData.error : "Could not create a secure live session.",
+        )
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      localStreamRef.current = stream
+      const ephemeralKey = tokenData?.value
+      if (typeof ephemeralKey !== "string" || !ephemeralKey) {
+        throw new Error("Live voice token was missing.")
+      }
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
-
       const remoteAudio = document.createElement("audio")
       remoteAudio.autoplay = true
+      remoteAudio.playsInline = true
+      audioRef.current = remoteAudio
+
       pc.ontrack = (event) => {
         const [remoteStream] = event.streams
         if (remoteStream) {
           remoteAudio.srcObject = remoteStream
+          void remoteAudio.play().catch(() => {
+            // Browser autoplay can still block occasionally; audio element remains attached to stream.
+          })
         }
       }
-      audioRef.current = remoteAudio
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      localStreamRef.current = stream
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
       const dataChannel = pc.createDataChannel("oai-events")
       dcRef.current = dataChannel
+
+      dataChannel.addEventListener("open", () => {
+        setConnectionState("connected")
+        setStatusText("Live conversation on")
+        window.setTimeout(() => {
+          dataChannel.send(JSON.stringify(FIRST_RESPONSE_EVENT))
+        }, 150)
+      })
+
       dataChannel.addEventListener("message", (event) => {
         try {
           handleRealtimeEvent(JSON.parse(event.data))
@@ -261,27 +285,37 @@ export function FishersGeorgeLiveAssistant() {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      const sdpResponse = await fetch("https://api.openai.com/v1/realtime?model=gpt-realtime", {
+      const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${tokenData.value}`,
+          Authorization: `Bearer ${ephemeralKey}`,
           "Content-Type": "application/sdp",
         },
         body: offer.sdp,
       })
 
       const answer = await sdpResponse.text()
-      if (!sdpResponse.ok || !answer) {
-        throw new Error("Could not complete the live voice connection.")
+
+      if (!sdpResponse.ok) {
+        let message = "Could not connect George."
+
+        try {
+          const parsed = JSON.parse(answer)
+          if (typeof parsed?.error?.message === "string") {
+            message = parsed.error.message
+          }
+        } catch {
+          if (answer.includes("<html") || answer.includes("<!DOCTYPE html")) {
+            message = "The live voice service timed out while connecting. Please try again."
+          } else if (answer.trim()) {
+            message = answer.trim()
+          }
+        }
+
+        throw new Error(message)
       }
 
       await pc.setRemoteDescription({ type: "answer", sdp: answer })
-
-      dataChannel.addEventListener("open", () => {
-        setConnectionState("connected")
-        setStatusText("Live conversation on")
-        dataChannel.send(JSON.stringify(FIRST_RESPONSE_EVENT))
-      })
 
       pc.addEventListener("connectionstatechange", () => {
         if (pc.connectionState === "failed" || pc.connectionState === "disconnected" || pc.connectionState === "closed") {
