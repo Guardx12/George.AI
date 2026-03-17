@@ -16,7 +16,7 @@
             id: "intro",
             role: "system",
             content:
-              "Hi — I’m George, your friendly Fishers Farm Park website assistant. Ask me about tickets, opening times, attractions, food, annual passes, cottages, pods, accessibility, or the best next step on the Fishers website.",
+              "Hi — I’m George, your friendly Fishers Farm Park assistant. I can help with tickets, annual passes, opening times, attractions, animals, food, short breaks, accessibility, and the best next step on the Fishers website — all in English.",
           },
         ]
 
@@ -24,7 +24,7 @@
           type: "response.create",
           response: {
             instructions:
-              "Briefly introduce yourself as George for Fishers Farm Park, then ask warmly what the visitor would like help with today.",
+              "Introduce yourself as George for Fishers Farm Park in warm British English only, using a cheerful family-friendly tone that fits the Fishers brand. Mention that you can help with tickets, attractions, animals, food, events, and short breaks, then warmly ask what the visitor would like help with today.",
           },
         }
 
@@ -36,6 +36,8 @@
           { label: "Holiday Cottages", href: "https://www.fishersfarmpark.co.uk/holiday-cottages", icon: BedDouble },
           { label: "Luxury Pods", href: "https://www.fishersfarmpark.co.uk/holiday-pods", icon: Trees },
           { label: "Food & Drink", href: "https://www.fishersfarmpark.co.uk/food", icon: UtensilsCrossed },
+          { label: "Attractions", href: "https://www.fishersfarmpark.co.uk/attractions", icon: Sparkles },
+          { label: "Animals", href: "https://www.fishersfarmpark.co.uk/animals", icon: Trees },
           { label: "FAQs", href: "https://www.fishersfarmpark.co.uk/faq", icon: BadgeHelp },
         ]
 
@@ -167,8 +169,7 @@
                     return ""
                   })
                   .filter(Boolean)
-                  .join("
-")
+                  .join("\n")
                 if (transcript) appendOrUpdateAssistantPartial(transcript, true)
                 break
               }
@@ -296,20 +297,20 @@
                         Meet George for Fishers Farm Park.
                       </h1>
                       <p className="mt-5 max-w-3xl text-base leading-8 text-[#3f4d2f] sm:text-lg">
-                        A friendly website assistant for Fishers visitors. George helps with tickets, opening times, attractions, food, annual passes, cottages, pods, accessibility, and where to go next on the Fishers website.
+                        A friendly Fishers Farm Park assistant inspired by the park’s own playful style — warm, family-first, practical, and focused on helping visitors with tickets, opening times, attractions, animals, food, short breaks, accessibility, and where to go next.
                       </p>
                       <p className="mt-4 max-w-3xl text-sm leading-7 text-[#587043] sm:text-base">
-                        This version is set up to pull fresh information from the live Fishers website whenever a new George conversation starts, so updates on the site can flow through into what George says.
+                        George refreshes from the live Fishers website whenever a new conversation starts, so website updates can flow through into his answers. He is also set to reply in English only.
                       </p>
                     </div>
 
                     <div className="rounded-[28px] border border-white/80 bg-white/70 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_18px_44px_rgba(132,148,53,0.12)] backdrop-blur">
                       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#d97706]">Quick help</p>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                        <div className="rounded-2xl border border-[#f7d76d]/60 bg-[#fff8d6] px-4 py-3 text-sm text-[#6b4f00]">Tickets & annual passes</div>
-                        <div className="rounded-2xl border border-[#cae7b4] bg-[#f6fff0] px-4 py-3 text-sm text-[#355e12]">Opening times & planning your visit</div>
-                        <div className="rounded-2xl border border-[#cae7b4] bg-[#f6fff0] px-4 py-3 text-sm text-[#355e12]">Attractions, food & seasonal events</div>
-                        <div className="rounded-2xl border border-[#cae7b4] bg-[#f6fff0] px-4 py-3 text-sm text-[#355e12]">Holiday cottages & luxury pods</div>
+                        <div className="rounded-2xl border border-[#f7d76d]/60 bg-[#fff8d6] px-4 py-3 text-sm text-[#6b4f00]">Tickets, annual passes & booking help</div>
+                        <div className="rounded-2xl border border-[#cae7b4] bg-[#f6fff0] px-4 py-3 text-sm text-[#355e12]">Opening times, planning your visit & directions</div>
+                        <div className="rounded-2xl border border-[#cae7b4] bg-[#f6fff0] px-4 py-3 text-sm text-[#355e12]">Attractions, animals, food & seasonal events</div>
+                        <div className="rounded-2xl border border-[#cae7b4] bg-[#f6fff0] px-4 py-3 text-sm text-[#355e12]">Holiday cottages, posh pods & short breaks</div>
                       </div>
                     </div>
                   </div>
@@ -322,7 +323,7 @@
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-bold text-[#28461a] sm:text-lg">George</p>
-                      <p className="text-sm text-[#5b6b49]">Friendly Fishers Farm Park website assistant</p>
+                      <p className="text-sm text-[#5b6b49]">Friendly Fishers Farm Park assistant</p>
                     </div>
                     <span
                       className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium sm:text-sm ${
