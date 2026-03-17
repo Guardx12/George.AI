@@ -32,7 +32,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or where to go next on the Fishers website.",
+      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or the best button below to use next.",
   },
 ]
 
@@ -40,7 +40,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Mention that you can help with tickets, opening times, attractions, animals, events, food, and short breaks, then ask what the visitor would like help with.",
+      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Mention that you can help with tickets, opening times, attractions, animals, events, food, and short breaks, and that the main sections they may need are right below on this page. Then ask what the visitor would like help with.",
   },
 }
 
