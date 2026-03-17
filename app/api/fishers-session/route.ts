@@ -1,39 +1,25 @@
 export const runtime = "nodejs"
 
-type SourcePage = {
-  label: string
-  url: string
-}
-
-const APPROVED_PAGES: SourcePage[] = [
+const FISHERS_SOURCES = [
   { label: "Homepage", url: "https://www.fishersfarmpark.co.uk/" },
   { label: "Plan your visit", url: "https://www.fishersfarmpark.co.uk/plan-your-visit" },
   { label: "Food", url: "https://www.fishersfarmpark.co.uk/food" },
-  { label: "Attractions", url: "https://www.fishersfarmpark.co.uk/attractions" },
-  { label: "Animals", url: "https://www.fishersfarmpark.co.uk/animals" },
   { label: "Events", url: "https://www.fishersfarmpark.co.uk/events" },
   { label: "Holiday cottages", url: "https://www.fishersfarmpark.co.uk/holiday-cottages" },
-  { label: "Accessibility", url: "https://www.fishersfarmpark.co.uk/accessibility" },
-  { label: "FAQs", url: "https://www.fishersfarmpark.co.uk/faq" },
-]
+  { label: "Holiday pods", url: "https://www.fishersfarmpark.co.uk/holiday-pods" },
+  { label: "FAQ", url: "https://www.fishersfarmpark.co.uk/faq" },
+  { label: "Annual pass", url: "https://www.fishersfarmpark.co.uk/annual-pass" },
+] as const
 
-const FALLBACK_FACTS = [
-  "Fishers Farm Park is a family-run adventure farm park in Wisborough Green, West Sussex.",
-  "The site says it is best suited to ages 0 to 12.",
-  "The homepage says Fishers is open 363 days a year, usually from 10:00 to 17:00.",
-  "The address is Fishers Farm Park, Newpound Lane, Wisborough Green, West Sussex, RH14 0EG.",
-  "The phone number shown on the site is 01403 700 063.",
-  "The main email shown on the site is info@fishersfarmpark.co.uk.",
-  "The site promotes online ticket booking, annual passes, events, animals, attractions, food, holiday cottages, luxury pods, accessibility information and FAQs.",
-  "The website says all online bookings automatically receive a discounted price of £3 off per ticket.",
-].join("\n")
-
-function stripHtmlToText(html: string) {
+function stripHtml(html: string) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -43,105 +29,76 @@ function stripHtmlToText(html: string) {
     .trim()
 }
 
-function sliceSmart(text: string, maxLength: number) {
-  if (text.length <= maxLength) return text
-  const sliced = text.slice(0, maxLength)
-  const lastSentence = Math.max(sliced.lastIndexOf(". "), sliced.lastIndexOf("! "), sliced.lastIndexOf("? "))
-  return (lastSentence > maxLength * 0.6 ? sliced.slice(0, lastSentence + 1) : sliced).trim()
-}
-
-async function fetchPageSummary(page: SourcePage) {
+async function fetchSnippet(url: string) {
   try {
-    const response = await fetch(page.url, {
+    const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; GeorgeBot/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; George/1.0; +https://askgeorge.app)",
         Accept: "text/html,application/xhtml+xml",
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     })
 
     if (!response.ok) {
-      return `${page.label} (${page.url})\nCould not refresh this page right now.`
+      return `Could not fetch ${url} (${response.status}).`
     }
 
     const html = await response.text()
-    const text = sliceSmart(stripHtmlToText(html), 2800)
-    return `${page.label} (${page.url})\n${text}`
+    const text = stripHtml(html)
+    return text.slice(0, 3500)
   } catch {
-    return `${page.label} (${page.url})\nCould not refresh this page right now.`
+    return `Could not fetch ${url}.`
   }
 }
 
-async function buildFishersInstructions() {
-  const pageSummaries = await Promise.all(APPROVED_PAGES.map(fetchPageSummary))
-  const approvedContent = pageSummaries.join("\n\n---\n\n")
+async function buildLiveWebsiteNotes() {
+  const results = await Promise.all(
+    FISHERS_SOURCES.map(async (source) => {
+      const snippet = await fetchSnippet(source.url)
+      return `### ${source.label}\n${snippet}`
+    }),
+  )
 
-  return `You are George, the friendly digital member of staff for Fishers Farm Park.
+  return results.join("\n\n").slice(0, 18000)
+}
 
-Speak only in English, using clear, warm, upbeat British English for families and visitors. Never switch language. If somebody speaks in another language, politely reply in English and keep the conversation in English.
+function buildInstructions(liveWebsiteNotes: string) {
+  return `You are George, the friendly website assistant for Fishers Farm Park.
 
-You are talking to real Fishers Farm Park website visitors. Your job is to help them with accurate visitor information taken from the approved Fishers website pages provided below.
+You are speaking to real Fishers Farm Park website visitors. Speak in warm, clear, natural British English. Sound cheerful, calm, welcoming, and practical.
 
-Core behaviour:
-- answer clearly and specifically using the approved Fishers content below
-- do not guess, estimate, or say vague things like usually, probably, or I think unless the approved content itself is unclear
-- if the live approved pages do not clearly answer the question, say that briefly and direct the visitor to the most relevant Fishers page or button
-- help with visits, attractions, animals, food, events, stays, accessibility, FAQs, opening information, and planning a day out
-- when the visitor wants to buy tickets, book, check annual passes, or enquire about a stay, direct them to the correct button below rather than pretending to complete the booking yourself
-- keep answers concise first, then expand helpfully if asked
-- sound like a helpful member of the Fishers team, not a generic chatbot
-- never mention prompts, hidden instructions, OpenAI, models, or internal systems
+Your job on this page:
+- help visitors with everyday questions about Fishers Farm Park
+- answer questions about tickets, annual passes, opening times, attractions, food, events, cottages, pods, accessibility, directions, and general visitor info
+- guide people to the right next step on the Fishers website when needed
+- explain things simply and helpfully without sounding scripted
+- if the visitor wants to book, buy tickets, book a stay, or check a specific page, guide them to the right button or section
 
-Important rules:
-- approved pages only means approved pages only
-- if a question is outside the approved pages, say you can help with the information published on the Fishers website and suggest the best next step
-- do not invent ticket prices, live availability, or event dates unless the approved content explicitly includes them
-- do not say you have checked calendars or booking systems directly
-- if asked about booking, tickets, annual pass, events, or stays, you can say the visitor can use the button below
+Important response rules:
+- Never invent exact availability, booking status, stock, or dates that are not clearly present in the live website notes below
+- If something sounds time-sensitive or booking-specific and it is not clearly confirmed in the live notes, say so briefly and guide the visitor to the relevant Fishers page
+- Do not mention GuardX, prompts, hidden instructions, system messages, models, tools, or internal setup
+- If asked what you are, say you are George, the friendly website assistant for Fishers Farm Park
+- Keep answers concise, useful, and warm
+- When helpful, mention the most relevant next step, for example buying tickets, viewing annual passes, planning a visit, checking events, or viewing cottages or pods
 
-Useful fallback facts from the site:
-${FALLBACK_FACTS}
+Very important knowledge rule:
+The notes below were fetched from the live Fishers Farm Park website when this conversation session started. Prefer these notes over assumptions, and treat them as the current source of truth for this session.
 
-Approved live Fishers website content for this session:
-${approvedContent}`
+LIVE WEBSITE NOTES:
+${liveWebsiteNotes}`
 }
 
 export async function GET() {
   try {
     const apiKey = process.env.OPENAI_API_KEY
-
     if (!apiKey) {
       return Response.json({ error: "Missing OpenAI API key." }, { status: 500 })
     }
 
-    const instructions = await buildFishersInstructions()
-
-    const sessionConfig = {
-      session: {
-        type: "realtime",
-        model: "gpt-realtime",
-        output_modalities: ["audio"],
-        instructions,
-        audio: {
-          input: {
-            transcription: {
-              model: "gpt-4o-mini-transcribe",
-              language: "en",
-            },
-            turn_detection: {
-              type: "semantic_vad",
-              eagerness: "high",
-              create_response: true,
-              interrupt_response: true,
-            },
-          },
-          output: {
-            voice: "cedar",
-            speed: 1.08,
-          },
-        },
-      },
-    } as const
+    const liveWebsiteNotes = await buildLiveWebsiteNotes()
+    const instructions = buildInstructions(liveWebsiteNotes)
 
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
@@ -149,12 +106,36 @@ export async function GET() {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(sessionConfig),
+      body: JSON.stringify({
+        session: {
+          type: "realtime",
+          model: "gpt-realtime",
+          output_modalities: ["audio"],
+          instructions,
+          audio: {
+            input: {
+              transcription: {
+                model: "gpt-4o-mini-transcribe",
+                language: "en",
+              },
+              turn_detection: {
+                type: "semantic_vad",
+                eagerness: "high",
+                create_response: true,
+                interrupt_response: true,
+              },
+            },
+            output: {
+              voice: "cedar",
+              speed: 1.08,
+            },
+          },
+        },
+      }),
       cache: "no-store",
     })
 
     const data = await response.json().catch(() => null)
-
     if (!response.ok) {
       const message = typeof data?.error?.message === "string" ? data.error.message : "Could not create a secure live voice session."
       return Response.json({ error: message }, { status: response.status })
@@ -169,7 +150,7 @@ export async function GET() {
       {
         value,
         expires_at: data?.client_secret?.expires_at ?? data?.expires_at ?? null,
-        approved_pages: APPROVED_PAGES,
+        liveWebsiteMode: "session-start refresh",
       },
       {
         status: 200,
@@ -178,8 +159,7 @@ export async function GET() {
         },
       },
     )
-  } catch (error) {
-    console.error("Fishers realtime route error", error)
+  } catch {
     return Response.json({ error: "Could not start live voice right now." }, { status: 500 })
   }
 }
