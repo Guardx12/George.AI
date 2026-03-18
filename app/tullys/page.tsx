@@ -1,9 +1,5 @@
 import type { Metadata } from "next"
-import { Bebas_Neue, Oswald } from "next/font/google"
 import { TullysLiveAssistant } from "@/components/tullys-live-assistant"
-
-const bebas = Bebas_Neue({ subsets: ["latin"], weight: "400", variable: "--font-bebas" })
-const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-oswald" })
 
 export const metadata: Metadata = {
   title: "Tulleys Farm | Meet George",
@@ -12,20 +8,21 @@ export const metadata: Metadata = {
 
 export default function TullysPage() {
   return (
-    <main className={`${bebas.variable} ${oswald.variable} min-h-screen font-[var(--font-oswald)] text-[#F6E6C5]`}>
-      <div
-        className="min-h-screen"
-        style={{
-          backgroundColor: "#2e2017",
-          backgroundImage:
-            "radial-gradient(circle at 20% 15%, rgba(134,91,56,0.18), transparent 26%), radial-gradient(circle at 80% 12%, rgba(98,67,41,0.2), transparent 24%), linear-gradient(90deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.01) 2px, transparent 2px, transparent 86px), linear-gradient(0deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.015) 2px, transparent 2px, transparent 56px), linear-gradient(180deg, #4d3627 0%, #38271d 12%, #2b1d16 54%, #241811 100%)",
-          backgroundSize: "auto, auto, 86px 100%, 100% 56px, auto",
-        }}
-      >
-        <div className="mx-auto max-w-[1600px] px-2 py-4 sm:px-4 lg:px-6">
-          <TullysLiveAssistant />
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@200..700&display=swap" rel="stylesheet" />
+      <link rel="stylesheet" href="https://use.typekit.net/ryy8yzx.css" />
+      <link rel="stylesheet" href="https://www.tulleysfarm.com/css/site/site_vendor.css?id=5c7f3023b56d965427c77f20c39c8843" />
+      <link rel="stylesheet" href="https://www.tulleysfarm.com/css/site/site.css?id=a8a4855a30f8668fafa21072a196dad0" />
+
+      <main className="tulleys-exact-page min-h-screen text-[#F6E6C5]">
+        <div id="page-encapsulation" className="bg-wood-texture min-h-screen">
+          <div className="mx-auto max-w-[1600px] px-2 py-4 sm:px-4 lg:px-6">
+            <TullysLiveAssistant />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   )
 }

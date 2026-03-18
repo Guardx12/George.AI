@@ -372,7 +372,7 @@ export function TullysLiveAssistant() {
   return (
     <section className="relative overflow-hidden px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-[28px] border border-[rgba(255,255,255,0.12)] bg-[rgba(34,25,19,0.74)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.45)] backdrop-blur-[3px] sm:p-6 lg:p-8">
+        <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(31,22,16,0.58)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.35)] backdrop-blur-[2px] sm:p-6 lg:p-8">
           <div className="mx-auto max-w-5xl text-center">
             <div className="inline-flex items-center rounded-full border border-[rgba(239,222,188,0.3)] bg-[rgba(248,240,222,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#F6E6C5] sm:text-sm">
               Tulleys Farm Demo
@@ -380,7 +380,7 @@ export function TullysLiveAssistant() {
 
             <div className="mt-6 flex justify-center">
               <img
-                src="/tulleys-brand-logo2.svg"
+                src="https://www.tulleysfarm.com/images/svg/tulleys-brand-logo2.svg"
                 alt="Tulleys Farm"
                 className="h-auto w-[220px] max-w-full drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] sm:w-[280px] lg:w-[340px]"
               />
@@ -409,7 +409,7 @@ export function TullysLiveAssistant() {
                   className="text-3xl uppercase tracking-[0.08em] text-[#F7EAD1] sm:text-4xl"
                   style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
                 >
-                  George is live on this page
+                  Talk to George
                 </div>
                 <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[#E9DDC9] sm:text-base">
                   
