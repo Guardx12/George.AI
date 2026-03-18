@@ -410,8 +410,8 @@ export function FishersGeorgeLiveAssistant() {
               <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm leading-6 text-[#6f543e]">
                   {connectionState === "connected"
-                    ? "You’re live with George now. Just speak naturally and he should reply automatically in English."
-                    : "Start the live conversation and George will greet visitors, listen, and reply automatically in English."}
+                    ? "You’re live with George now. Just speak naturally and he should reply automatically ."
+                    : "Start the live conversation and George will greet visitors, listen, and reply automatically ."}
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <button

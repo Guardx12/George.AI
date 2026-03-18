@@ -108,7 +108,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hi — I’m George for Tulleys Farm. I can help in English with events, tickets, opening times, the Tea Room, Escape Rooms, directions, or planning your visit. If you like, I can also point you to the buttons just below for the right part of the Tulleys site.",
+      "Hi — I’m George for Tulleys Farm. I can help with any questions about events, tickets, opening times, the Tea Room, Escape Rooms, directions, or planning your visit. I’ll point you in the right direction. ",
   },
 ]
 
@@ -375,7 +375,7 @@ export function TullysLiveAssistant() {
         <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(31,22,16,0.58)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.35)] backdrop-blur-[2px] sm:p-6 lg:p-8">
           <div className="mx-auto max-w-5xl text-center">
             <div className="inline-flex items-center rounded-full border border-[rgba(239,222,188,0.3)] bg-[rgba(248,240,222,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#F6E6C5] sm:text-sm">
-              Tulleys Farm Demo
+              
             </div>
 
             <div className="mt-6 flex justify-center">
@@ -409,7 +409,7 @@ export function TullysLiveAssistant() {
                   className="text-3xl uppercase tracking-[0.08em] text-[#F7EAD1] sm:text-4xl"
                   style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
                 >
-                  Talk to George
+                  
                 </div>
                 <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[#E9DDC9] sm:text-base">
                   

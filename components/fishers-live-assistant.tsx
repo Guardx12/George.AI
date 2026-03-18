@@ -384,7 +384,7 @@ export function FishersLiveAssistant() {
           <div className="rounded-[30px] border border-[#7ca44d]/25 bg-[linear-gradient(180deg,#fffef9_0%,#f7f1d3_100%)] p-6 shadow-[0_24px_80px_rgba(39,73,30,0.1)]">
             <h2 className="text-xl font-black text-[#26461f]">How this version works</h2>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-[#495b34]">
-              <li>• George only answers in English.</li>
+              <li>• George only answers .</li>
               <li>• George reads approved Fishers pages when a new session starts.</li>
               <li>• George should answer from the latest live site content, not made-up guesses.</li>
               <li>• For buying and booking, George should point visitors to the buttons below.</li>

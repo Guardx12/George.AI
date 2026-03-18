@@ -8,7 +8,7 @@ export function BottomGeorgeBar() {
         <div className="min-w-0">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#BFDBFE] sm:text-xs">Do not lose the visitor</p>
           <p className="mt-1 text-sm font-semibold leading-5 text-white sm:text-base">
-            Talk to George now and see how he keeps visitors engaged before they leave.
+             now and see how he keeps visitors engaged before they leave.
           </p>
         </div>
         <Link
@@ -16,7 +16,7 @@ export function BottomGeorgeBar() {
           className="get-started-btn george-bottom-bar-button inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#0F172A] transition hover:bg-[#EFF6FF] sm:px-6 sm:text-base"
         >
           <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
-          <span className="get-started-text">Talk to George</span>
+          <span className="get-started-text"></span>
           <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
         </Link>
       </div>
