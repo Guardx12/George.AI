@@ -108,7 +108,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hi — I’m George for Tulleys Farm. I can help with any questions about events, tickets, opening times, the Tea Room, Escape Rooms, directions, or planning your visit. I’ll point you in the right direction. ",
+      "Hi — I’m George, your guide for Tulleys Farm. Please ask me any questions. What can I help you with today? ",
   },
 ]
 
@@ -392,7 +392,7 @@ export function TullysLiveAssistant() {
             >
               Meet George
             </h1>
-            <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-[#F4EADA] sm:text-lg">
+            <p className="mx-auto mt-4 max-w-3xl text-lg leading-8 text-[#F4EADA] sm:text-xl">
               George can talk visitors through Tulleys events, opening information, directions, tickets, the Tea Room, Escape Rooms and more — using live website content pulled in when each new conversation starts.
             </p>
           </div>
@@ -419,7 +419,7 @@ export function TullysLiveAssistant() {
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <button
                   onClick={canStart ? startConversation : endConversation}
-                  className="inline-flex min-w-[210px] items-center justify-center gap-3 rounded-full border border-[rgba(255,243,219,0.2)] bg-[linear-gradient(180deg,#8E5332_0%,#69402B_100%)] px-6 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#FFF3D7] shadow-[0_18px_35px_rgba(31,17,10,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_40px_rgba(31,17,10,0.45)]"
+                  className="tulleys-start-talking-btn inline-flex min-w-[220px] items-center justify-center gap-3 rounded-[18px] border border-[rgba(255,243,219,0.28)] bg-[linear-gradient(180deg,#8E5332_0%,#69402B_100%)] px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.12em] text-[#FFF3D7] shadow-[0_18px_35px_rgba(31,17,10,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_40px_rgba(31,17,10,0.45)]"
                 >
                   {connectionState === "connecting" ? (
                     <>
@@ -449,7 +449,7 @@ export function TullysLiveAssistant() {
                   <div
                     key={message.id}
                     className={message.role === "assistant"
-                      ? "ml-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.18)] bg-[rgba(255,245,228,0.1)] px-4 py-3 text-left text-sm leading-6 text-[#FFF5E4]"
+                      ? "ml-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.18)] bg-[rgba(255,245,228,0.1)] px-4 py-3 text-left text-base leading-7 text-[#FFF5E4]"
                       : message.role === "user"
                       ? "mr-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.1)] bg-[rgba(20,12,8,0.52)] px-4 py-3 text-left text-sm leading-6 text-[#E9DDC9]"
                       : "mx-auto max-w-[92%] rounded-[22px] border border-dashed border-[rgba(246,230,197,0.18)] bg-[rgba(248,241,226,0.05)] px-4 py-3 text-center text-sm leading-6 text-[#F2E4CB]"}
