@@ -351,13 +351,9 @@ export function FishersGeorgeLiveAssistant() {
             events, short breaks, and the best place to go next.
           </p>
           <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border border-[#efd5b8] bg-white/75 px-5 py-4 text-left shadow-sm sm:px-6">
-            <div className="flex items-start gap-3">
-              <MapPinned className="mt-0.5 h-5 w-5 shrink-0 text-[#b11f24]" />
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#b11f24]">New</p>
-                <p className="mt-1 text-base font-semibold text-[#4e2a12]">Lose your way inside Fishers Farm? George can guide you in the right direction.</p>
-                <p className="mt-1 text-sm leading-6 text-[#7a573b]">Visitors can ask George for directions inside or outside the park, or simply tell him what they can see and he will help point them the right way.</p>
-              </div>
+            <div>
+              <p className="text-base font-semibold text-[#4e2a12] sm:text-lg">Lose your way inside Fishers Farm? George will guide you.</p>
+              <p className="mt-2 text-sm leading-6 text-[#7a573b]">Tell George what you can see, ask what is nearby, or ask where you need to go next and he will help point you in the right direction around the park.</p>
             </div>
           </div>
         </div>
