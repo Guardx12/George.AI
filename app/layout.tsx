@@ -122,12 +122,21 @@ export default function RootLayout({
         </Script>
 
       
-<div style="text-align:center; margin-top:60px; margin-bottom:40px;">
-    <a href="https://getgeorge.app" target="_blank" style="text-decoration:none;">
-        <img src="/george-logo.png" style="width:80px; margin-bottom:10px;" />
-        <div style="color:#fff; font-size:14px;">getgeorge.app</div>
-    </a>
-</div>
+        <div style={{ textAlign: "center", marginTop: "60px", marginBottom: "40px" }}>
+          <a
+            href="https://getgeorge.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none" }}
+          >
+            <img
+              src="/george-logo.png"
+              alt="George logo"
+              style={{ width: "80px", marginBottom: "10px", display: "inline-block" }}
+            />
+            <div style={{ color: "#fff", fontSize: "14px" }}>getgeorge.app</div>
+          </a>
+        </div>
 
 </body>
     </html>

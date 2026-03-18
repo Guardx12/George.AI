@@ -393,7 +393,7 @@ export function TullysLiveAssistant() {
               Meet George
             </h1>
             <p className="mx-auto mt-4 max-w-3xl text-lg leading-8 text-[#F4EADA] sm:text-xl">
-              George can talk visitors through Tulleys events, opening information, directions, tickets, the Tea Room, Escape Rooms and more — using live website content pulled in when each new conversation starts.
+              George can help you with anything you need before your visit — from events, tickets and opening times to directions, the Tea Room, Escape Rooms and more, using the latest information from Tulleys.
             </p>
           </div>
 
