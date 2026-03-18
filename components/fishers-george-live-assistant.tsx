@@ -32,7 +32,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, or where to go next on the Fishers website.",
+      "Hello — I’m George, your friendly Fishers Farm Park assistant. Ask me about tickets, opening times, attractions, animals, food, events, short breaks, accessibility, how to get here, or finding your way around the park.",
   },
 ]
 
@@ -40,7 +40,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Mention that you can help with tickets, opening times, attractions, animals, events, food, and short breaks, then ask what the visitor would like help with.",
+      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Mention that you can help with tickets, opening times, attractions, animals, events, food, short breaks, and directions in or out of the park, then ask what the visitor would like help with.",
   },
 }
 
@@ -350,6 +350,16 @@ export function FishersGeorgeLiveAssistant() {
             Your friendly park assistant. Ask George about tickets, opening times, attractions, animals, food,
             events, short breaks, and the best place to go next.
           </p>
+          <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border border-[#efd5b8] bg-white/75 px-5 py-4 text-left shadow-sm sm:px-6">
+            <div className="flex items-start gap-3">
+              <MapPinned className="mt-0.5 h-5 w-5 shrink-0 text-[#b11f24]" />
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#b11f24]">New</p>
+                <p className="mt-1 text-base font-semibold text-[#4e2a12]">Lose your way inside Fishers Farm? George can guide you in the right direction.</p>
+                <p className="mt-1 text-sm leading-6 text-[#7a573b]">Visitors can ask George for directions inside or outside the park, or simply tell him what they can see and he will help point them the right way.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid gap-0 lg:grid-cols-[1.3fr_0.7fr]">

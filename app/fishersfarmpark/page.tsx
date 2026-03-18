@@ -4,12 +4,12 @@ import { FishersGeorgeLiveAssistant } from "@/components/fishers-george-live-ass
 export const metadata: Metadata = {
   title: "Fishers Farm Adventure Park | ",
   description:
-    " for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, and short breaks.",
+    " for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, short breaks, and directions around the park.",
   alternates: { canonical: "https://askgeorge.app/fishersfarmpark" },
   openGraph: {
     title: "Fishers Farm Adventure Park | ",
     description:
-      " for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, and short breaks.",
+      " for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, short breaks, and directions around the park.",
     url: "https://askgeorge.app/fishersfarmpark",
     type: "website",
   },
