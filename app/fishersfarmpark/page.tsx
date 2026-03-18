@@ -2,14 +2,14 @@ import type { Metadata } from "next"
 import { FishersGeorgeLiveAssistant } from "@/components/fishers-george-live-assistant"
 
 export const metadata: Metadata = {
-  title: "Fishers Farm Adventure Park | ",
+  title: "Fishers Farm Adventure Park | Meet George",
   description:
-    " for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, short breaks, and directions around the park.",
+    "Meet George for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, short breaks, and directions around the park.",
   alternates: { canonical: "https://askgeorge.app/fishersfarmpark" },
   openGraph: {
-    title: "Fishers Farm Adventure Park | ",
+    title: "Fishers Farm Adventure Park | Meet George",
     description:
-      " for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, short breaks, and directions around the park.",
+      "Meet George for Fishers Farm Adventure Park — a friendly English-only assistant for tickets, opening times, attractions, animals, food, events, short breaks, and directions around the park.",
     url: "https://askgeorge.app/fishersfarmpark",
     type: "website",
   },

@@ -17,6 +17,7 @@ import {
   BadgeHelp,
   PawPrint,
   Volume2,
+  RotateCcw,
 } from "lucide-react"
 
 type LiveMessage = {
@@ -27,6 +28,8 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
+const STORAGE_KEY = "fishers-george-session-v1"
+
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
@@ -35,14 +38,6 @@ const INITIAL_MESSAGES: LiveMessage[] = [
       "Hello — I’m George, your guide for Fishers Farm Park. I can help whether you’re planning your visit or already here, from tickets and what to expect to directions, animals, food, interesting facts, and what to do next.",
   },
 ]
-
-const FIRST_RESPONSE_EVENT = {
-  type: "response.create",
-  response: {
-    instructions:
-      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Briefly say you can help whether someone is planning their visit or already at the park. Then ask this exact question naturally: Are you planning your visit, or are you already here at Fishers Farm? Once they reply, ask for their name naturally early in the conversation if they have not already given it. Do not ask lots of questions at once. Never ask whether they are a child or an adult. If they mention family or children, ask about that naturally afterwards. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, offer interesting animal facts when relevant, and mention food or drink naturally where it fits. Use names lightly and warmly, not in every reply.",
-  },
-}
 
 const QUICK_LINKS = [
   { label: "Buy Tickets", href: "https://fishersfarmpark.visihost.co.uk/", icon: Ticket },
@@ -58,6 +53,12 @@ const QUICK_LINKS = [
   { label: "Back to Fishers Farm Park", href: "https://www.fishersfarmpark.co.uk/", icon: ArrowLeft },
 ]
 
+type StoredSession = {
+  messages: LiveMessage[]
+  visitorName: string | null
+  updatedAt: number
+}
+
 function makeMessage(role: LiveMessage["role"], content: string) {
   return {
     id:
@@ -69,12 +70,47 @@ function makeMessage(role: LiveMessage["role"], content: string) {
   }
 }
 
+function trimMessagesForStorage(messages: LiveMessage[]) {
+  return messages.slice(-24)
+}
+
+function detectVisitorName(messages: LiveMessage[]) {
+  for (let i = 1; i < messages.length; i += 1) {
+    const prev = messages[i - 1]
+    const current = messages[i]
+    if (prev.role === "assistant" && /what['’]s your name|what is your name/i.test(prev.content) && current.role === "user") {
+      const cleaned = current.content
+        .replace(/^(it'?s|its|i am|i'm|im|my name is|name'?s|this is|es)\s+/i, "")
+        .replace(/[^A-Za-z' -]/g, " ")
+        .trim()
+      const first = cleaned.split(/\s+/).find(Boolean)
+      if (first && first.length >= 2) {
+        return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()
+      }
+    }
+  }
+  return null
+}
+
+function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
+  const instructions = hasStoredSession
+    ? `Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not ask again whether they are planning their visit or already here unless you truly need to. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back, pick up naturally, and ask one short forward-moving question such as what they can see now, where they are now, or what they want help with next.`
+    : "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Briefly say you can help whether someone is planning their visit or already at the park. Then ask this exact question naturally: Are you planning your visit, or are you already here at Fishers Farm? Once they reply, ask for their name naturally early in the conversation if they have not already given it. Do not ask lots of questions at once. Never ask whether they are a child or an adult. If they mention family or children, ask about that naturally afterwards. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, offer interesting animal facts when relevant, and mention food or drink naturally where it fits. Use names lightly and warmly, not in every reply."
+
+  return {
+    type: "response.create",
+    response: { instructions },
+  }
+}
+
 export function FishersGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [statusText, setStatusText] = useState("Ready when you are")
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasStoredSession, setHasStoredSession] = useState(false)
+  const [visitorName, setVisitorName] = useState<string | null>(null)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -91,6 +127,40 @@ export function FishersGeorgeLiveAssistant() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, connectionState])
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY)
+      if (!raw) return
+      const stored = JSON.parse(raw) as StoredSession
+      if (Array.isArray(stored?.messages) && stored.messages.length > 1) {
+        setMessages(stored.messages)
+        setHasStoredSession(true)
+        setVisitorName(stored.visitorName || detectVisitorName(stored.messages))
+        setStatusText("Ready to carry on")
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try {
+      const trimmed = trimMessagesForStorage(messages)
+      const detectedName = visitorName || detectVisitorName(trimmed)
+      if (detectedName && detectedName !== visitorName) setVisitorName(detectedName)
+      if (trimmed.length <= 1) {
+        window.localStorage.removeItem(STORAGE_KEY)
+        setHasStoredSession(false)
+        return
+      }
+      const payload: StoredSession = {
+        messages: trimmed,
+        visitorName: detectedName,
+        updatedAt: Date.now(),
+      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+      setHasStoredSession(true)
+    } catch {}
+  }, [messages, visitorName])
 
   async function cleanupConversation() {
     dcRef.current?.close()
@@ -117,6 +187,19 @@ export function FishersGeorgeLiveAssistant() {
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
     setIsModelSpeaking(false)
+  }
+
+  function clearSavedSession() {
+    void cleanupConversation()
+    setMessages(INITIAL_MESSAGES)
+    setVisitorName(null)
+    setHasStoredSession(false)
+    setError(null)
+    setConnectionState("idle")
+    setStatusText("Ready when you are")
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {}
   }
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
@@ -192,7 +275,8 @@ export function FishersGeorgeLiveAssistant() {
             return ""
           })
           .filter(Boolean)
-          .join("\n")
+          .join("
+")
         if (transcript) appendOrUpdateAssistantPartial(transcript, true)
         break
       }
@@ -221,7 +305,7 @@ export function FishersGeorgeLiveAssistant() {
     setConnectionState("connecting")
     setError(null)
     setStatusText("Connecting George…")
-    setMessages(INITIAL_MESSAGES)
+    setMessages((prev) => (hasStoredSession && prev.length > 1 ? prev : INITIAL_MESSAGES))
 
     try {
       const tokenResponse = await fetch("/api/fishers-session", {
@@ -253,9 +337,7 @@ export function FishersGeorgeLiveAssistant() {
         const [remoteStream] = event.streams
         if (remoteStream) {
           remoteAudio.srcObject = remoteStream
-          void remoteAudio.play().catch(() => {
-            // Browser autoplay can still block occasionally; audio element remains attached to stream.
-          })
+          void remoteAudio.play().catch(() => {})
         }
       }
 
@@ -269,17 +351,17 @@ export function FishersGeorgeLiveAssistant() {
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
         setStatusText("Live conversation on")
+        const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? null
+        const event = buildFirstResponseEvent(visitorName, hasStoredSession && messages.length > 1, lastUserMessage)
         window.setTimeout(() => {
-          dataChannel.send(JSON.stringify(FIRST_RESPONSE_EVENT))
+          dataChannel.send(JSON.stringify(event))
         }, 150)
       })
 
       dataChannel.addEventListener("message", (event) => {
         try {
           handleRealtimeEvent(JSON.parse(event.data))
-        } catch {
-          // ignore malformed events
-        }
+        } catch {}
       })
 
       const offer = await pc.createOffer()
@@ -335,7 +417,7 @@ export function FishersGeorgeLiveAssistant() {
     await cleanupConversation()
     setError(null)
     setConnectionState("idle")
-    setStatusText("Ready when you are")
+    setStatusText(hasStoredSession ? "Ready to carry on" : "Ready when you are")
   }
 
   return (
@@ -344,7 +426,7 @@ export function FishersGeorgeLiveAssistant() {
         <div className="border-b border-[#eadcc8] bg-[#fff4e8] px-5 py-8 sm:px-8 sm:py-10 text-center">
           <img src="/fishers-logo.svg" alt="Fishers Farm Adventure Park" className="mx-auto h-auto w-full max-w-[320px]" />
           <h1 className="mt-6 text-4xl font-black tracking-tight text-[#4e2a12] sm:text-5xl">
-             for Fishers Farm Park
+            Meet George
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#6d3b11] sm:text-lg">
             George helps before you arrive and while you’re here — from tickets and planning your day to finding your
@@ -420,8 +502,10 @@ export function FishersGeorgeLiveAssistant() {
               <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm leading-6 text-[#6f543e]">
                   {connectionState === "connected"
-                    ? "You’re live with George now. He’ll quickly work out whether you’re planning your visit or already in the park, then guide you, suggest next steps, and share animal facts when it fits."
-                    : "Start the live conversation and George will greet you, ask whether you’re planning or already here, then guide you from there."}
+                    ? "You’re live with George now. He’ll keep the conversation going naturally, remember the flow on this device, and carry on guiding from where you left off."
+                    : hasStoredSession
+                      ? `Pick up where you left off${visitorName ? `, ${visitorName}` : ""}. George will carry on naturally instead of starting from scratch.`
+                      : "Start the live conversation and George will greet you, ask whether you’re planning or already here, then guide you from there."}
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -431,9 +515,13 @@ export function FishersGeorgeLiveAssistant() {
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-[#b11f24] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(177,31,36,0.26)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Mic className="h-4 w-4" />
-                    {connectionState === "connected" ? "Live conversation on" : "Start live conversation"}
+                    {connectionState === "connected"
+                      ? "Live conversation on"
+                      : hasStoredSession
+                        ? "Continue with George"
+                        : "Start live conversation"}
                   </button>
-                  {connectionState === "connected" && (
+                  {connectionState === "connected" ? (
                     <button
                       type="button"
                       onClick={stopConversation}
@@ -441,7 +529,15 @@ export function FishersGeorgeLiveAssistant() {
                     >
                       <PhoneOff className="h-4 w-4" /> End conversation
                     </button>
-                  )}
+                  ) : hasStoredSession ? (
+                    <button
+                      type="button"
+                      onClick={clearSavedSession}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-[#d7c2aa] bg-white px-5 py-3 text-sm font-semibold text-[#6f543e] transition hover:bg-[#fffaf4]"
+                    >
+                      <RotateCcw className="h-4 w-4" /> Start fresh
+                    </button>
+                  ) : null}
                 </div>
               </div>
               {error ? <p className="mx-auto mt-3 w-full max-w-4xl text-sm text-[#ab1e23]">{error}</p> : null}
