@@ -3,7 +3,7 @@ import { GoatleyGeorgeLiveAssistant } from "@/components/goatley-george-live-ass
 import { GoatleyNavigation } from "@/components/goatley-navigation"
 
 export const metadata: Metadata = {
-  title: "R & D Goatley | Meet George",
+  title: "R & D Goatley | ",
   description: "George for R & D Goatley. A live digital member of staff for the Goatley website, with the Goatley enquiry form underneath.",
 }
 

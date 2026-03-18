@@ -390,7 +390,7 @@ export function TullysLiveAssistant() {
               className="mt-6 text-5xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-6xl lg:text-7xl"
               style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
             >
-              Meet George
+              
             </h1>
             <p className="mx-auto mt-4 max-w-3xl text-lg leading-8 text-[#F4EADA] sm:text-xl">
               George can help you with anything you need before your visit — from events, tickets and opening times to directions, the Tea Room, Escape Rooms and more, using the latest information from Tulleys.
@@ -401,7 +401,7 @@ export function TullysLiveAssistant() {
             <div className="relative overflow-hidden rounded-[30px] border border-[rgba(246,230,197,0.22)] bg-[radial-gradient(circle_at_top,rgba(255,244,220,0.12),rgba(49,33,24,0.92)_62%)] px-5 pb-5 pt-6 shadow-[0_22px_60px_rgba(7,4,2,0.45)] sm:px-8 sm:pb-7 sm:pt-8">
               <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,239,206,0.7),transparent)]" />
               <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-[rgba(246,230,197,0.28)] bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.22),rgba(116,80,48,0.48)_80%)] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:h-28 sm:w-28">
-                <img src="/george-logo.png" alt="George" className="h-16 w-16 rounded-full object-cover sm:h-20 sm:w-20" />
+                
               </div>
 
               <div className="mt-5 text-center">

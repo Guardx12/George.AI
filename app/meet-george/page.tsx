@@ -7,9 +7,9 @@ import { GeorgeLiveAssistant } from "@/components/george-live-assistant"
 import { Navigation } from "@/components/navigation"
 
 export const metadata: Metadata = {
-  title: "Meet George | Conversational Digital Member of Staff for Your Website",
+  title: " | Conversational Digital Member of Staff for Your Website",
   description:
-    "Meet George — your conversational digital member of staff for your website. He talks to website visitors, answers questions about services and facilities, explains pricing and options, guides visitors toward becoming enquiries, and captures enquiry details automatically.",
+    " — your conversational digital member of staff for your website. He talks to website visitors, answers questions about services and facilities, explains pricing and options, guides visitors toward becoming enquiries, and captures enquiry details automatically.",
   alternates: { canonical: "https://askgeorge.app" },
 }
 
@@ -29,7 +29,7 @@ export default function MeetGeorgePage() {
           <div className="text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-2 text-sm font-semibold text-[#1D4ED8] shadow-sm">
               <Sparkles className="h-4 w-4" />
-              Meet George
+              
             </div>
             <div className="mt-7 flex justify-center">
               <Image src="/george-logo.png" alt="George" width={420} height={140} className="h-28 w-auto sm:h-32 premium-floating-card" priority />

@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { FishersLiveAssistant } from "@/components/fishers-live-assistant"
 
 export const metadata: Metadata = {
-  title: "Fishers Farm Park | Meet George",
+  title: "Fishers Farm Park | ",
   description:
     "George for Fishers Farm Park. A live English-speaking digital member of staff trained from approved Fishers website pages.",
 }

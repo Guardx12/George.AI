@@ -292,7 +292,7 @@ export function FishersLiveAssistant() {
               <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[#2d5a27]">English only</span>
               <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[#2d5a27]">Reads approved live pages</span>
             </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-[#26461f] sm:text-4xl">Meet George at Fishers Farm Park</h1>
+            <h1 className="mt-4 text-3xl font-black tracking-tight text-[#26461f] sm:text-4xl"> at Fishers Farm Park</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-[#3d4f2a] sm:text-lg">
               George answers questions about visiting, attractions, food, events, stays, accessibility, and the next step for tickets or booking.
             </p>

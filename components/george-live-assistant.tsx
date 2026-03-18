@@ -453,7 +453,7 @@ export function GeorgeLiveAssistant() {
       <div className="mx-auto mb-6 max-w-4xl text-center">
         <div className="mx-auto mb-5 flex max-w-4xl items-center justify-center overflow-hidden rounded-[28px] border border-[#DADCE0] bg-[linear-gradient(135deg,#0f172a_0%,#111827_42%,#1d4ed8_100%)] px-6 py-7 text-left shadow-[0_24px_80px_rgba(17,24,39,0.24)] sm:px-8">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#BFDBFE] sm:text-sm">Meet George</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#BFDBFE] sm:text-sm"></p>
             <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
               Your conversational digital member of staff for your website.
             </h1>
@@ -466,7 +466,7 @@ export function GeorgeLiveAssistant() {
           </div>
         </div>
 
-        <p className="mt-4 text-xl font-medium text-[#202124] sm:text-2xl">Meet George.</p>
+        <p className="mt-4 text-xl font-medium text-[#202124] sm:text-2xl">.</p>
         <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#5F6368] sm:text-lg sm:leading-8">
           George is a conversational digital member of staff for your website. He answers visitor questions, explains services, helps visitors take the next step, and turns more of your website traffic into real enquiries.
         </p>
@@ -542,7 +542,7 @@ export function GeorgeLiveAssistant() {
                 George can fill this in from the conversation as you talk. Just check it, make any changes you want, then press submit yourself.
               </p>
               <form action="https://formspree.io/f/mrbypyzv" method="POST" className="mt-4 space-y-3">
-                <input type="hidden" name="source" value="Meet George manual form" />
+                <input type="hidden" name="source" value=" manual form" />
                 <input type="hidden" name="page" value={typeof window !== "undefined" ? window.location.href : "https://guardxnetwork.com/meet-george"} />
                 <input type="hidden" name="submissionMode" value="manual_submit" />
                 <input type="hidden" name="userMessageCount" value={String(messages.filter((message) => message.role === "user").length)} />
@@ -587,7 +587,7 @@ export function GeorgeLiveAssistant() {
                   <input
                     type="text"
                     name="phone"
-                    placeholder="Phone or WhatsApp"
+                    placeholder="Phone or "
                     value={leadForm.phone}
                     onChange={(event) => {
                       setLeadForm((prev) => ({ ...prev, phone: event.target.value }))

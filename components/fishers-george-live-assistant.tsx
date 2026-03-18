@@ -344,7 +344,7 @@ export function FishersGeorgeLiveAssistant() {
         <div className="border-b border-[#eadcc8] bg-[#fff4e8] px-5 py-8 sm:px-8 sm:py-10 text-center">
           <img src="/fishers-logo.svg" alt="Fishers Farm Adventure Park" className="mx-auto h-auto w-full max-w-[320px]" />
           <h1 className="mt-6 text-4xl font-black tracking-tight text-[#4e2a12] sm:text-5xl">
-            Meet George for Fishers Farm Park
+             for Fishers Farm Park
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#6d3b11] sm:text-lg">
             Your friendly park assistant. Ask George about tickets, opening times, attractions, animals, food,

@@ -517,7 +517,7 @@ export function GoatleyGeorgeLiveAssistant() {
       <div className="space-y-7">
         <div className="mx-auto max-w-4xl overflow-hidden rounded-[32px] border border-[#d7b65d]/35 bg-[linear-gradient(145deg,rgba(22,22,22,0.98)_0%,rgba(10,10,10,0.96)_48%,rgba(34,26,10,0.98)_100%)] p-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-[#f0cb6d]/10 backdrop-blur sm:p-10">
           <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[#f0cb6d]/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.34em] text-[#f5d57b] shadow-[0_10px_30px_rgba(201,168,79,0.15)] sm:text-xs">
-            <Sparkles className="h-4 w-4" /> Meet George
+            <Sparkles className="h-4 w-4" /> 
           </div>
           <h1 className="mt-5 bg-[linear-gradient(180deg,#fff9e9_0%,#f1cd72_100%)] bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-5xl">
             Your digital member of staff for R &amp; D Goatley.
