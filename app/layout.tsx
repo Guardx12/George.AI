@@ -2,9 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import Script from "next/script"
-import { ConditionalBubble } from "@/components/conditional--bubble"
-import { ConditionalBottomGeorgeBar } from "@/components/conditional-bottom-george-bar"
+import Script from "next/script"import { ConditionalBottomGeorgeBar } from "@/components/conditional-bottom-george-bar"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -81,11 +79,7 @@ export default function RootLayout({
 
       <body className="min-h-screen bg-background pb-28 text-foreground antialiased sm:pb-32">
         {children}
-
-        <ConditionalBottomGeorgeBar />
-        <ConditionalBubble />
-
-        {/* Facebook Pixel noscript */}
+{/* Facebook Pixel noscript */}
         <noscript>
           <img
             height="1"
