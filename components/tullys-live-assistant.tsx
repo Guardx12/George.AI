@@ -467,7 +467,7 @@ export function TullysLiveAssistant() {
                 className="text-3xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-4xl"
                 style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
               >
-                Quick links George can guide visitors to
+                
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
