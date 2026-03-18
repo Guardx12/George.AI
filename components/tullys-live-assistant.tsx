@@ -380,7 +380,7 @@ export function TullysLiveAssistant() {
 
             <div className="mt-6 flex justify-center">
               <img
-                src="https://www.tulleysfarm.com/images/svg/tulleys-brand-logo2.svg"
+                src="https://www.tulleysfarm.com/images/svg/removed-logo2.svg"
                 alt="Tulleys Farm"
                 className="h-auto w-[220px] max-w-full drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] sm:w-[280px] lg:w-[340px]"
               />

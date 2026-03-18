@@ -121,7 +121,15 @@ export default function RootLayout({
           `}
         </Script>
 
-      </body>
+      
+<div style="text-align:center; margin-top:60px; margin-bottom:40px;">
+    <a href="https://getgeorge.app" target="_blank" style="text-decoration:none;">
+        <img src="/george-logo.png" style="width:80px; margin-bottom:10px;" />
+        <div style="color:#fff; font-size:14px;">getgeorge.app</div>
+    </a>
+</div>
+
+</body>
     </html>
   )
 }
