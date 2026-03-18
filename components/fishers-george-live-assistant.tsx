@@ -347,8 +347,11 @@ export function FishersGeorgeLiveAssistant() {
              for Fishers Farm Park
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#6d3b11] sm:text-lg">
-            George can help before you arrive and while you are here — from tickets and planning your day to
-            finding your way around, discovering animals, and deciding what to do next.
+            George helps before you arrive and while you’re here — from tickets and planning your day to
+            finding your way around, discovering animals, learning interesting facts, and always knowing what to do next.
+          </p>
+          <p className="mx-auto mt-3 max-w-3xl text-sm leading-6 text-[#7a573b] sm:text-base">
+            Ask George about the animals as you go — he’ll share interesting facts and help you get more out of your visit.
           </p>
           <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border border-[#efd5b8] bg-white/75 px-5 py-4 text-left shadow-sm sm:px-6">
             <div>
