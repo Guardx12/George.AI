@@ -32,7 +32,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I’m George, your guide for Fishers Farm Park. I can help whether you’re planning your visit or already here, from tickets and what to expect to directions, animals, food, and what to do next.",
+      "Hello — I’m George, your guide for Fishers Farm Park. I can help whether you’re planning your visit or already here, from tickets and what to expect to directions, animals, food, interesting facts, and what to do next.",
   },
 ]
 
@@ -40,7 +40,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Briefly say you can help whether someone is planning their visit or already at the park. Then ask this exact question naturally: Are you planning your visit, or are you already here at Fishers Farm? If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, and mention food or drink naturally where it fits.",
+      "Introduce yourself as George for Fishers Farm Park in warm, natural British English only. Keep it short, cheerful, and family-friendly. Briefly say you can help whether someone is planning their visit or already at the park. Then ask this exact question naturally: Are you planning your visit, or are you already here at Fishers Farm? If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, offer interesting animal facts when relevant, and mention food or drink naturally where it fits.",
   },
 }
 
@@ -347,16 +347,17 @@ export function FishersGeorgeLiveAssistant() {
              for Fishers Farm Park
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#6d3b11] sm:text-lg">
-            George helps before you arrive and while you’re here — from tickets and planning your day to
-            finding your way around, discovering animals, learning interesting facts, and always knowing what to do next.
+            George helps before you arrive and while you’re here — from tickets and planning your day to finding your
+            way around, discovering animals, learning interesting facts, and always knowing what to do next.
           </p>
           <p className="mx-auto mt-3 max-w-3xl text-sm leading-6 text-[#7a573b] sm:text-base">
-            Ask George about the animals as you go — he’ll share interesting facts and help you get more out of your visit.
+            Ask George about the animals as you go — he’ll share interesting facts and help you get more out of your
+            visit.
           </p>
           <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border border-[#efd5b8] bg-white/75 px-5 py-4 text-left shadow-sm sm:px-6">
             <div>
               <p className="text-base font-semibold text-[#4e2a12] sm:text-lg">Planning your visit or already inside the park? George adapts to both.</p>
-              <p className="mt-2 text-sm leading-6 text-[#7a573b]">Before you arrive, George can guide you to tickets, opening times, attractions, animals, food, events, and stays. Once you are here, tell George what you can see and he will help guide you around the park, suggest what is nearby, and help you decide what to do next.</p>
+              <p className="mt-2 text-sm leading-6 text-[#7a573b]">Before you arrive, George can guide you to tickets, opening times, attractions, animals, food, events, and stays. Once you are here, tell George what you can see and he will help guide you around the park, suggest what is nearby, share animal facts, and help you decide what to do next.</p>
             </div>
           </div>
         </div>
@@ -419,7 +420,7 @@ export function FishersGeorgeLiveAssistant() {
               <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm leading-6 text-[#6f543e]">
                   {connectionState === "connected"
-                    ? "You’re live with George now. He’ll quickly work out whether you’re planning your visit or already in the park, then guide you from there."
+                    ? "You’re live with George now. He’ll quickly work out whether you’re planning your visit or already in the park, then guide you, suggest next steps, and share animal facts when it fits."
                     : "Start the live conversation and George will greet you, ask whether you’re planning or already here, then guide you from there."}
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
