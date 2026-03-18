@@ -115,6 +115,7 @@ export default function RootLayout({
           `}
         </Script>
 
+        
         <div style={{ textAlign: "center", marginTop: "60px", marginBottom: "40px" }}>
           <a
             href="https://getgeorge.app"
@@ -148,10 +149,7 @@ export default function RootLayout({
           </a>
         </div>
 
-</a>
-        </div>
-
-</body>
+      </body>
     </html>
   )
 }
