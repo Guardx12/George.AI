@@ -370,41 +370,34 @@ export function TullysLiveAssistant() {
   }
 
   return (
-    <section className="relative overflow-hidden px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mx-auto max-w-7xl">
-        <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(31,22,16,0.58)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.35)] backdrop-blur-[2px] sm:p-6 lg:p-8">
+    <section className="relative overflow-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+      <div className="mx-auto max-w-6xl">
+        <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(31,22,16,0.58)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.35)] backdrop-blur-[2px] sm:p-5 lg:p-6">
           <div className="mx-auto max-w-5xl text-center">
             <div className="inline-flex items-center rounded-full border border-[rgba(239,222,188,0.3)] bg-[rgba(248,240,222,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#F6E6C5] sm:text-sm">
               
             </div>
 
-            <div className="mt-6 flex justify-center">
+            <div className="mt-3 flex justify-center">
               <img
-                src="https://www.tulleysfarm.com/images/svg/removed-logo2.svg"
+                src="/tulleys-brand-logo2.svg"
                 alt="Tulleys Farm"
-                className="h-auto w-[220px] max-w-full drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] sm:w-[280px] lg:w-[340px]"
+                className="h-auto w-[220px] max-w-full drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] sm:w-[260px] lg:w-[320px]"
               />
             </div>
-
-            <h1
-              className="mt-6 text-5xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-6xl lg:text-7xl"
-              style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
-            >
-              
-            </h1>
-            <p className="mx-auto mt-4 max-w-3xl text-lg leading-8 text-[#F4EADA] sm:text-xl">
+            <p className="mx-auto mt-3 max-w-3xl text-lg leading-8 text-[#F4EADA] sm:text-xl">
               George can help you with anything you need before your visit — from events, tickets and opening times to directions, the Tea Room, Escape Rooms and more, using the latest information from Tulleys.
             </p>
           </div>
 
-          <div className="mx-auto mt-8 max-w-3xl">
-            <div className="relative overflow-hidden rounded-[30px] border border-[rgba(246,230,197,0.22)] bg-[radial-gradient(circle_at_top,rgba(255,244,220,0.12),rgba(49,33,24,0.92)_62%)] px-5 pb-5 pt-6 shadow-[0_22px_60px_rgba(7,4,2,0.45)] sm:px-8 sm:pb-7 sm:pt-8">
+          <div className="mx-auto mt-6 max-w-[760px]">
+            <div className="relative overflow-hidden rounded-[28px] border border-[rgba(246,230,197,0.22)] bg-[radial-gradient(circle_at_top,rgba(255,244,220,0.12),rgba(49,33,24,0.92)_62%)] px-4 pb-4 pt-5 shadow-[0_22px_60px_rgba(7,4,2,0.45)] sm:px-6 sm:pb-5 sm:pt-6">
               <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,239,206,0.7),transparent)]" />
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-[rgba(246,230,197,0.28)] bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.22),rgba(116,80,48,0.48)_80%)] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:h-28 sm:w-28">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-[rgba(246,230,197,0.28)] bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.22),rgba(116,80,48,0.48)_80%)] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:h-24 sm:w-24">
                 
               </div>
 
-              <div className="mt-5 text-center">
+              <div className="mt-4 text-center">
                 <div
                   className="text-3xl uppercase tracking-[0.08em] text-[#F7EAD1] sm:text-4xl"
                   style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
@@ -416,7 +409,7 @@ export function TullysLiveAssistant() {
                 </p>
               </div>
 
-              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <button
                   onClick={canStart ? startConversation : endConversation}
                   className="tulleys-start-talking-btn inline-flex min-w-[220px] items-center justify-center gap-3 rounded-[18px] border border-[rgba(255,243,219,0.28)] bg-[linear-gradient(180deg,#8E5332_0%,#69402B_100%)] px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.12em] text-[#FFF3D7] shadow-[0_18px_35px_rgba(31,17,10,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_40px_rgba(31,17,10,0.45)]"
@@ -461,7 +454,7 @@ export function TullysLiveAssistant() {
             </div>
           </div>
 
-          <div className="mx-auto mt-8 max-w-6xl">
+          <div className="mx-auto mt-7 max-w-6xl">
             <div className="mb-4 text-center">
               <div
                 className="text-3xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-4xl"

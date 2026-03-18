@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
+import Image from "next/image"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import Script from "next/script"
@@ -114,17 +115,40 @@ export default function RootLayout({
           `}
         </Script>
 
-      
         <div style={{ textAlign: "center", marginTop: "60px", marginBottom: "40px" }}>
           <a
             href="https://getgeorge.app"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ textDecoration: "none" }}
+            style={{ textDecoration: "none", display: "inline-flex", flexDirection: "column", alignItems: "center" }}
           >
-            
+            <span
+              style={{
+                width: "112px",
+                height: "112px",
+                borderRadius: "9999px",
+                overflow: "hidden",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(255,255,255,0.06)",
+                boxShadow: "0 14px 32px rgba(0,0,0,0.22)",
+                marginBottom: "12px",
+              }}
+            >
+              <Image
+                src="/george-logo.png"
+                alt="George"
+                width={112}
+                height={112}
+                style={{ width: "112px", height: "112px", objectFit: "cover" }}
+              />
+            </span>
             <div style={{ color: "#fff", fontSize: "14px" }}>getgeorge.app</div>
           </a>
+        </div>
+
+</a>
         </div>
 
 </body>
