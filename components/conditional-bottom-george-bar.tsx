@@ -1,14 +1,14 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { WhatsAppBubble } from "@/components/whatsapp-bubble"
+import { BottomGeorgeBar } from "@/components/bottom-george-bar"
 
-export function ConditionalWhatsAppBubble() {
+export function ConditionalBottomGeorgeBar() {
   const pathname = usePathname()
 
   if (pathname === "/tulleys" || pathname === "/tullys") {
     return null
   }
 
-  return <WhatsAppBubble />
+  return <BottomGeorgeBar />
 }

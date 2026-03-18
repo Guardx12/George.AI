@@ -3,8 +3,8 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import Script from "next/script"
-import { WhatsAppBubble } from "@/components/whatsapp-bubble"
-import { BottomGeorgeBar } from "@/components/bottom-george-bar"
+import { ConditionalWhatsAppBubble } from "@/components/conditional-whatsapp-bubble"
+import { ConditionalBottomGeorgeBar } from "@/components/conditional-bottom-george-bar"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -82,8 +82,8 @@ export default function RootLayout({
       <body className="min-h-screen bg-background pb-28 text-foreground antialiased sm:pb-32">
         {children}
 
-        <BottomGeorgeBar />
-        <WhatsAppBubble />
+        <ConditionalBottomGeorgeBar />
+        <ConditionalWhatsAppBubble />
 
         {/* Facebook Pixel noscript */}
         <noscript>

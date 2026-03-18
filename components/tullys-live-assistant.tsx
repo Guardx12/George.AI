@@ -108,7 +108,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hi — I’m George for Tulleys Farm. Ask me about events, tickets, opening times, the Tea Room, Escape Rooms, directions, or planning your visit.",
+      "Hi — I’m George for Tulleys Farm. I can help in English with events, tickets, opening times, the Tea Room, Escape Rooms, directions, or planning your visit. If you like, I can also point you to the buttons just below for the right part of the Tulleys site.",
   },
 ]
 
@@ -116,7 +116,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Briefly introduce yourself as George for Tulleys Farm, then warmly ask what the visitor would like help with today.",
+      "Briefly introduce yourself as George for Tulleys Farm in upbeat, friendly British English. Mention that you can point visitors to the buttons just below for the right event or information, then warmly ask what they would like help with today.",
   },
 }
 
@@ -412,7 +412,7 @@ export function TullysLiveAssistant() {
                   George is live on this page
                 </div>
                 <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[#E9DDC9] sm:text-base">
-                  He is front and centre here, just like a digital member of staff for the Tulleys website.
+                  
                 </p>
               </div>
 
