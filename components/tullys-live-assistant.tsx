@@ -374,7 +374,7 @@ export function TullysLiveAssistant() {
       <div className="mx-auto max-w-6xl">
         <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(31,22,16,0.58)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.35)] backdrop-blur-[2px] sm:p-5 lg:p-6">
           <div className="mx-auto max-w-5xl text-center">
-            <div className="inline-flex items-center rounded-full border border-[rgba(239,222,188,0.3)] bg-[rgba(248,240,222,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#F6E6C5] sm:text-sm">
+            <div className="inline-flex items-center rounded-full border border-[rgba(239,222,188,0.3)] bg-[rgba(248,240,222,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#F6E6C5] sm:text-base">
               
             </div>
 
@@ -393,26 +393,24 @@ export function TullysLiveAssistant() {
           <div className="mx-auto mt-6 max-w-[760px]">
             <div className="relative overflow-hidden rounded-[28px] border border-[rgba(246,230,197,0.22)] bg-[radial-gradient(circle_at_top,rgba(255,244,220,0.12),rgba(49,33,24,0.92)_62%)] px-4 pb-4 pt-5 shadow-[0_22px_60px_rgba(7,4,2,0.45)] sm:px-6 sm:pb-5 sm:pt-6">
               <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,239,206,0.7),transparent)]" />
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-[rgba(246,230,197,0.28)] bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.22),rgba(116,80,48,0.48)_80%)] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:h-24 sm:w-24">
-                
-              </div>
+              
 
-              <div className="mt-4 text-center">
+              <div className="mt-2 text-center">
                 <div
-                  className="text-3xl uppercase tracking-[0.08em] text-[#F7EAD1] sm:text-4xl"
+                  className="text-4xl uppercase tracking-[0.08em] text-[#F7EAD1] sm:text-4xl"
                   style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
                 >
                   
                 </div>
-                <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[#E9DDC9] sm:text-base">
+                <p className="mx-auto mt-2 max-w-2xl text-base leading-6 text-[#E9DDC9] sm:text-base">
                   
                 </p>
               </div>
 
-              <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <div className="mt-3 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <button
                   onClick={canStart ? startConversation : endConversation}
-                  className="tulleys-start-talking-btn inline-flex min-w-[220px] items-center justify-center gap-3 rounded-[18px] border border-[rgba(255,243,219,0.28)] bg-[linear-gradient(180deg,#8E5332_0%,#69402B_100%)] px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.12em] text-[#FFF3D7] shadow-[0_18px_35px_rgba(31,17,10,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_40px_rgba(31,17,10,0.45)]"
+                  className="tulleys-start-talking-btn inline-flex min-w-[260px] items-center justify-center gap-3 rounded-[18px] border border-[rgba(255,243,219,0.28)] bg-[linear-gradient(180deg,#8E5332_0%,#69402B_100%)] px-10 py-5 text-base font-semibold uppercase tracking-[0.12em] text-[#FFF3D7] shadow-[0_18px_35px_rgba(31,17,10,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_40px_rgba(31,17,10,0.45)]"
                 >
                   {connectionState === "connecting" ? (
                     <>
@@ -429,13 +427,13 @@ export function TullysLiveAssistant() {
                   )}
                 </button>
 
-                <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(246,230,197,0.18)] bg-[rgba(255,248,237,0.06)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#F7EAD1] sm:text-sm">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(246,230,197,0.18)] bg-[rgba(255,248,237,0.06)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#F7EAD1] sm:text-base">
                   {isModelSpeaking ? <Volume2 className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                   {statusText}
                 </div>
               </div>
 
-              {error ? <p className="mt-4 text-center text-sm text-[#FFD5C7]">{error}</p> : null}
+              {error ? <p className="mt-2 text-center text-base text-[#FFD5C7]">{error}</p> : null}
 
               <div ref={scrollRef} className="mt-6 max-h-[260px] space-y-3 overflow-y-auto pr-1">
                 {messages.map((message) => (
@@ -444,8 +442,8 @@ export function TullysLiveAssistant() {
                     className={message.role === "assistant"
                       ? "ml-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.18)] bg-[rgba(255,245,228,0.1)] px-4 py-3 text-left text-base leading-7 text-[#FFF5E4]"
                       : message.role === "user"
-                      ? "mr-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.1)] bg-[rgba(20,12,8,0.52)] px-4 py-3 text-left text-sm leading-6 text-[#E9DDC9]"
-                      : "mx-auto max-w-[92%] rounded-[22px] border border-dashed border-[rgba(246,230,197,0.18)] bg-[rgba(248,241,226,0.05)] px-4 py-3 text-center text-sm leading-6 text-[#F2E4CB]"}
+                      ? "mr-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.1)] bg-[rgba(20,12,8,0.52)] px-4 py-3 text-left text-base leading-6 text-[#E9DDC9]"
+                      : "mx-auto max-w-[92%] rounded-[22px] border border-dashed border-[rgba(246,230,197,0.18)] bg-[rgba(248,241,226,0.05)] px-4 py-3 text-center text-base leading-6 text-[#F2E4CB]"}
                   >
                     {message.content}
                   </div>
@@ -457,7 +455,7 @@ export function TullysLiveAssistant() {
           <div className="mx-auto mt-7 max-w-6xl">
             <div className="mb-4 text-center">
               <div
-                className="text-3xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-4xl"
+                className="text-4xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-4xl"
                 style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
               >
                 
@@ -494,7 +492,7 @@ export function TullysLiveAssistant() {
                         <div className="text-2xl uppercase tracking-[0.06em] drop-shadow-[0_6px_20px_rgba(0,0,0,0.65)]" style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}>
                           {link.label}
                         </div>
-                        <p className="mt-1 text-sm leading-5 text-[#FFF0D6] drop-shadow-[0_6px_20px_rgba(0,0,0,0.65)]">{link.helper}</p>
+                        <p className="mt-1 text-base leading-5 text-[#FFF0D6] drop-shadow-[0_6px_20px_rgba(0,0,0,0.65)]">{link.helper}</p>
                       </div>
                     </div>
                   </a>
