@@ -9,7 +9,6 @@ import {
   MapPinned,
   Mic,
   PhoneOff,
-  Radio,
   Sparkles,
   Ticket,
   Trees,
@@ -18,6 +17,8 @@ import {
   PawPrint,
   Volume2,
   RotateCcw,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 
 type LiveMessage = {
@@ -111,6 +112,7 @@ export function FishersGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null)
   const [hasStoredSession, setHasStoredSession] = useState(false)
   const [visitorName, setVisitorName] = useState<string | null>(null)
+  const [showConversation, setShowConversation] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -121,12 +123,17 @@ export function FishersGeorgeLiveAssistant() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
+  const latestAssistantMessage = useMemo(
+    () => [...messages].reverse().find((message) => message.role === "assistant")?.content ?? INITIAL_MESSAGES[0].content,
+    [messages],
+  )
+  const latestUserMessage = useMemo(() => [...messages].reverse().find((message) => message.role === "user")?.content ?? null, [messages])
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages, connectionState])
+  }, [messages, connectionState, showConversation])
 
   useEffect(() => {
     try {
@@ -420,57 +427,103 @@ export function FishersGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="rounded-[36px] border border-[#d9c3aa] bg-[#fffaf2] shadow-[0_24px_80px_rgba(78,42,18,0.10)] overflow-hidden">
-        <div className="border-b border-[#eadcc8] bg-[#fff4e8] px-5 py-8 sm:px-8 sm:py-10 text-center">
+    <section className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="overflow-hidden rounded-[36px] border border-[#eadcc8] bg-[#fffaf2] shadow-[0_24px_80px_rgba(78,42,18,0.10)]">
+        <div className="px-5 py-8 text-center sm:px-8 sm:py-10">
           <img src="/fishers-logo.svg" alt="Fishers Farm Adventure Park" className="mx-auto h-auto w-full max-w-[320px]" />
-          <h1 className="mt-6 text-4xl font-black tracking-tight text-[#4e2a12] sm:text-5xl">
-            Meet George
-          </h1>
+          <h1 className="mt-6 text-4xl font-black tracking-tight text-[#4e2a12] sm:text-5xl">Meet George</h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#6d3b11] sm:text-lg">
-            George helps before you arrive and while you’re here — from tickets and planning your day to finding your
+            George helps before you arrive and while you&apos;re here, from tickets to planning your day to finding your
             way around, discovering animals, learning interesting facts, and always knowing what to do next.
           </p>
-          <p className="mx-auto mt-3 max-w-3xl text-sm leading-6 text-[#7a573b] sm:text-base">
-            Ask George about the animals as you go — he’ll share interesting facts and help you get more out of your
-            visit.
-          </p>
-          <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border border-[#efd5b8] bg-white/75 px-5 py-4 text-left shadow-sm sm:px-6">
-            <div>
-              <p className="text-base font-semibold text-[#4e2a12] sm:text-lg">Planning your visit or already inside the park? George adapts to both.</p>
-              <p className="mt-2 text-sm leading-6 text-[#7a573b]">Before you arrive, George can guide you to tickets, opening times, attractions, animals, food, events, and stays. Once you are here, tell George what you can see and he will help guide you around the park, suggest what is nearby, share animal facts, and help you decide what to do next.</p>
+
+          <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center">
+            <button
+              type="button"
+              onClick={connectionState === "connected" ? stopConversation : startConversation}
+              disabled={connectionState === "connecting"}
+              aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
+              className={`group relative flex h-[250px] w-[250px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[300px] sm:w-[300px] ${
+                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+              } ${
+                connectionState === "connected" || connectionState === "connecting"
+                  ? "animate-[pulse_2s_ease-in-out_infinite]"
+                  : "animate-[pulse_4s_ease-in-out_infinite]"
+              }`}
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 25%, #ff8f8f 0%, #e13e3e 28%, #b71f25 62%, #8f1419 100%)",
+                boxShadow:
+                  connectionState === "connected" || connectionState === "connecting"
+                    ? "0 0 0 10px rgba(177,31,36,0.12), 0 28px 60px rgba(177,31,36,0.34), inset 0 3px 18px rgba(255,255,255,0.32), inset 0 -14px 28px rgba(120,8,12,0.35)"
+                    : "0 24px 54px rgba(177,31,36,0.24), inset 0 3px 18px rgba(255,255,255,0.28), inset 0 -14px 28px rgba(120,8,12,0.34)",
+              }}
+            >
+              <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/20" />
+              <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/30 blur-[10px]" />
+              <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.24)_100%)]" />
+              <img
+                src="/fishers-farmer-button.png"
+                alt="George the Fishers Farm guide"
+                className={`relative z-10 h-[80%] w-[80%] rounded-full object-cover drop-shadow-[0_18px_30px_rgba(0,0,0,0.22)] transition ${
+                  connectionState === "connected" || connectionState === "connecting" ? "scale-[1.02]" : "scale-100"
+                }`}
+              />
+              <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
+            </button>
+
+            <div className="mt-6 min-h-[84px] max-w-2xl text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#a71d22]">
+                {connectionState === "connected"
+                  ? isModelSpeaking
+                    ? "George is talking"
+                    : "George is live"
+                  : connectionState === "connecting"
+                    ? "Connecting George"
+                    : hasStoredSession
+                      ? "Ready to carry on"
+                      : "Tap the circle to speak to George"}
+              </p>
+              <p className="mt-3 text-base leading-7 text-[#5b3519] sm:text-lg">{latestAssistantMessage}</p>
+              {latestUserMessage ? <p className="mt-2 text-sm text-[#8a6549]">You: {latestUserMessage}</p> : null}
+              {error ? <p className="mt-3 text-sm font-medium text-[#ab1e23]">{error}</p> : null}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+              {connectionState === "connected" ? (
+                <button
+                  type="button"
+                  onClick={stopConversation}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#8f1c20] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
+                >
+                  <PhoneOff className="h-4 w-4" /> End conversation
+                </button>
+              ) : hasStoredSession ? (
+                <button
+                  type="button"
+                  onClick={clearSavedSession}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#d7c2aa] bg-white px-5 py-3 text-sm font-semibold text-[#6f543e] transition hover:bg-[#fffaf4]"
+                >
+                  <RotateCcw className="h-4 w-4" /> Start fresh
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setShowConversation((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-full border border-[#d7c2aa] bg-white px-5 py-3 text-sm font-semibold text-[#6f543e] transition hover:bg-[#fffaf4]"
+              >
+                {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {showConversation ? "Hide conversation" : "View conversation"}
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-0 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="border-b border-[#eadcc8] bg-[#fffdf9] lg:border-b-0 lg:border-r">
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0e5d7] bg-[#fff6ed] px-4 py-4 sm:px-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#b11f24] text-lg font-black text-white shadow-[0_10px_30px_rgba(177,31,36,0.25)]">
-                G
-              </div>
-              <div className="min-w-0 flex-1 text-left">
-                <p className="text-lg font-bold text-[#4e2a12]">George</p>
-                <p className="text-sm text-[#7a573b]">Your Fishers Farm Park guide</p>
-              </div>
-              <span
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold sm:text-sm ${
-                  connectionState === "connected"
-                    ? "border-[#e7b5b7] bg-[#fff0f1] text-[#8f1c20]"
-                    : connectionState === "connecting"
-                      ? "border-[#efd8bb] bg-[#fff7ef] text-[#8c5a1d]"
-                      : connectionState === "error"
-                        ? "border-[#efc0c2] bg-[#fff1f2] text-[#ab1e23]"
-                        : "border-[#eadcc8] bg-white text-[#6f543e]"
-                }`}
-              >
-                {connectionState === "connected" ? <Volume2 className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
-                <span>{isModelSpeaking ? "George is talking" : statusText}</span>
-              </span>
-            </div>
-
-            <div ref={scrollRef} className="max-h-[560px] overflow-y-auto bg-[#fffdf9] px-4 py-6 sm:px-6 sm:py-8">
-              <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
+        {showConversation ? (
+          <div className="border-t border-[#eadcc8] bg-[#fffdf9] px-4 py-6 sm:px-6 sm:py-8">
+            <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-3xl overflow-y-auto">
+              <div className="flex flex-col gap-4">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div
@@ -496,71 +549,8 @@ export function FishersGeorgeLiveAssistant() {
                 )}
               </div>
             </div>
-
-            <div className="border-t border-[#f0e5d7] bg-[#fff6ed] px-4 py-5 sm:px-6">
-              <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm leading-6 text-[#6f543e]">
-                  {connectionState === "connected"
-                    ? "You’re live with George now. He’ll keep the conversation going naturally, remember the flow on this device, and carry on guiding from where you left off."
-                    : hasStoredSession
-                      ? `Pick up where you left off${visitorName ? `, ${visitorName}` : ""}. George will carry on naturally instead of starting from scratch.`
-                      : "Start the live conversation and George will greet you, ask whether you’re planning or already here, then guide you from there."}
-                </p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={startConversation}
-                    disabled={!canStart}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#b11f24] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(177,31,36,0.26)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Mic className="h-4 w-4" />
-                    {connectionState === "connected"
-                      ? "Live conversation on"
-                      : hasStoredSession
-                        ? "Continue with George"
-                        : "Start live conversation"}
-                  </button>
-                  {connectionState === "connected" ? (
-                    <button
-                      type="button"
-                      onClick={stopConversation}
-                      className="inline-flex items-center justify-center gap-2 rounded-full bg-[#8f1c20] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
-                    >
-                      <PhoneOff className="h-4 w-4" /> End conversation
-                    </button>
-                  ) : hasStoredSession ? (
-                    <button
-                      type="button"
-                      onClick={clearSavedSession}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-[#d7c2aa] bg-white px-5 py-3 text-sm font-semibold text-[#6f543e] transition hover:bg-[#fffaf4]"
-                    >
-                      <RotateCcw className="h-4 w-4" /> Start fresh
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              {error ? <p className="mx-auto mt-3 w-full max-w-4xl text-sm text-[#ab1e23]">{error}</p> : null}
-            </div>
           </div>
-
-          <aside className="bg-[#fff4e8] px-5 py-6 sm:px-6 lg:px-7 lg:py-8">
-            <div className="rounded-[28px] border border-[#eadcc8] bg-white/70 p-5 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#b11f24]">Ask George about</p>
-              <div className="mt-4 grid gap-3">
-                {[
-                  "Tickets, booking and planning your visit",
-                  "Directions around the park and what to do next",
-                  "Animals, attractions and family-friendly facts",
-                  "Food, drink, events and short breaks",
-                ].map((item) => (
-                  <div key={item} className="rounded-2xl border border-[#efe2d3] bg-[#fffaf4] px-4 py-3 text-sm text-[#5d3719]">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-        </div>
+        ) : null}
 
         <div className="border-t border-[#eadcc8] bg-[#fffaf2] px-5 py-6 sm:px-8 sm:py-8">
           <h2 className="text-2xl font-bold tracking-tight text-[#4e2a12]">Helpful buttons</h2>
