@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CalendarDays, ChevronRight, Compass, Loader2, MapPin, Mic, PhoneOff, Ticket, Trees, Volume2 } from "lucide-react"
+import { CalendarDays, ChevronRight, Compass, MapPin, Mic, Ticket, Trees, Volume2 } from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -400,8 +400,11 @@ export function TullysLiveAssistant() {
               aria-label={canStart ? "Start talking to George" : "End conversation with George"}
               onClick={canStart ? startConversation : endConversation}
               className={`group relative mx-auto block h-[250px] w-[250px] rounded-full border border-[rgba(255,244,219,0.22)] bg-transparent shadow-[0_24px_65px_rgba(4,3,11,0.55)] transition duration-300 hover:scale-[1.015] sm:h-[300px] sm:w-[300px] ${
-                connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.1s_ease-in-out_infinite]" : ""
+                connectionState === "connected" || connectionState === "connecting"
+                  ? "animate-[pulse_2.1s_ease-in-out_infinite] shadow-[0_0_0_8px_rgba(255,122,45,0.08),0_0_0_16px_rgba(64,129,255,0.06),0_24px_65px_rgba(4,3,11,0.6)]"
+                  : ""
               }`}
+
             >
               <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.22),transparent_28%),linear-gradient(145deg,rgba(255,114,73,0.22),rgba(48,90,255,0.18))]" />
               <span className="absolute inset-[10px] rounded-full border border-[rgba(255,255,255,0.14)] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.16),rgba(10,8,18,0.55)_58%,rgba(4,3,10,0.92)_100%)] backdrop-blur-sm" />
@@ -413,24 +416,14 @@ export function TullysLiveAssistant() {
                 />
               </span>
               <span className="absolute inset-x-[14%] top-[6%] h-[18%] rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0))] opacity-75 blur-[8px]" />
-              <span className="absolute inset-0 flex items-center justify-center">
-                <span className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(255,255,255,0.22)] bg-[rgba(12,8,18,0.58)] text-[#FFF4E3] backdrop-blur-md sm:h-20 sm:w-20">
-                  {connectionState === "connecting" ? (
-                    <Loader2 className="h-7 w-7 animate-spin sm:h-8 sm:w-8" />
-                  ) : connectionState === "connected" ? (
-                    <PhoneOff className="h-7 w-7 sm:h-8 sm:w-8" />
-                  ) : (
-                    <Mic className="h-7 w-7 sm:h-8 sm:w-8" />
-                  )}
-                </span>
-              </span>
+
             </button>
 
             <div className="mt-5 min-h-[84px] px-2">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#EEDFC0]/80">
                 {statusText}
               </p>
-              <p className="mx-auto mt-2 max-w-2xl text-lg leading-8 text-[#FFF5E4] sm:text-xl">
+              <p className="mx-auto mt-2 max-w-2xl text-lg leading-8 text-[#FFF5E4] transition-opacity duration-500 animate-[fadeIn_400ms_ease] sm:text-xl">
                 {error
                   ? error
                   : latestVisibleMessage?.content || "Helping you make the most of your experience — whatever season you’re visiting."}
