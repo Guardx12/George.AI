@@ -107,8 +107,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "system",
-    content:
-      "Hi — I’m George, your guide for Tulleys Farm. Please ask me any questions. What can I help you with today? ",
+    content: "Hi — I’m George, your guide for Tulleys. Ask me about tickets, timings, food, directions, seasonal events, or what to do next.",
   },
 ]
 
@@ -116,7 +115,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Introduce yourself as George for Tulleys Farm in upbeat, friendly British English. Do not tell visitors to use the buttons straight away and do not push them off to links in your opening message. Your job is to answer questions, engage naturally, explain events, tickets, opening times, directions, the Tea Room, Escape Rooms, and help people plan their visit. Let visitors ask as many questions as they like. Only guide them to one of the buttons or direct them to a specific page when they ask how to book, where to find something, or when a direct link would clearly help them take the next step. In normal conversation, be helpful first and link-second. End by warmly asking what you can help with today.",
+      "Introduce yourself as George for Tulleys in upbeat, friendly British English. You help visitors before they arrive and while they are there. You can explain seasonal experiences, tickets, opening times, practical visitor information, food, escape rooms, and help people decide what to do next. Do not over-explain. Do not start by sending visitors away to links. Keep your opening helpful, concise, and natural, then warmly ask what you can help with today.",
   },
 }
 
@@ -137,6 +136,7 @@ export function TullysLiveAssistant() {
   const [statusText, setStatusText] = useState("Ready when you are")
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showConversation, setShowConversation] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -148,8 +148,8 @@ export function TullysLiveAssistant() {
 
   useEffect(() => {
     const el = scrollRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
-  }, [messages])
+    if (el && showConversation) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+  }, [messages, showConversation])
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
@@ -369,98 +369,107 @@ export function TullysLiveAssistant() {
     setError(null)
   }
 
+  const latestVisibleMessage = [...messages].reverse().find((message) => message.role !== "system")
+
   return (
     <section className="relative overflow-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
       <div className="mx-auto max-w-6xl">
-        <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(31,22,16,0.58)] p-4 shadow-[0_28px_80px_rgba(18,10,6,0.35)] backdrop-blur-[2px] sm:p-5 lg:p-6">
+        <div className="rounded-[28px] border border-[rgba(255,255,255,0.10)] bg-[rgba(12,9,21,0.72)] p-4 shadow-[0_28px_80px_rgba(7,4,16,0.45)] backdrop-blur-[2px] sm:p-5 lg:p-6">
           <div className="mx-auto max-w-5xl text-center">
-            <div className="inline-flex items-center rounded-full border border-[rgba(239,222,188,0.3)] bg-[rgba(248,240,222,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#F6E6C5] sm:text-base">
-              
-            </div>
-
-            <div className="mt-3 flex justify-center">
+            <div className="flex justify-center">
               <img
                 src="/tulleys-brand-logo2.svg"
                 alt="Tulleys Farm"
                 className="h-auto w-[220px] max-w-full drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] sm:w-[260px] lg:w-[320px]"
               />
             </div>
+            <h1
+              className="mt-4 text-5xl uppercase tracking-[0.06em] text-[#F6E6C5] sm:text-6xl"
+              style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
+            >
+              Meet George
+            </h1>
             <p className="mx-auto mt-3 max-w-3xl text-lg leading-8 text-[#F4EADA] sm:text-xl">
-              George can help you with anything you need before your visit — from events, tickets and opening times to directions, the Tea Room, Escape Rooms and more, using the latest information from Tulleys.
+              George helps before you arrive and while you&apos;re here — from tickets and seasonal experiences to food, timings and always knowing what to do next.
             </p>
           </div>
 
-          <div className="mx-auto mt-6 max-w-[760px]">
-            <div className="relative overflow-hidden rounded-[28px] border border-[rgba(246,230,197,0.22)] bg-[radial-gradient(circle_at_top,rgba(255,244,220,0.12),rgba(49,33,24,0.92)_62%)] px-4 pb-4 pt-5 shadow-[0_22px_60px_rgba(7,4,2,0.45)] sm:px-6 sm:pb-5 sm:pt-6">
-              <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,239,206,0.7),transparent)]" />
-              
-
-              <div className="mt-2 text-center">
-                <div
-                  className="text-4xl uppercase tracking-[0.08em] text-[#F7EAD1] sm:text-4xl"
-                  style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
-                >
-                  
-                </div>
-                <p className="mx-auto mt-2 max-w-2xl text-base leading-6 text-[#E9DDC9] sm:text-base">
-                  
-                </p>
-              </div>
-
-              <div className="mt-3 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <button
-                  onClick={canStart ? startConversation : endConversation}
-                  className="tulleys-start-talking-btn inline-flex min-w-[260px] items-center justify-center gap-3 rounded-[18px] border border-[rgba(255,243,219,0.28)] bg-[linear-gradient(180deg,#8E5332_0%,#69402B_100%)] px-10 py-5 text-base font-semibold uppercase tracking-[0.12em] text-[#FFF3D7] shadow-[0_18px_35px_rgba(31,17,10,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_40px_rgba(31,17,10,0.45)]"
-                >
+          <div className="mx-auto mt-8 max-w-[760px] text-center">
+            <button
+              type="button"
+              aria-label={canStart ? "Start talking to George" : "End conversation with George"}
+              onClick={canStart ? startConversation : endConversation}
+              className={`group relative mx-auto block h-[250px] w-[250px] rounded-full border border-[rgba(255,244,219,0.22)] bg-transparent shadow-[0_24px_65px_rgba(4,3,11,0.55)] transition duration-300 hover:scale-[1.015] sm:h-[300px] sm:w-[300px] ${
+                connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.1s_ease-in-out_infinite]" : ""
+              }`}
+            >
+              <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.22),transparent_28%),linear-gradient(145deg,rgba(255,114,73,0.22),rgba(48,90,255,0.18))]" />
+              <span className="absolute inset-[10px] rounded-full border border-[rgba(255,255,255,0.14)] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.16),rgba(10,8,18,0.55)_58%,rgba(4,3,10,0.92)_100%)] backdrop-blur-sm" />
+              <span className="absolute inset-[18px] overflow-hidden rounded-full border border-[rgba(255,255,255,0.08)] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),rgba(8,6,16,0.95)_72%)]">
+                <img
+                  src="/tulleys-seasons-button.png"
+                  alt="Tulleys seasons guide button"
+                  className="h-full w-full object-cover"
+                />
+              </span>
+              <span className="absolute inset-x-[14%] top-[6%] h-[18%] rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0))] opacity-75 blur-[8px]" />
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(255,255,255,0.22)] bg-[rgba(12,8,18,0.58)] text-[#FFF4E3] backdrop-blur-md sm:h-20 sm:w-20">
                   {connectionState === "connecting" ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Connecting
-                    </>
+                    <Loader2 className="h-7 w-7 animate-spin sm:h-8 sm:w-8" />
                   ) : connectionState === "connected" ? (
-                    <>
-                      <PhoneOff className="h-4 w-4" /> End conversation
-                    </>
+                    <PhoneOff className="h-7 w-7 sm:h-8 sm:w-8" />
                   ) : (
-                    <>
-                      <Mic className="h-4 w-4" /> Start talking
-                    </>
+                    <Mic className="h-7 w-7 sm:h-8 sm:w-8" />
                   )}
-                </button>
+                </span>
+              </span>
+            </button>
 
-                <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(246,230,197,0.18)] bg-[rgba(255,248,237,0.06)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#F7EAD1] sm:text-base">
-                  {isModelSpeaking ? <Volume2 className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                  {statusText}
-                </div>
-              </div>
+            <div className="mt-5 min-h-[84px] px-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#EEDFC0]/80">
+                {statusText}
+              </p>
+              <p className="mx-auto mt-2 max-w-2xl text-lg leading-8 text-[#FFF5E4] sm:text-xl">
+                {error
+                  ? error
+                  : latestVisibleMessage?.content || "Helping you make the most of your experience — whatever season you’re visiting."}
+              </p>
+            </div>
 
-              {error ? <p className="mt-2 text-center text-base text-[#FFD5C7]">{error}</p> : null}
+            <div className="mt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConversation((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,244,219,0.18)] bg-[rgba(255,248,237,0.06)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#F7EAD1] transition hover:bg-[rgba(255,248,237,0.1)] sm:text-sm"
+              >
+                {isModelSpeaking ? <Volume2 className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                {showConversation ? "Hide conversation" : "View conversation"}
+              </button>
+            </div>
 
-              <div ref={scrollRef} className="mt-6 max-h-[260px] space-y-3 overflow-y-auto pr-1">
+            {showConversation ? (
+              <div
+                ref={scrollRef}
+                className="mx-auto mt-5 max-h-[280px] max-w-3xl space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(246,230,197,0.14)] bg-[rgba(9,6,16,0.68)] p-4 text-left"
+              >
                 {messages.map((message) => (
                   <div
                     key={message.id}
                     className={message.role === "assistant"
-                      ? "ml-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.18)] bg-[rgba(255,245,228,0.1)] px-4 py-3 text-left text-base leading-7 text-[#FFF5E4]"
+                      ? "ml-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.18)] bg-[rgba(255,245,228,0.1)] px-4 py-3 text-base leading-7 text-[#FFF5E4]"
                       : message.role === "user"
-                      ? "mr-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.1)] bg-[rgba(20,12,8,0.52)] px-4 py-3 text-left text-base leading-6 text-[#E9DDC9]"
+                      ? "mr-auto max-w-[88%] rounded-[24px] border border-[rgba(246,230,197,0.1)] bg-[rgba(20,12,8,0.52)] px-4 py-3 text-base leading-6 text-[#E9DDC9]"
                       : "mx-auto max-w-[92%] rounded-[22px] border border-dashed border-[rgba(246,230,197,0.18)] bg-[rgba(248,241,226,0.05)] px-4 py-3 text-center text-base leading-6 text-[#F2E4CB]"}
                   >
                     {message.content}
                   </div>
                 ))}
               </div>
-            </div>
+            ) : null}
           </div>
 
-          <div className="mx-auto mt-7 max-w-6xl">
-            <div className="mb-4 text-center">
-              <div
-                className="text-4xl uppercase tracking-[0.08em] text-[#F6E6C5] sm:text-4xl"
-                style={{ fontFamily: "var(--font-bebas), Impact, sans-serif" }}
-              >
-                
-              </div>
-            </div>
+          <div className="mx-auto mt-8 max-w-6xl">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {QUICK_LINKS.map((link) => {
                 const Icon = link.icon
