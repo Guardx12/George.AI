@@ -399,12 +399,12 @@ export function TullysLiveAssistant() {
               type="button"
               aria-label={canStart ? "Start talking to George" : "End conversation with George"}
               onClick={canStart ? startConversation : endConversation}
-              className={`group relative mx-auto block h-[250px] w-[250px] rounded-full border border-[rgba(255,244,219,0.22)] bg-transparent shadow-[0_24px_65px_rgba(4,3,11,0.55)] transition duration-300 hover:scale-[1.015] sm:h-[300px] sm:w-[300px] ${
+              className={`group relative mx-auto block h-[250px] w-[250px] appearance-none overflow-hidden rounded-full border-0 bg-transparent shadow-none outline-none ring-0 transition duration-300 hover:scale-[1.015] focus:outline-none focus:ring-0 sm:h-[300px] sm:w-[300px] ${
                 connectionState === "connected" || connectionState === "connecting"
-                  ? "animate-[pulse_2.1s_ease-in-out_infinite] shadow-[0_0_0_8px_rgba(255,122,45,0.08),0_0_0_16px_rgba(64,129,255,0.06),0_24px_65px_rgba(4,3,11,0.6)]"
+                  ? "animate-[pulse_2.1s_ease-in-out_infinite] shadow-[0_0_0_8px_rgba(255,122,45,0.08),0_0_0_16px_rgba(64,129,255,0.06)]"
                   : ""
               }`}
-
+              style={{ borderRadius: "9999px", WebkitAppearance: "none" }}
             >
               <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.22),transparent_28%),linear-gradient(145deg,rgba(255,114,73,0.22),rgba(48,90,255,0.18))]" />
               <span className="absolute inset-[10px] rounded-full border border-[rgba(255,255,255,0.14)] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.16),rgba(10,8,18,0.55)_58%,rgba(4,3,10,0.92)_100%)] backdrop-blur-sm" />
@@ -434,7 +434,8 @@ export function TullysLiveAssistant() {
               <button
                 type="button"
                 onClick={() => setShowConversation((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,244,219,0.18)] bg-[rgba(255,248,237,0.06)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#F7EAD1] transition hover:bg-[rgba(255,248,237,0.1)] sm:text-sm"
+                className="inline-flex items-center gap-2 border border-[rgba(255,244,219,0.18)] bg-[rgba(255,248,237,0.06)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#F7EAD1] transition hover:bg-[rgba(255,248,237,0.1)] sm:text-sm"
+                style={{ borderRadius: "9999px" }}
               >
                 {isModelSpeaking ? <Volume2 className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 {showConversation ? "Hide conversation" : "View conversation"}
