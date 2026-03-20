@@ -193,8 +193,7 @@ function extractBudget(text: string) {
 }
 
 function extractMonthlyBudget(text: string) {
-  const match = text.match(/(?:monthly budget|per month|a month|monthly)\s*(?:of)?\s*£?\s?([0-9][0-9,]{1,})/i)
-  return match?.[1] ? normalizeWhitespace(match[1]) : ""
+  return matchFirst(text, [/(:?monthly budget|per month|a month|monthly)\s*(?:of)?\s*£?\s?([0-9][0-9,]{1,})/i])
 }
 
 function detectCaptureMode(transcript: string) {
@@ -725,50 +724,43 @@ export function WoodbourneGeorgeLiveAssistant() {
 
   return (
     <div className="min-h-screen bg-[#f3f3f3] text-[#111827]">
-      <div className="fixed bottom-5 right-5 z-50">
+      <div className="fixed bottom-4 right-4 z-50 sm:bottom-5 sm:right-5">
         <a
           href="https://api.whatsapp.com/send?phone=447984518439"
           target="_blank"
           rel="noreferrer"
           aria-label="Open WhatsApp"
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_18px_35px_rgba(37,211,102,0.35)] transition hover:scale-105 hover:brightness-105"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_18px_35px_rgba(37,211,102,0.35)] transition hover:scale-105 hover:brightness-105 sm:h-14 sm:w-14"
         >
-          <MessageCircle className="h-7 w-7" />
+          <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7" />
         </a>
       </div>
 
       <div className="border-b border-[#d7dbe7] bg-[#f2f2f7]">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-16 w-auto object-contain sm:h-20" />
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#020575] sm:text-xs">Woodbourne Car Sales x George</p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
-                <p className="mt-1 text-sm text-[#4b5563]">Meet George — the live digital salesperson for Woodbourne.</p>
+          <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-14 w-auto object-contain sm:h-20" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#020575] sm:text-xs">Woodbourne Car Sales x George</p>
+                <h1 className="mt-1 text-xl font-bold tracking-tight text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
+                <p className="mt-1 text-sm text-[#4b5563]">Meet George — here to help you find the right car.</p>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <QuickLink href="https://www.woodbournecarsales.co.uk/used/cars/" label="Used Cars" />
-              <QuickLink href="https://www.woodbournecarsales.co.uk/finance/" label="Finance" />
-              <QuickLink href="https://www.woodbournecarsales.co.uk/warranty/" label="Warranty" />
-              <QuickLink href="https://www.woodbournecarsales.co.uk/reviews/" label="Reviews" />
-              <QuickLink href="https://www.woodbournecarsales.co.uk/contact/" label="Contact Us" />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="overflow-hidden rounded-[32px] border border-[#d8dde8] bg-white shadow-[0_24px_70px_rgba(2,5,117,0.08)]">
           <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="bg-[linear-gradient(135deg,#ffffff_0%,#f2f5ff_55%,#e8ecfb_100%)] px-6 py-8 sm:px-8 sm:py-10">
+            <div className="bg-[linear-gradient(135deg,#ffffff_0%,#f2f5ff_55%,#e8ecfb_100%)] px-4 py-6 sm:px-8 sm:py-10">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#020575]">Meet George</p>
-              <h2 className="mt-3 max-w-xl text-3xl font-semibold tracking-tight text-[#262626] sm:text-5xl">
+              <h2 className="mt-3 max-w-xl text-2xl font-semibold tracking-tight text-[#262626] sm:text-5xl">
                 A proper digital salesperson for Woodbourne Car Sales.
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#4b5563] sm:text-base">
-                George helps visitors find the right car, answers questions naturally, compares the best-fit options, and nudges serious buyers toward WhatsApp or an enquiry.
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
+                George can help you find the right car, answer questions naturally, compare the best-fit options, and guide you toward WhatsApp or an enquiry.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -798,25 +790,25 @@ export function WoodbourneGeorgeLiveAssistant() {
               </div>
             </div>
 
-            <div className="relative overflow-hidden bg-[linear-gradient(135deg,#020575_0%,#071584_55%,#0e1f9c_100%)] px-6 py-8 text-white sm:px-8 sm:py-10">
+            <div className="relative overflow-hidden bg-[linear-gradient(135deg,#020575_0%,#071584_55%,#0e1f9c_100%)] px-4 py-6 text-white sm:px-8 sm:py-10">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.10),transparent_42%)]" />
               <div className="relative flex h-full flex-col items-center justify-center text-center">
-                <div className="rounded-[32px] border border-white/15 bg-white/8 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)] backdrop-blur-sm">
-                  <div className="mx-auto flex h-[210px] w-[210px] items-center justify-center rounded-full border border-white/15 bg-[radial-gradient(circle_at_30%_25%,#3d5eff_0%,#1738c8_36%,#020575_74%,#010349_100%)] shadow-[0_22px_56px_rgba(0,0,0,0.28),inset_0_4px_18px_rgba(255,255,255,0.24)] sm:h-[240px] sm:w-[240px]">
+                <div className="w-full max-w-[320px] rounded-[28px] border border-white/15 bg-white/8 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.18)] backdrop-blur-sm sm:max-w-none sm:rounded-[32px] sm:p-6">
+                  <div className="mx-auto flex h-[180px] w-[180px] items-center justify-center rounded-full border border-white/15 bg-[radial-gradient(circle_at_30%_25%,#3d5eff_0%,#1738c8_36%,#020575_74%,#010349_100%)] shadow-[0_22px_56px_rgba(0,0,0,0.28),inset_0_4px_18px_rgba(255,255,255,0.24)] sm:h-[240px] sm:w-[240px]">
                     <div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full border border-white/20 bg-white/[0.03]">
                       <SteeringWheelMark />
                       <div className="mt-3 text-lg font-semibold sm:text-xl">Talk to George</div>
                     </div>
                   </div>
                 </div>
-                <p className="mt-6 max-w-sm text-sm leading-7 text-white/90 sm:text-base">
-                  No need to scroll around. George can qualify the visitor, narrow the stock down, answer questions, and guide the next step.
+                <p className="mt-5 max-w-sm text-sm leading-6 text-white/90 sm:mt-6 sm:text-base sm:leading-7">
+                  No need to scroll around. George can help you narrow the stock down, answer questions, and guide you to the next step.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-[#e5e7eb] bg-white px-4 py-8 sm:px-6 sm:py-10">
+          <div className="border-t border-[#e5e7eb] bg-white px-3 py-6 sm:px-6 sm:py-10">
             <div className="mx-auto max-w-4xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-[#f8fafc] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm">
                 {connectionState === "connected" ? <Volume2 className="h-4 w-4 text-[#020575]" /> : connectionState === "connecting" ? <Loader2 className="h-4 w-4 animate-spin text-[#020575]" /> : <Radio className="h-4 w-4 text-[#020575]" />}
@@ -847,19 +839,19 @@ export function WoodbourneGeorgeLiveAssistant() {
                 </div>
               </button>
 
-              <p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-[#4b5563] sm:text-base">
-                George is live on this page. Speak naturally and he should reply automatically, narrow the stock down, and pre-fill the enquiry form as he learns what the visitor wants.
+              <p className="mx-auto mt-5 max-w-3xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
+                Speak naturally and George will help you narrow things down, answer questions, and guide you toward WhatsApp or the enquiry form below.
               </p>
               {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
-              <div className="mt-7 flex flex-wrap justify-center gap-3">
-                <a href="tel:01273500990" className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]">
+              <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap sm:justify-center">
+                <a href="tel:01273500990" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575] sm:w-auto">
                   <Phone className="h-4 w-4" /> 01273 500990
                 </a>
-                <a href="tel:07984518439" className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]">
+                <a href="tel:07984518439" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575] sm:w-auto">
                   <Phone className="h-4 w-4" /> 07984 518439
                 </a>
-                <a href="https://api.whatsapp.com/send?phone=447984518439" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] transition hover:brightness-105">
+                <a href="https://api.whatsapp.com/send?phone=447984518439" target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] transition hover:brightness-105 sm:w-auto">
                   <MessageCircle className="h-4 w-4" /> Start WhatsApp
                 </a>
               </div>
@@ -879,12 +871,12 @@ export function WoodbourneGeorgeLiveAssistant() {
 
           {conversationOpen ? (
             <div className="border-t border-[#e5e7eb] bg-[#f8fafc] px-4 py-6 sm:px-6 sm:py-8">
-              <div ref={scrollRef} className="mx-auto max-h-[520px] max-w-4xl overflow-y-auto rounded-[28px] border border-[#d8dde8] bg-white p-4 shadow-sm sm:p-5">
+              <div ref={scrollRef} className="mx-auto max-h-[520px] max-w-4xl overflow-y-auto rounded-[24px] border border-[#d8dde8] bg-white p-3 shadow-sm sm:rounded-[28px] sm:p-5">
                 <div className="flex flex-col gap-4">
                   {messages.map((message) => (
                     <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div
-                        className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-[15px] leading-7 shadow-sm sm:max-w-[82%] ${
+                        className={`max-w-[96%] whitespace-pre-wrap rounded-[20px] px-3 py-3 text-[14px] leading-6 shadow-sm sm:max-w-[82%] sm:rounded-[24px] sm:px-4 sm:text-[15px] sm:leading-7 ${
                           message.role === "user"
                             ? "bg-[#020575] text-white"
                             : message.role === "system"
@@ -901,29 +893,29 @@ export function WoodbourneGeorgeLiveAssistant() {
             </div>
           ) : null}
 
-          <div className="border-t border-[#e5e7eb] bg-[#f2f2f7] px-4 py-8 sm:px-6 sm:py-10">
+          <div className="border-t border-[#e5e7eb] bg-[#f2f2f7] px-3 py-6 sm:px-6 sm:py-10">
             <div className="mx-auto max-w-4xl">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold text-[#262626]">Get in touch</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-[#4b5563]">
-                    George should pre-fill this as he learns what the visitor wants. Before sending, the visitor should make sure first name, last name, email, telephone, and message are all filled in, then either tap WhatsApp or press Send below.
+                    If you want Woodbourne to come back to you, just make sure your first name, last name, email, telephone, and message are filled in, then either tap WhatsApp or press Send below.
                   </p>
                 </div>
                 {captureMode ? (
                   <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-white px-4 py-2 text-sm font-medium text-[#020575] shadow-sm">
-                    George is collecting name, email, telephone, and message
+                    George is helping gather your details
                   </div>
                 ) : null}
               </div>
 
               {formMostlyReady ? (
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#cde7d5] bg-[#eefaf1] px-4 py-2 text-sm font-medium text-[#166534] shadow-sm">
-                  <CheckCircle2 className="h-4 w-4" /> This looks ready — double-check the details, then press Send or use WhatsApp.
+                  <CheckCircle2 className="h-4 w-4" /> That looks ready — double-check your details, then press Send or use WhatsApp.
                 </div>
               ) : null}
 
-              <form action="https://formsubmit.co/info@guardxnetwork.com" method="POST" className="mt-6 space-y-5 rounded-[28px] border border-[#d8dde8] bg-white p-5 shadow-sm sm:p-6">
+              <form action="https://formsubmit.co/info@guardxnetwork.com" method="POST" className="mt-6 space-y-5 rounded-[24px] border border-[#d8dde8] bg-white p-4 shadow-sm sm:rounded-[28px] sm:p-6">
                 <input type="hidden" name="source" value="Woodbourne George page" />
                 <input type="hidden" name="page" value={pageUrl} />
                 <input type="hidden" name="submissionMode" value="manual_submit" />
@@ -966,11 +958,11 @@ export function WoodbourneGeorgeLiveAssistant() {
                   <textarea name="message" value={leadForm.message} onChange={(event) => setLeadForm((prev) => ({ ...prev, message: event.target.value }))} rows={7} className={`${inputClass} min-h-[180px] resize-y`} />
                 </div>
 
-                <div className="flex flex-wrap gap-3 pt-1">
-                  <button type="submit" className="rounded-full bg-[#020575] px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">
+                <div className="grid gap-3 pt-1 sm:flex sm:flex-wrap">
+                  <button type="submit" className="w-full rounded-full bg-[#020575] px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto">
                     Send
                   </button>
-                  <a href="https://www.woodbournecarsales.co.uk/contact/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]">
+                  <a href="https://www.woodbournecarsales.co.uk/contact/" target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575] sm:w-auto">
                     Go to Contact Us <ArrowRight className="h-4 w-4" />
                   </a>
                 </div>
@@ -979,11 +971,13 @@ export function WoodbourneGeorgeLiveAssistant() {
           </div>
 
           <div className="border-t border-[#e5e7eb] bg-white px-4 py-6 sm:px-6">
-            <div className="mx-auto flex max-w-4xl flex-wrap gap-3">
+            <div className="mx-auto grid max-w-4xl gap-3 sm:flex sm:flex-wrap">
               <QuickLink href="https://www.woodbournecarsales.co.uk/" label="Back to Woodbourne home" />
               <QuickLink href="https://www.woodbournecarsales.co.uk/used/cars/" label="Browse used cars" />
               <QuickLink href="https://www.woodbournecarsales.co.uk/finance/" label="Finance page" />
               <QuickLink href="https://www.woodbournecarsales.co.uk/warranty/" label="Warranty page" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/reviews/" label="Reviews" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/contact/" label="Contact us" />
             </div>
           </div>
         </div>
