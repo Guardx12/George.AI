@@ -730,7 +730,7 @@ export function WoodbourneGeorgeLiveAssistant() {
           target="_blank"
           rel="noreferrer"
           aria-label="Open WhatsApp"
-          className="flex h-20 w-20 sm:h-24 sm:w-24"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_18px_35px_rgba(37,211,102,0.35)] transition hover:scale-105 hover:brightness-105 sm:h-14 sm:w-14"
         >
           <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7" />
         </a>
@@ -738,7 +738,9 @@ export function WoodbourneGeorgeLiveAssistant() {
 
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
-          <h1 className="text-2xl font-bold text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
+          <div className="flex flex-col items-center justify-center">
+  <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-24 sm:h-32 w-auto object-contain" />
+</div>
           <h2 className="mt-4 text-2xl font-semibold text-[#262626] sm:text-4xl">Meet George</h2>
           <p className="mt-3 text-sm text-[#4b5563] sm:text-base">
             Tell George what you're after and he’ll help you find the right car.
