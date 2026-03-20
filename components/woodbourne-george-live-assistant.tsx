@@ -1,7 +1,19 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, CheckCircle2, Loader2, MessageCircle, Mic, PhoneOff, Radio, Sparkles, Volume2 } from "lucide-react"
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  MessageCircle,
+  Mic,
+  Phone,
+  PhoneOff,
+  Radio,
+  Volume2,
+} from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -46,16 +58,19 @@ const INITIAL_MESSAGES: LiveMessage[] = [
   },
 ]
 
-const FIRST_RESPONSE_EVENT = {
-  type: "response.create",
-  response: {
-    instructions:
-      "Briefly introduce yourself as George for Woodbourne Car Sales in warm, natural British English. Explain that visitors do not need to scroll because you can help them find the right car, answer questions, and help with the next step. Then ask one short question about what sort of car they are after.",
-  },
-}
+function buildFirstResponseEvent(memory?: VisitorMemory | null) {
+  const memoryInstruction = memory && (memory.firstName || memory.budget || memory.monthlyBudget || memory.fuelType || memory.gearbox || memory.useCase || memory.carOfInterest)
+    ? ` You already have browser memory for this returning visitor. Work that in naturally. Mention what you remember and ask whether they want to carry on from there or change anything.`
+    : ""
 
-const FUEL_OPTIONS = ["", "Petrol", "Diesel", "Hybrid", "Electric", "No preference"]
-const GEARBOX_OPTIONS = ["", "Automatic", "Manual", "No preference"]
+  return {
+    type: "response.create",
+    response: {
+      instructions:
+        `Briefly introduce yourself as George for Woodbourne Car Sales in warm, natural British English. Explain that visitors do not need to scroll because you can help them find the right car, answer questions, and help with the next step. Then ask one short question about what sort of car they are after.${memoryInstruction}`,
+    },
+  }
+}
 
 const inputClass =
   "w-full rounded-2xl border border-[#cfd5e2] bg-white px-4 py-3 text-sm text-[#111827] outline-none transition placeholder:text-[#6b7280] focus:border-[#020575] focus:ring-2 focus:ring-[#020575]/10"
@@ -108,6 +123,13 @@ function buildTranscript(messages: LiveMessage[]) {
   return messages
     .filter((message) => message.role === "assistant" || message.role === "user")
     .map((message) => `${message.role === "assistant" ? "George" : "Visitor"}: ${normalizeWhitespace(message.content)}`)
+    .join("\n\n")
+}
+
+function buildUserTranscript(messages: LiveMessage[]) {
+  return messages
+    .filter((message) => message.role === "user")
+    .map((message) => `Visitor: ${normalizeWhitespace(message.content)}`)
     .join("\n\n")
 }
 
@@ -171,9 +193,7 @@ function extractBudget(text: string) {
 }
 
 function extractMonthlyBudget(text: string) {
-  return matchFirst(text, [
-    /(?:monthly budget|per month|a month|monthly)\s*(?:of)?\s*£?\s?([0-9][0-9,]{1,})/i,
-  ])
+  return matchFirst(text, [/(:?monthly budget|per month|a month|monthly)\s*(?:of)?\s*£?\s?([0-9][0-9,]{1,})/i])
 }
 
 function detectCaptureMode(transcript: string) {
@@ -207,15 +227,16 @@ function buildReturnVisitorMessage(memory: VisitorMemory) {
   return `Welcome back${greetingName} — last time you were looking ${summary}. Tell me what’s changed, or I can carry on from there.`
 }
 
-function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMessage[]) {
-  const emailMatch = transcript.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
-  const phoneMatch = transcript.match(/(?:\+?44\s?7\d{3}|0\d{4}|0\d{3}|0\d{2})[\s\d]{6,12}/)
+function extractLeadDetailsFromTranscript(userTranscript: string, messages: LiveMessage[]) {
+  const emailMatch = userTranscript.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+  const phoneMatch = userTranscript.match(/(?:\+?44\s?7\d{3}|0\d{4}|0\d{3}|0\d{2})[\s\d]{6,12}/)
 
   let firstName = ""
   let lastName = ""
-  const fullName = matchFirst(transcript, [
+  const fullName = matchFirst(userTranscript, [
     /my name is\s+([A-Za-z][A-Za-z' -]{1,50})/i,
-    /it's\s+([A-Za-z][A-Za-z' -]{1,50})/i,
+    /name(?:'s| is)\s+([A-Za-z][A-Za-z' -]{1,50})/i,
+    /i(?: am|'m)\s+called\s+([A-Za-z][A-Za-z' -]{1,50})/i,
     /this is\s+([A-Za-z][A-Za-z' -]{1,50})/i,
     /i am\s+([A-Za-z][A-Za-z' -]{1,50})/i,
     /i'm\s+([A-Za-z][A-Za-z' -]{1,50})/i,
@@ -227,27 +248,58 @@ function extractLeadDetailsFromTranscript(transcript: string, messages: LiveMess
     lastName = titleCase(parts.slice(1).join(" "))
   }
 
-  const recentNeed = lastUserMessages(messages, 4).join(" ")
-  const summary = recentNeed ? (recentNeed.length > 320 ? `${recentNeed.slice(0, 317)}...` : recentNeed) : ""
+  const recentNeed = lastUserMessages(messages, 6).join(" ")
+  const summary = recentNeed ? (recentNeed.length > 500 ? `${recentNeed.slice(0, 497)}...` : recentNeed) : ""
 
   return {
     firstName,
     lastName,
     email: emailMatch ? normalizeWhitespace(emailMatch[0]) : "",
     phone: phoneMatch ? normalizeWhitespace(phoneMatch[0]) : "",
-    carOfInterest: inferCarOfInterest(transcript),
-    budget: extractBudget(transcript),
-    monthlyBudget: extractMonthlyBudget(transcript),
-    fuelType: inferFuelType(transcript),
-    gearbox: inferGearbox(transcript),
-    useCase: inferUseCase(transcript),
+    carOfInterest: inferCarOfInterest(userTranscript),
+    budget: extractBudget(userTranscript),
+    monthlyBudget: extractMonthlyBudget(userTranscript),
+    fuelType: inferFuelType(userTranscript),
+    gearbox: inferGearbox(userTranscript),
+    useCase: inferUseCase(userTranscript),
     summary,
     captureMode: detectCaptureMode(transcript),
   }
 }
 
 function isFormMostlyReady(leadForm: LeadFormState) {
-  return Boolean((leadForm.firstName || leadForm.lastName) && (leadForm.email || leadForm.phone) && (leadForm.carOfInterest || leadForm.message))
+  return Boolean(leadForm.firstName && leadForm.lastName && leadForm.email && leadForm.phone && leadForm.message)
+}
+
+function SteeringWheelMark() {
+  return (
+    <svg viewBox="0 0 120 120" className="h-24 w-24 sm:h-28 sm:w-28" aria-hidden="true">
+      <defs>
+        <linearGradient id="wheelStroke" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.98)" />
+          <stop offset="100%" stopColor="rgba(210,222,255,0.88)" />
+        </linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="40" fill="none" stroke="url(#wheelStroke)" strokeWidth="6.5" />
+      <circle cx="60" cy="60" r="11" fill="none" stroke="url(#wheelStroke)" strokeWidth="5.5" />
+      <path d="M33 48c8-12 18-18 27-18s19 6 27 18" fill="none" stroke="url(#wheelStroke)" strokeWidth="6" strokeLinecap="round" />
+      <path d="M60 49v39" fill="none" stroke="url(#wheelStroke)" strokeWidth="5.5" strokeLinecap="round" />
+      <path d="M43 60l17 13 17-13" fill="none" stroke="url(#wheelStroke)" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function QuickLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-full border border-[#cfd5e2] bg-white px-4 py-2 text-sm font-medium text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]"
+    >
+      {label}
+    </a>
+  )
 }
 
 export function WoodbourneGeorgeLiveAssistant() {
@@ -257,6 +309,10 @@ export function WoodbourneGeorgeLiveAssistant() {
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [captureMode, setCaptureMode] = useState(false)
+  const [buyerIntent, setBuyerIntent] = useState("")
+  const [conversationOpen, setConversationOpen] = useState(false)
+  const [pageUrl, setPageUrl] = useState("https://askgeorge.app/woodbourne")
+  const [submittedAt, setSubmittedAt] = useState("")
   const [leadForm, setLeadForm] = useState<LeadFormState>({
     firstName: "",
     lastName: "",
@@ -271,7 +327,6 @@ export function WoodbourneGeorgeLiveAssistant() {
     additionalInformation: "",
     message: "",
   })
-  const [buyerIntent, setBuyerIntent] = useState("")
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -283,6 +338,7 @@ export function WoodbourneGeorgeLiveAssistant() {
   const conversationSessionIdRef = useRef("")
   const pendingAutoContinueRef = useRef<number | null>(null)
   const lastAutoContinuedTextRef = useRef("")
+  const visitorMemoryRef = useRef<VisitorMemory | null>(null)
 
   useEffect(() => {
     const sessionId =
@@ -290,6 +346,8 @@ export function WoodbourneGeorgeLiveAssistant() {
         ? crypto.randomUUID()
         : `woodbourne-${Date.now()}-${Math.random()}`
     conversationSessionIdRef.current = sessionId
+    setSubmittedAt(new Date().toISOString())
+    if (typeof window !== "undefined") setPageUrl(window.location.href)
   }, [])
 
   useEffect(() => {
@@ -311,19 +369,13 @@ export function WoodbourneGeorgeLiveAssistant() {
         carOfInterest: memory.carOfInterest || prev.carOfInterest,
       }))
       setBuyerIntent(memory.buyerIntent || "")
+      visitorMemoryRef.current = memory
 
       if (memory.firstName || memory.budget || memory.monthlyBudget || memory.gearbox || memory.fuelType || memory.useCase || memory.carOfInterest) {
         setMessages((prev) => {
           const alreadyHasWelcomeBack = prev.some((message) => message.id === "welcome-back")
           if (alreadyHasWelcomeBack) return prev
-          return [
-            ...prev,
-            {
-              id: "welcome-back",
-              role: "system",
-              content: buildReturnVisitorMessage(memory),
-            },
-          ]
+          return [...prev, { id: "welcome-back", role: "system", content: buildReturnVisitorMessage(memory) }]
         })
       }
     } catch {
@@ -336,8 +388,9 @@ export function WoodbourneGeorgeLiveAssistant() {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
 
     const transcript = buildTranscript(messages)
-    const details = extractLeadDetailsFromTranscript(transcript, messages)
-    setCaptureMode(details.captureMode)
+    const userTranscript = buildUserTranscript(messages)
+    const details = extractLeadDetailsFromTranscript(userTranscript, messages)
+    setCaptureMode(details.captureMode || Boolean(details.phone || details.email))
 
     setLeadForm((prev) => ({
       ...prev,
@@ -361,7 +414,7 @@ export function WoodbourneGeorgeLiveAssistant() {
             : ""),
     }))
 
-    const nextBuyerIntent = inferBuyerIntent(transcript)
+    const nextBuyerIntent = inferBuyerIntent(userTranscript)
     if (nextBuyerIntent) setBuyerIntent(nextBuyerIntent)
   }, [messages])
 
@@ -411,7 +464,7 @@ export function WoodbourneGeorgeLiveAssistant() {
       audioRef.current = null
     }
 
-    if (pendingAutoContinueRef.current) {
+    if (typeof window !== "undefined" && pendingAutoContinueRef.current) {
       window.clearTimeout(pendingAutoContinueRef.current)
       pendingAutoContinueRef.current = null
     }
@@ -492,6 +545,7 @@ export function WoodbourneGeorgeLiveAssistant() {
   }
 
   function scheduleAssistantContinuationIfNeeded(text: string) {
+    if (typeof window === "undefined") return
     if (!shouldForceContinuation(text)) return
     if (pendingAutoContinueRef.current) {
       window.clearTimeout(pendingAutoContinueRef.current)
@@ -543,7 +597,7 @@ export function WoodbourneGeorgeLiveAssistant() {
         break
       case "response.output_item.done": {
         const content = Array.isArray(event?.item?.content) ? event.item.content : []
-        const transcript = content
+        const outputTranscript = content
           .map((part: any) => {
             if (typeof part?.transcript === "string") return part.transcript
             if (typeof part?.text === "string") return part.text
@@ -551,9 +605,9 @@ export function WoodbourneGeorgeLiveAssistant() {
           })
           .filter(Boolean)
           .join("\n")
-        if (transcript) {
-          appendOrUpdateAssistantPartial(transcript, true)
-          scheduleAssistantContinuationIfNeeded(transcript)
+        if (outputTranscript) {
+          appendOrUpdateAssistantPartial(outputTranscript, true)
+          scheduleAssistantContinuationIfNeeded(outputTranscript)
         }
         break
       }
@@ -582,6 +636,7 @@ export function WoodbourneGeorgeLiveAssistant() {
     setConnectionState("connecting")
     setStatusText("Connecting George…")
     setError(null)
+    setConversationOpen(true)
 
     try {
       const tokenResponse = await fetch("/api/woodbourne-session", { method: "GET", cache: "no-store" })
@@ -625,7 +680,7 @@ export function WoodbourneGeorgeLiveAssistant() {
       dc.onopen = () => {
         setConnectionState("connected")
         setStatusText("Listening…")
-        dc.send(JSON.stringify(FIRST_RESPONSE_EVENT))
+        dc.send(JSON.stringify(buildFirstResponseEvent(visitorMemoryRef.current)))
       }
 
       dc.onclose = () => {
@@ -651,11 +706,7 @@ export function WoodbourneGeorgeLiveAssistant() {
         throw new Error(errorText || "Could not connect the live voice session.")
       }
 
-      const answer = {
-        type: "answer",
-        sdp: await response.text(),
-      }
-
+      const answer = { type: "answer", sdp: await response.text() }
       await pc.setRemoteDescription(answer)
     } catch (err) {
       await cleanupConversation()
@@ -673,223 +724,230 @@ export function WoodbourneGeorgeLiveAssistant() {
 
   return (
     <div className="min-h-screen bg-[#f3f3f3] text-[#111827]">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="overflow-hidden rounded-[32px] border border-[#d8dde8] bg-white shadow-[0_24px_70px_rgba(2,5,117,0.08)]">
-          <div className="border-b border-[#e5e7eb] bg-[#f2f2f7] px-5 py-6 sm:px-6 sm:py-7">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-4">
-                <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-14 w-auto object-contain sm:h-16" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#020575]">Woodbourne Car Sales x George</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#262626] sm:text-4xl">Meet George</h1>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-[#4b5563] sm:text-base">
-                    Woodbourne’s live digital salesperson. George helps visitors find the right car, answers stock questions naturally, compares the best-fit options, and moves serious buyers toward WhatsApp or an enquiry.
-                  </p>
-                </div>
+      <div className="fixed bottom-5 right-5 z-50">
+        <a
+          href="https://api.whatsapp.com/send?phone=447984518439"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open WhatsApp"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_18px_35px_rgba(37,211,102,0.35)] transition hover:scale-105 hover:brightness-105"
+        >
+          <MessageCircle className="h-7 w-7" />
+        </a>
+      </div>
+
+      <div className="border-b border-[#d7dbe7] bg-[#f2f2f7]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-16 w-auto object-contain sm:h-20" />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#020575] sm:text-xs">Woodbourne Car Sales x George</p>
+                <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
+                <p className="mt-1 text-sm text-[#4b5563]">Meet George — the live digital salesperson for Woodbourne.</p>
               </div>
-              <div className="flex flex-wrap gap-3">
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <QuickLink href="https://www.woodbournecarsales.co.uk/used/cars/" label="Used Cars" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/finance/" label="Finance" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/warranty/" label="Warranty" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/reviews/" label="Reviews" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/contact/" label="Contact Us" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="overflow-hidden rounded-[32px] border border-[#d8dde8] bg-white shadow-[0_24px_70px_rgba(2,5,117,0.08)]">
+          <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="bg-[linear-gradient(135deg,#ffffff_0%,#f2f5ff_55%,#e8ecfb_100%)] px-6 py-8 sm:px-8 sm:py-10">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#020575]">Meet George</p>
+              <h2 className="mt-3 max-w-xl text-3xl font-semibold tracking-tight text-[#262626] sm:text-5xl">
+                A proper digital salesperson for Woodbourne Car Sales.
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#4b5563] sm:text-base">
+                George helps visitors find the right car, answers questions naturally, compares the best-fit options, and nudges serious buyers toward WhatsApp or an enquiry.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
                 <a
                   href="https://www.woodbournecarsales.co.uk/used/cars/"
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-[#cfd5e2] bg-white px-4 py-2 text-sm font-medium text-[#262626] transition hover:border-[#020575]/25 hover:text-[#020575]"
+                  className="rounded-full bg-[#020575] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
                 >
                   View stock
                 </a>
                 <a
-                  href="https://api.whatsapp.com/send/?phone=447984518439&text&type=phone_number&app_absent=0"
+                  href="https://api.whatsapp.com/send?phone=447984518439"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#020575] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]"
                 >
                   <MessageCircle className="h-4 w-4" /> WhatsApp
                 </a>
               </div>
-            </div>
-          </div>
 
-          <div className="border-b border-[#e5e7eb] bg-white px-5 py-5 sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2 text-xs text-[#4b5563] sm:text-sm">
-                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Stock-led replies</span>
-                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Finance aware</span>
-                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Warranty aware</span>
-                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">WhatsApp handoff</span>
-                {buyerIntent ? <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Intent: {buyerIntent}</span> : null}
+              <div className="mt-6 flex flex-wrap gap-2 text-xs text-[#4b5563] sm:text-sm">
+                <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">Finance aware</span>
+                <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">Warranty aware</span>
+                <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">WhatsApp handoff</span>
+                {buyerIntent ? <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">Intent: {buyerIntent}</span> : null}
               </div>
-              <span
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-sm sm:text-sm ${
-                  connectionState === "connected"
-                    ? "border-[#cde7d5] bg-[#eefaf1] text-[#166534]"
-                    : connectionState === "connecting"
-                      ? "border-[#d9d5c6] bg-[#faf7ef] text-[#8a6a13]"
-                      : connectionState === "error"
-                        ? "border-[#f2caca] bg-[#fff1f1] text-[#b42318]"
-                        : "border-[#d8dde8] bg-[#f8fafc] text-[#374151]"
-                }`}
-              >
-                {connectionState === "connected" ? <Volume2 className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
-                <span>{isModelSpeaking ? "George is talking" : statusText}</span>
-              </span>
+            </div>
+
+            <div className="relative overflow-hidden bg-[linear-gradient(135deg,#020575_0%,#071584_55%,#0e1f9c_100%)] px-6 py-8 text-white sm:px-8 sm:py-10">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.10),transparent_42%)]" />
+              <div className="relative flex h-full flex-col items-center justify-center text-center">
+                <div className="rounded-[32px] border border-white/15 bg-white/8 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+                  <div className="mx-auto flex h-[210px] w-[210px] items-center justify-center rounded-full border border-white/15 bg-[radial-gradient(circle_at_30%_25%,#3d5eff_0%,#1738c8_36%,#020575_74%,#010349_100%)] shadow-[0_22px_56px_rgba(0,0,0,0.28),inset_0_4px_18px_rgba(255,255,255,0.24)] sm:h-[240px] sm:w-[240px]">
+                    <div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full border border-white/20 bg-white/[0.03]">
+                      <SteeringWheelMark />
+                      <div className="mt-3 text-lg font-semibold sm:text-xl">Talk to George</div>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-6 max-w-sm text-sm leading-7 text-white/90 sm:text-base">
+                  No need to scroll around. George can qualify the visitor, narrow the stock down, answer questions, and guide the next step.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="border-b border-[#e5e7eb] bg-[linear-gradient(180deg,#ffffff_0%,#f7f8fc_100%)] px-4 py-10 sm:px-6 sm:py-12">
-            <div className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.26em] text-[#020575]">
-                {connectionState === "connected"
-                  ? isModelSpeaking
-                    ? "George is talking"
-                    : "George is live"
-                  : connectionState === "connecting"
-                    ? "Connecting George"
-                    : "Tap the circle to speak to George"}
-              </p>
+          <div className="border-t border-[#e5e7eb] bg-white px-4 py-8 sm:px-6 sm:py-10">
+            <div className="mx-auto max-w-4xl text-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-[#f8fafc] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm">
+                {connectionState === "connected" ? <Volume2 className="h-4 w-4 text-[#020575]" /> : connectionState === "connecting" ? <Loader2 className="h-4 w-4 animate-spin text-[#020575]" /> : <Radio className="h-4 w-4 text-[#020575]" />}
+                <span>{isModelSpeaking ? "George is talking" : statusText}</span>
+              </div>
 
               <button
                 type="button"
                 onClick={connectionState === "connected" ? stopConversation : startConversation}
                 disabled={connectionState === "connecting"}
-                aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
-                className={`group relative mt-8 flex h-[250px] w-[250px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[300px] sm:w-[300px] ${
+                aria-label={connectionState === "connected" ? "End talking to George" : "Start talking to George"}
+                className={`mx-auto mt-6 flex h-[220px] w-[220px] items-center justify-center rounded-full transition duration-300 sm:h-[260px] sm:w-[260px] ${
                   connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-                } ${
-                  connectionState === "connected" || connectionState === "connecting"
-                    ? "animate-[pulse_2s_ease-in-out_infinite]"
-                    : "animate-[pulse_4s_ease-in-out_infinite]"
                 }`}
                 style={{
-                  background:
-                    "radial-gradient(circle at 30% 25%, #4c6cff 0%, #1d3fcf 28%, #020575 62%, #010349 100%)",
+                  background: "radial-gradient(circle at 30% 25%, #4c6cff 0%, #1d3fcf 28%, #020575 62%, #010349 100%)",
                   boxShadow:
                     connectionState === "connected" || connectionState === "connecting"
                       ? "0 0 0 10px rgba(2,5,117,0.10), 0 28px 60px rgba(2,5,117,0.28), inset 0 3px 18px rgba(255,255,255,0.24), inset 0 -14px 28px rgba(1,3,73,0.5)"
                       : "0 24px 54px rgba(2,5,117,0.18), inset 0 3px 18px rgba(255,255,255,0.22), inset 0 -14px 28px rgba(1,3,73,0.48)",
                 }}
               >
-                <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/20" />
-                <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/30 blur-[10px]" />
-                <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.16)_75%,rgba(255,255,255,0.24)_100%)]" />
-                <div className="relative z-10 flex h-[80%] w-[80%] flex-col items-center justify-center rounded-full text-white">
-                  {connectionState === "connected" ? <PhoneOff className="h-16 w-16 sm:h-20 sm:w-20" /> : <Mic className="h-16 w-16 sm:h-20 sm:w-20" />}
-                  <span className="mt-4 text-lg font-semibold sm:text-xl">
+                <div className="flex h-[80%] w-[80%] flex-col items-center justify-center rounded-full border border-white/20 text-white">
+                  {connectionState === "connected" ? <PhoneOff className="h-14 w-14 sm:h-16 sm:w-16" /> : <SteeringWheelMark />}
+                  <span className="mt-3 text-lg font-semibold sm:text-xl">
                     {connectionState === "connected" ? "End conversation" : connectionState === "connecting" ? "Connecting..." : "Talk to George"}
                   </span>
                 </div>
-                <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
               </button>
 
-              <div className="mt-6 min-h-[84px] max-w-3xl text-center">
-                <p className="text-base leading-7 text-[#374151] sm:text-lg">
-                  {connectionState === "connected"
-                    ? "You’re in a live conversation. Speak naturally and George should reply automatically, narrow the stock down, and pre-fill the enquiry form when the visitor is ready."
-                    : "No need to scroll — just tell George what sort of car you want and he’ll narrow things down for you."}
-                </p>
-                {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
-              </div>
-            </div>
-          </div>
-
-          <div ref={scrollRef} className="max-h-[560px] overflow-y-auto bg-[#f8fafc] px-4 py-6 sm:px-6 sm:py-8">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-              {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[86%] sm:text-[16px] ${
-                      message.role === "user"
-                        ? "rounded-br-md bg-[#020575] text-white"
-                        : message.role === "assistant"
-                          ? "rounded-bl-md border border-[#d8dde8] bg-white text-[#1f2937]"
-                          : "rounded-bl-md border border-[#d8dde8] bg-[#eef2ff] text-[#243277]"
-                    }`}
-                  >
-                    {message.content}
-                  </div>
-                </div>
-              ))}
-
-              {connectionState === "connecting" && (
-                <div className="flex justify-start">
-                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#d8dde8] bg-white px-5 py-4 text-[#1f2937] shadow-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" /> George is joining the call…
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="border-t border-[#e5e7eb] bg-white px-4 py-4 sm:px-6">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-[#4b5563]">
-                George is trained on Woodbourne’s live stock, finance, warranty, dealership trust signals, WhatsApp handoff, and enquiry capture — so visitors get real help rather than a generic bot experience.
+              <p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-[#4b5563] sm:text-base">
+                George is live on this page. Speak naturally and he should reply automatically, narrow the stock down, and pre-fill the enquiry form as he learns what the visitor wants.
               </p>
-              <div className="flex items-center gap-3">
-                {connectionState === "connected" && (
-                  <button
-                    type="button"
-                    onClick={stopConversation}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#d8dde8] bg-white px-5 py-3 text-sm font-semibold text-[#262626] transition hover:border-[#020575]/25 hover:text-[#020575]"
-                  >
-                    <PhoneOff className="h-4 w-4" /> End conversation
-                  </button>
-                )}
+              {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
+
+              <div className="mt-7 flex flex-wrap justify-center gap-3">
+                <a href="tel:01273500990" className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]">
+                  <Phone className="h-4 w-4" /> 01273 500990
+                </a>
+                <a href="tel:07984518439" className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]">
+                  <Phone className="h-4 w-4" /> 07984 518439
+                </a>
+                <a href="https://api.whatsapp.com/send?phone=447984518439" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] transition hover:brightness-105">
+                  <MessageCircle className="h-4 w-4" /> Start WhatsApp
+                </a>
+              </div>
+
+              <div className="mt-7">
+                <button
+                  type="button"
+                  onClick={() => setConversationOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#020575] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+                >
+                  {conversationOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {conversationOpen ? "Hide conversation" : "Open conversation"}
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-[#e5e7eb] bg-[#f2f2f7] px-5 py-6 text-[#111827] sm:px-6 sm:py-8">
-            <div className="mx-auto w-full max-w-4xl">
+          {conversationOpen ? (
+            <div className="border-t border-[#e5e7eb] bg-[#f8fafc] px-4 py-6 sm:px-6 sm:py-8">
+              <div ref={scrollRef} className="mx-auto max-h-[520px] max-w-4xl overflow-y-auto rounded-[28px] border border-[#d8dde8] bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex flex-col gap-4">
+                  {messages.map((message) => (
+                    <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-[15px] leading-7 shadow-sm sm:max-w-[82%] ${
+                          message.role === "user"
+                            ? "bg-[#020575] text-white"
+                            : message.role === "system"
+                              ? "border border-[#d8dde8] bg-[#f4f6fb] text-[#374151]"
+                              : "border border-[#d8dde8] bg-white text-[#111827]"
+                        }`}
+                      >
+                        {message.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="border-t border-[#e5e7eb] bg-[#f2f2f7] px-4 py-8 sm:px-6 sm:py-10">
+            <div className="mx-auto max-w-4xl">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-semibold text-[#262626]">Woodbourne Enquiry Form</h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#4b5563]">
-                    George should pre-fill this from the conversation as he learns what the visitor wants. They can then check it, submit it, and it will go to your current GuardX inbox while WhatsApp stays available as the faster handoff.
+                  <h2 className="text-2xl font-semibold text-[#262626]">Get in touch</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-[#4b5563]">
+                    George should pre-fill this as he learns what the visitor wants. Before sending, the visitor should make sure first name, last name, email, telephone, and message are all filled in, then either tap WhatsApp or press Send below.
                   </p>
                 </div>
                 {captureMode ? (
                   <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-white px-4 py-2 text-sm font-medium text-[#020575] shadow-sm">
-                    <Sparkles className="h-4 w-4" /> George is collecting details now
+                    George is collecting name, email, telephone, and message
                   </div>
                 ) : null}
               </div>
 
               {formMostlyReady ? (
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#cde7d5] bg-[#eefaf1] px-4 py-2 text-sm font-medium text-[#166534] shadow-sm">
-                  <CheckCircle2 className="h-4 w-4" /> If this looks right, hit send and it will go through to your current enquiry inbox.
+                  <CheckCircle2 className="h-4 w-4" /> This looks ready — double-check the details, then press Send or use WhatsApp.
                 </div>
               ) : null}
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href="https://api.whatsapp.com/send/?phone=447984518439&text&type=phone_number&app_absent=0"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] shadow-sm transition hover:brightness-110"
-                >
-                  <MessageCircle className="h-4 w-4" /> Open WhatsApp handoff
-                </a>
-              </div>
-
               <form action="https://formsubmit.co/info@guardxnetwork.com" method="POST" className="mt-6 space-y-5 rounded-[28px] border border-[#d8dde8] bg-white p-5 shadow-sm sm:p-6">
                 <input type="hidden" name="source" value="Woodbourne George page" />
-                <input type="hidden" name="page" value={typeof window !== "undefined" ? window.location.href : "https://askgeorge.app/woodbourne"} />
+                <input type="hidden" name="page" value={pageUrl} />
                 <input type="hidden" name="submissionMode" value="manual_submit" />
                 <input type="hidden" name="sessionId" value={conversationSessionIdRef.current} />
-                <input type="hidden" name="submittedAt" value={new Date().toISOString()} />
+                <input type="hidden" name="submittedAt" value={submittedAt} />
                 <input type="hidden" name="transcript" value={transcript} />
                 <input type="hidden" name="buyerIntent" value={buyerIntent} />
-                <input type="hidden" name="leadSummary" value={`${leadForm.firstName} ${leadForm.lastName}`.trim() ? `${leadForm.firstName} ${leadForm.lastName}`.trim() + (leadForm.carOfInterest ? ` | ${leadForm.carOfInterest}` : "") + (leadForm.budget ? ` | Budget £${leadForm.budget}` : leadForm.monthlyBudget ? ` | Monthly £${leadForm.monthlyBudget}` : "") + (leadForm.useCase ? ` | ${leadForm.useCase}` : "") : "Woodbourne George enquiry"} />
+                <input type="hidden" name="carOfInterest" value={leadForm.carOfInterest} />
+                <input type="hidden" name="budget" value={leadForm.budget} />
+                <input type="hidden" name="monthlyBudget" value={leadForm.monthlyBudget} />
+                <input type="hidden" name="fuelType" value={leadForm.fuelType} />
+                <input type="hidden" name="gearbox" value={leadForm.gearbox} />
+                <input type="hidden" name="useCase" value={leadForm.useCase} />
+                <input type="hidden" name="additionalInformation" value={leadForm.additionalInformation} />
                 <input type="hidden" name="_subject" value="New Woodbourne George enquiry" />
                 <input type="hidden" name="_replyto" value={leadForm.email} />
                 <input type="hidden" name="_captcha" value="false" />
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">First Name</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">First name</label>
                     <input name="firstName" value={leadForm.firstName} onChange={(event) => setLeadForm((prev) => ({ ...prev, firstName: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Last Name</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Last name</label>
                     <input name="lastName" value={leadForm.lastName} onChange={(event) => setLeadForm((prev) => ({ ...prev, lastName: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
@@ -897,72 +955,36 @@ export function WoodbourneGeorgeLiveAssistant() {
                     <input type="email" name="email" value={leadForm.email} onChange={(event) => setLeadForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Phone</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Telephone</label>
                     <input name="phone" value={leadForm.phone} onChange={(event) => setLeadForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Car of Interest</label>
-                    <input name="carOfInterest" value={leadForm.carOfInterest} onChange={(event) => setLeadForm((prev) => ({ ...prev, carOfInterest: event.target.value }))} placeholder="e.g. Toyota Yaris" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Budget</label>
-                    <input name="budget" value={leadForm.budget} onChange={(event) => setLeadForm((prev) => ({ ...prev, budget: event.target.value }))} placeholder="e.g. 10000" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Monthly Budget</label>
-                    <input name="monthlyBudget" value={leadForm.monthlyBudget} onChange={(event) => setLeadForm((prev) => ({ ...prev, monthlyBudget: event.target.value }))} placeholder="e.g. 200" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Fuel Type</label>
-                    <select name="fuelType" value={leadForm.fuelType} onChange={(event) => setLeadForm((prev) => ({ ...prev, fuelType: event.target.value }))} className={inputClass}>
-                      {FUEL_OPTIONS.map((option) => (
-                        <option key={option || "blank-fuel"} value={option}>{option || "Select fuel type"}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Gearbox</label>
-                    <select name="gearbox" value={leadForm.gearbox} onChange={(event) => setLeadForm((prev) => ({ ...prev, gearbox: event.target.value }))} className={inputClass}>
-                      {GEARBOX_OPTIONS.map((option) => (
-                        <option key={option || "blank-gearbox"} value={option}>{option || "Select gearbox"}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-[#262626]">Use Case</label>
-                    <input name="useCase" value={leadForm.useCase} onChange={(event) => setLeadForm((prev) => ({ ...prev, useCase: event.target.value }))} placeholder="e.g. family use, commuting, first car" className={inputClass} />
-                  </div>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-[#262626]">Additional Information</label>
-                  <input name="additionalInformation" value={leadForm.additionalInformation} onChange={(event) => setLeadForm((prev) => ({ ...prev, additionalInformation: event.target.value }))} className={inputClass} />
+                  <label className="mb-2 block text-sm font-medium text-[#262626]">Message</label>
+                  <textarea name="message" value={leadForm.message} onChange={(event) => setLeadForm((prev) => ({ ...prev, message: event.target.value }))} rows={7} className={`${inputClass} min-h-[180px] resize-y`} />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#262626]">Your Message</label>
-                  <textarea name="message" value={leadForm.message} onChange={(event) => setLeadForm((prev) => ({ ...prev, message: event.target.value }))} rows={6} className={`${inputClass} min-h-[160px] resize-y`} />
-                </div>
-
-                <div className="flex justify-start pt-1">
+                <div className="flex flex-wrap gap-3 pt-1">
                   <button type="submit" className="rounded-full bg-[#020575] px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">
-                    Send enquiry
+                    Send
                   </button>
+                  <a href="https://www.woodbournecarsales.co.uk/contact/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]">
+                    Go to Contact Us <ArrowRight className="h-4 w-4" />
+                  </a>
                 </div>
               </form>
             </div>
           </div>
-        </div>
 
-        <div className="flex justify-center pt-2">
-          <a
-            href="https://www.woodbournecarsales.co.uk/"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full bg-[#020575] px-8 py-4 text-base font-semibold text-white shadow-sm transition hover:brightness-110"
-          >
-            <ArrowLeft className="h-5 w-5" /> Back to Woodbourne Car Sales
-          </a>
+          <div className="border-t border-[#e5e7eb] bg-white px-4 py-6 sm:px-6">
+            <div className="mx-auto flex max-w-4xl flex-wrap gap-3">
+              <QuickLink href="https://www.woodbournecarsales.co.uk/" label="Back to Woodbourne home" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/used/cars/" label="Browse used cars" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/finance/" label="Finance page" />
+              <QuickLink href="https://www.woodbournecarsales.co.uk/warranty/" label="Warranty page" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
