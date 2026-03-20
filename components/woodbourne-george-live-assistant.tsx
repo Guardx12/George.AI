@@ -966,5 +966,5 @@ export function WoodbourneGeorgeLiveAssistant() {
         </div>
       </div>
     </div>
-  )  )
+  )
 }
