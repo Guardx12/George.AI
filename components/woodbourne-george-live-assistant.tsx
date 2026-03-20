@@ -75,6 +75,27 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim()
 }
 
+function normalizeVoiceTranscript(value: string) {
+  let normalized = normalizeWhitespace(value)
+
+  const replacements: Array<[RegExp, string]> = [
+    [/\bpectoral\s+blades\b/gi, "petrol"],
+    [/\bpetrol\s+please\b/gi, "petrol"],
+    [/\bpetrols\b/gi, "petrol"],
+    [/\bautomatick[yý]\b/gi, "automatic"],
+    [/\bautomatik\b/gi, "automatic"],
+    [/\bautomaticky\b/gi, "automatic"],
+    [/\bmanuell?\b/gi, "manual"],
+    [/\bulez\s+compliant\b/gi, "ULEZ compliant"],
+  ]
+
+  for (const [pattern, replacement] of replacements) {
+    normalized = normalized.replace(pattern, replacement)
+  }
+
+  return normalized
+}
+
 function titleCase(value: string) {
   return value
     .split(/\s+/)
@@ -260,6 +281,8 @@ export function WoodbourneGeorgeLiveAssistant() {
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const conversationSessionIdRef = useRef("")
+  const pendingAutoContinueRef = useRef<number | null>(null)
+  const lastAutoContinuedTextRef = useRef("")
 
   useEffect(() => {
     const sessionId =
@@ -388,8 +411,14 @@ export function WoodbourneGeorgeLiveAssistant() {
       audioRef.current = null
     }
 
+    if (pendingAutoContinueRef.current) {
+      window.clearTimeout(pendingAutoContinueRef.current)
+      pendingAutoContinueRef.current = null
+    }
+
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
+    lastAutoContinuedTextRef.current = ""
     setIsModelSpeaking(false)
   }
 
@@ -419,9 +448,58 @@ export function WoodbourneGeorgeLiveAssistant() {
   }
 
   function addUserTranscript(text: string) {
-    const cleaned = text.trim()
+    const cleaned = normalizeVoiceTranscript(text)
     if (!cleaned) return
+    lastAutoContinuedTextRef.current = ""
     setMessages((prev) => [...prev, makeMessage("user", cleaned)])
+  }
+
+  function shouldForceContinuation(text: string) {
+    const cleaned = normalizeWhitespace(text).toLowerCase()
+    if (!cleaned) return false
+
+    const lookupSignals = [
+      /let me check(?: our)? stock/,
+      /let me have a look/,
+      /i(?:'| a)?ll check(?: the)? stock/,
+      /i(?:'| a)?ll see what(?: we've| we have)? got/,
+      /give me a second and i(?:'| a)?ll/,
+      /let me narrow (?:it|this) down/,
+    ]
+    const hasLookupSignal = lookupSignals.some((pattern) => pattern.test(cleaned))
+    if (!hasLookupSignal) return false
+
+    const likelyResolved = /(best option|best fit|i can see|i've found|i have found|there'?s|there is|the strongest option|the best one|based on what you've said)/.test(cleaned)
+    return !likelyResolved
+  }
+
+  function requestAssistantContinuation(triggerText: string) {
+    if (!dcRef.current || dcRef.current.readyState !== "open") return
+    const cleaned = normalizeWhitespace(triggerText)
+    if (!cleaned) return
+    if (lastAutoContinuedTextRef.current === cleaned) return
+    lastAutoContinuedTextRef.current = cleaned
+
+    dcRef.current.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          instructions:
+            "Continue immediately from your last sentence without waiting for the visitor. Do not repeat yourself. Give the result in this same turn. If you mention stock, continue straight into the best fit you can see. Only describe a specific car from exact visible listing facts. Do not use vague phrases like typically, usually, or recent model year. If a detail is not clearly visible, say you do not want to guess and offer to get it confirmed.",
+        },
+      }),
+    )
+  }
+
+  function scheduleAssistantContinuationIfNeeded(text: string) {
+    if (!shouldForceContinuation(text)) return
+    if (pendingAutoContinueRef.current) {
+      window.clearTimeout(pendingAutoContinueRef.current)
+    }
+    pendingAutoContinueRef.current = window.setTimeout(() => {
+      requestAssistantContinuation(text)
+      pendingAutoContinueRef.current = null
+    }, 450)
   }
 
   function handleRealtimeEvent(event: any) {
@@ -454,9 +532,12 @@ export function WoodbourneGeorgeLiveAssistant() {
       case "response.output_audio_transcript.delta":
         appendOrUpdateAssistantPartial(typeof event.delta === "string" ? event.delta : "")
         break
-      case "response.output_audio_transcript.done":
-        appendOrUpdateAssistantPartial(typeof event.transcript === "string" ? event.transcript : "", true)
+      case "response.output_audio_transcript.done": {
+        const finalText = typeof event.transcript === "string" ? event.transcript : ""
+        appendOrUpdateAssistantPartial(finalText, true)
+        scheduleAssistantContinuationIfNeeded(finalText)
         break
+      }
       case "conversation.item.input_audio_transcription.completed":
         addUserTranscript(typeof event.transcript === "string" ? event.transcript : "")
         break
@@ -470,7 +551,10 @@ export function WoodbourneGeorgeLiveAssistant() {
           })
           .filter(Boolean)
           .join("\n")
-        if (transcript) appendOrUpdateAssistantPartial(transcript, true)
+        if (transcript) {
+          appendOrUpdateAssistantPartial(transcript, true)
+          scheduleAssistantContinuationIfNeeded(transcript)
+        }
         break
       }
       case "error": {
@@ -627,7 +711,7 @@ export function WoodbourneGeorgeLiveAssistant() {
           <div className="border-b border-[#e5e7eb] bg-white px-5 py-5 sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2 text-xs text-[#4b5563] sm:text-sm">
-                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Live stock aware</span>
+                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Stock-led replies</span>
                 <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Finance aware</span>
                 <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Warranty aware</span>
                 <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">WhatsApp handoff</span>
