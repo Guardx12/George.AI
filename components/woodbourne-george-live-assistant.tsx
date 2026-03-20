@@ -723,7 +723,7 @@ export function WoodbourneGeorgeLiveAssistant() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#f3f3f3] text-[#111827]">
+    <div className="min-h-screen bg-[#f3f3f3] text-[#111827]">
       <div className="fixed bottom-4 right-4 z-50 sm:bottom-5 sm:right-5">
         <a
           href="https://api.whatsapp.com/send?phone=447984518439"
@@ -740,10 +740,10 @@ export function WoodbourneGeorgeLiveAssistant() {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3 sm:gap-4">
-              <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-10 w-auto object-contain sm:h-14" />
+              
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#020575] sm:text-xs">Woodbourne Car Sales</p>
-                <h1 className="mt-1 text-xl font-bold tracking-tight text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#020575] sm:text-xs">Woodbourne Car Sales x George</p>
+                
                 <p className="mt-1 text-sm text-[#4b5563]">Meet George — here to help you find the right car.</p>
               </div>
             </div>
@@ -752,64 +752,29 @@ export function WoodbourneGeorgeLiveAssistant() {
       </div>
 
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="overflow-hidden rounded-[32px] border border-[#d8dde8] bg-white shadow-[0_24px_70px_rgba(2,5,117,0.08)]">
-          <div className="grid gap-8 px-4 py-6 sm:px-8 sm:py-10 lg:grid-cols-[1fr_0.9fr] lg:items-center">
-            <div>
-              <h2 className="text-3xl font-semibold tracking-tight text-[#262626] sm:text-5xl">
-                Meet George
-              </h2>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
-                Tell George what you're after and he’ll help you find the right car.
-              </p>
+        
+<div className="mx-auto max-w-4xl px-4 py-8 text-center">
+  
+  <h2 className="mt-4 text-2xl font-semibold text-[#262626] sm:text-4xl">Meet George</h2>
+  <p className="mt-3 text-sm text-[#4b5563] sm:text-base">
+    Tell George what you're after and he’ll help you find the right car.
+  </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href="https://www.woodbournecarsales.co.uk/used/cars/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full bg-[#020575] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
-                >
-                  View Stock
-                </a>
-                <a
-                  href="https://api.whatsapp.com/send?phone=447984518439"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] transition hover:brightness-105"
-                >
-                  <MessageCircle className="h-4 w-4" /> WhatsApp
-                </a>
-              </div>
+  <div className="mt-6 flex flex-wrap justify-center gap-3">
+    <a href="https://www.woodbournecarsales.co.uk/used/cars/" target="_blank"
+      className="rounded-full bg-[#020575] px-5 py-3 text-white font-semibold">
+      View Stock
+    </a>
 
-              <div className="mt-8">
-                <button
-                  type="button"
-                  onClick={connectionState === "connected" ? stopConversation : startConversation}
-                  disabled={connectionState === "connecting"}
-                  className="group inline-flex flex-col items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_25%,#3d5eff_0%,#1738c8_36%,#020575_74%,#010349_100%)] p-6 text-white shadow-[0_22px_56px_rgba(0,0,0,0.28),inset_0_4px_18px_rgba(255,255,255,0.24)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-80 sm:p-8"
-                >
-                  <div className="flex h-[180px] w-[180px] items-center justify-center rounded-full border border-white/20 bg-white/[0.03] sm:h-[220px] sm:w-[220px]">
-                    <div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full border border-white/20 bg-white/[0.03]">
-                      <SteeringWheelMark />
-                      <div className="mt-3 text-lg font-semibold sm:text-xl">Talk to George</div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
+    <a href="https://api.whatsapp.com/send?phone=447984518439" target="_blank"
+      className="rounded-full bg-[#25d366] px-5 py-3 font-semibold text-[#073b1d]">
+      WhatsApp
+    </a>
+  </div>
+</div>
 
-            <div className="flex items-center justify-center">
-              <div className="overflow-hidden rounded-[28px] border border-[#d8dde8] bg-[#f8fafc] shadow-sm">
-                <img
-                  src="/woodbourne-logo.jpg"
-                  alt="Woodbourne Car Sales"
-                  className="h-auto w-full max-w-[320px] object-contain sm:max-w-[380px]"
-                />
-              </div>
-            </div>
-          </div>
+<div className="text-center mt-6">
 
-          <div className="border-t border-[#e5e7eb] bg-white px-3 py-6 sm:px-6 sm:py-10">
             <div className="mx-auto max-w-4xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-[#f8fafc] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm">
                 {connectionState === "connected" ? <Volume2 className="h-4 w-4 text-[#020575]" /> : connectionState === "connecting" ? <Loader2 className="h-4 w-4 animate-spin text-[#020575]" /> : <Radio className="h-4 w-4 text-[#020575]" />}
@@ -841,7 +806,7 @@ export function WoodbourneGeorgeLiveAssistant() {
               </button>
 
               <p className="mx-auto mt-5 max-w-3xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
-                Speak naturally and George will answer questions and help you as you go.
+                Speak naturally and George will help you narrow things down, answer questions, and guide you toward WhatsApp or the enquiry form below.
               </p>
               {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
@@ -900,7 +865,7 @@ export function WoodbourneGeorgeLiveAssistant() {
                 <div>
                   <h2 className="text-2xl font-semibold text-[#262626]">Get in touch</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-[#4b5563]">
-                    If you'd like Woodbourne to come back to you, please double-check your first name, last name, email, telephone, and message, then hit Send below. If you'd rather message directly, tap WhatsApp instead.
+                    If you want Woodbourne to come back to you, just make sure your first name, last name, email, telephone, and message are filled in, then either tap WhatsApp or press Send below.
                   </p>
                 </div>
                 {captureMode ? (
