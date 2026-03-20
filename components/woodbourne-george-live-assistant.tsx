@@ -58,7 +58,7 @@ const FUEL_OPTIONS = ["", "Petrol", "Diesel", "Hybrid", "Electric", "No preferen
 const GEARBOX_OPTIONS = ["", "Automatic", "Manual", "No preference"]
 
 const inputClass =
-  "w-full rounded-2xl border border-[#8d6b25]/35 bg-[#121212] px-4 py-3 text-sm text-[#fff7df] outline-none transition placeholder:text-[#a9996d] focus:border-[#f0cb6d]/55 focus:ring-2 focus:ring-[#f0cb6d]/15"
+  "w-full rounded-2xl border border-[#cfd5e2] bg-white px-4 py-3 text-sm text-[#111827] outline-none transition placeholder:text-[#6b7280] focus:border-[#020575] focus:ring-2 focus:ring-[#020575]/10"
 
 function makeMessage(role: LiveMessage["role"], content: string) {
   return {
@@ -588,24 +588,27 @@ export function WoodbourneGeorgeLiveAssistant() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="min-h-screen bg-[#f3f3f3] text-[#111827]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="overflow-hidden rounded-[32px] border border-[#d7b65d]/16 bg-[radial-gradient(circle_at_top,rgba(106,78,28,0.28)_0%,rgba(15,15,15,0.97)_33%,rgba(6,6,6,1)_100%)] shadow-[0_30px_80px_rgba(0,0,0,0.46)]">
-          <div className="border-b border-[#d7b65d]/18 px-5 py-6 sm:px-6 sm:py-7">
+        <div className="overflow-hidden rounded-[32px] border border-[#d8dde8] bg-white shadow-[0_24px_70px_rgba(2,5,117,0.08)]">
+          <div className="border-b border-[#e5e7eb] bg-[#f2f2f7] px-5 py-6 sm:px-6 sm:py-7">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.38em] text-[#cfab44]">Woodbourne Car Sales x George</p>
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#fff6db] sm:text-4xl">Meet George</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-[#d7c08a] sm:text-base">
-                  George is the live digital salesperson for Woodbourne Car Sales. He helps visitors find the right car, answers questions naturally, compares the best-fit options, and nudges serious buyers toward WhatsApp or an enquiry.
-                </p>
+              <div className="flex items-center gap-4">
+                <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-14 w-auto object-contain sm:h-16" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#020575]">Woodbourne Car Sales x George</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#262626] sm:text-4xl">Meet George</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-[#4b5563] sm:text-base">
+                    Woodbourne’s live digital salesperson. George helps visitors find the right car, answers stock questions naturally, compares the best-fit options, and moves serious buyers toward WhatsApp or an enquiry.
+                  </p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-3">
                 <a
                   href="https://www.woodbournecarsales.co.uk/used/cars/"
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-[#8d6b25]/35 bg-[#111111] px-4 py-2 text-sm font-medium text-[#f1dfac] transition hover:border-[#f0cb6d]/45 hover:bg-[#181818]"
+                  className="rounded-full border border-[#cfd5e2] bg-white px-4 py-2 text-sm font-medium text-[#262626] transition hover:border-[#020575]/25 hover:text-[#020575]"
                 >
                   View stock
                 </a>
@@ -613,7 +616,7 @@ export function WoodbourneGeorgeLiveAssistant() {
                   href="https://api.whatsapp.com/send/?phone=447984518439&text&type=phone_number&app_absent=0"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-[#25d366]/40 bg-[#0f2416] px-4 py-2 text-sm font-medium text-[#9cf0b7] transition hover:brightness-110"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#020575] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
                 >
                   <MessageCircle className="h-4 w-4" /> WhatsApp
                 </a>
@@ -621,24 +624,24 @@ export function WoodbourneGeorgeLiveAssistant() {
             </div>
           </div>
 
-          <div className="border-b border-[#d7b65d]/18 bg-[#0d0d0d]/80 px-5 py-5 sm:px-6">
+          <div className="border-b border-[#e5e7eb] bg-white px-5 py-5 sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2 text-xs text-[#d7c08a] sm:text-sm">
-                <span className="rounded-full border border-[#8d6b25]/35 bg-[#111111] px-3 py-2">Live stock aware</span>
-                <span className="rounded-full border border-[#8d6b25]/35 bg-[#111111] px-3 py-2">Finance aware</span>
-                <span className="rounded-full border border-[#8d6b25]/35 bg-[#111111] px-3 py-2">Warranty aware</span>
-                <span className="rounded-full border border-[#8d6b25]/35 bg-[#111111] px-3 py-2">WhatsApp handoff</span>
-                {buyerIntent ? <span className="rounded-full border border-[#8d6b25]/35 bg-[#111111] px-3 py-2">Intent: {buyerIntent}</span> : null}
+              <div className="flex flex-wrap gap-2 text-xs text-[#4b5563] sm:text-sm">
+                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Live stock aware</span>
+                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Finance aware</span>
+                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Warranty aware</span>
+                <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">WhatsApp handoff</span>
+                {buyerIntent ? <span className="rounded-full border border-[#d8dde8] bg-[#f8fafc] px-3 py-2">Intent: {buyerIntent}</span> : null}
               </div>
               <span
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-[0_10px_24px_rgba(0,0,0,0.28)] sm:text-sm ${
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-sm sm:text-sm ${
                   connectionState === "connected"
-                    ? "border-[#2c7e42]/40 bg-[#0f2416] text-[#8ce6a8]"
+                    ? "border-[#cde7d5] bg-[#eefaf1] text-[#166534]"
                     : connectionState === "connecting"
-                      ? "border-[#a57b20]/40 bg-[#24190a] text-[#f4cd6a]"
+                      ? "border-[#d9d5c6] bg-[#faf7ef] text-[#8a6a13]"
                       : connectionState === "error"
-                        ? "border-[#8f2f2f]/40 bg-[#2a1111] text-[#ff9a9a]"
-                        : "border-[#6e5825]/35 bg-[#18140c] text-[#d6c082]"
+                        ? "border-[#f2caca] bg-[#fff1f1] text-[#b42318]"
+                        : "border-[#d8dde8] bg-[#f8fafc] text-[#374151]"
                 }`}
               >
                 {connectionState === "connected" ? <Volume2 className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
@@ -647,17 +650,73 @@ export function WoodbourneGeorgeLiveAssistant() {
             </div>
           </div>
 
-          <div ref={scrollRef} className="max-h-[560px] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(76,58,20,0.35)_0%,rgba(18,18,18,0.94)_36%,rgba(6,6,6,0.98)_100%)] px-4 py-6 sm:px-6 sm:py-8">
+          <div className="border-b border-[#e5e7eb] bg-[linear-gradient(180deg,#ffffff_0%,#f7f8fc_100%)] px-4 py-10 sm:px-6 sm:py-12">
+            <div className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.26em] text-[#020575]">
+                {connectionState === "connected"
+                  ? isModelSpeaking
+                    ? "George is talking"
+                    : "George is live"
+                  : connectionState === "connecting"
+                    ? "Connecting George"
+                    : "Tap the circle to speak to George"}
+              </p>
+
+              <button
+                type="button"
+                onClick={connectionState === "connected" ? stopConversation : startConversation}
+                disabled={connectionState === "connecting"}
+                aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
+                className={`group relative mt-8 flex h-[250px] w-[250px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[300px] sm:w-[300px] ${
+                  connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+                } ${
+                  connectionState === "connected" || connectionState === "connecting"
+                    ? "animate-[pulse_2s_ease-in-out_infinite]"
+                    : "animate-[pulse_4s_ease-in-out_infinite]"
+                }`}
+                style={{
+                  background:
+                    "radial-gradient(circle at 30% 25%, #4c6cff 0%, #1d3fcf 28%, #020575 62%, #010349 100%)",
+                  boxShadow:
+                    connectionState === "connected" || connectionState === "connecting"
+                      ? "0 0 0 10px rgba(2,5,117,0.10), 0 28px 60px rgba(2,5,117,0.28), inset 0 3px 18px rgba(255,255,255,0.24), inset 0 -14px 28px rgba(1,3,73,0.5)"
+                      : "0 24px 54px rgba(2,5,117,0.18), inset 0 3px 18px rgba(255,255,255,0.22), inset 0 -14px 28px rgba(1,3,73,0.48)",
+                }}
+              >
+                <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/20" />
+                <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/30 blur-[10px]" />
+                <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.16)_75%,rgba(255,255,255,0.24)_100%)]" />
+                <div className="relative z-10 flex h-[80%] w-[80%] flex-col items-center justify-center rounded-full text-white">
+                  {connectionState === "connected" ? <PhoneOff className="h-16 w-16 sm:h-20 sm:w-20" /> : <Mic className="h-16 w-16 sm:h-20 sm:w-20" />}
+                  <span className="mt-4 text-lg font-semibold sm:text-xl">
+                    {connectionState === "connected" ? "End conversation" : connectionState === "connecting" ? "Connecting..." : "Talk to George"}
+                  </span>
+                </div>
+                <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
+              </button>
+
+              <div className="mt-6 min-h-[84px] max-w-3xl text-center">
+                <p className="text-base leading-7 text-[#374151] sm:text-lg">
+                  {connectionState === "connected"
+                    ? "You’re in a live conversation. Speak naturally and George should reply automatically, narrow the stock down, and pre-fill the enquiry form when the visitor is ready."
+                    : "No need to scroll — just tell George what sort of car you want and he’ll narrow things down for you."}
+                </p>
+                {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
+              </div>
+            </div>
+          </div>
+
+          <div ref={scrollRef} className="max-h-[560px] overflow-y-auto bg-[#f8fafc] px-4 py-6 sm:px-6 sm:py-8">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-[0_15px_35px_rgba(0,0,0,0.28)] sm:max-w-[86%] sm:text-[16px] ${
+                    className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[86%] sm:text-[16px] ${
                       message.role === "user"
-                        ? "rounded-br-md border border-[#d7b65d]/35 bg-[linear-gradient(180deg,#f0cb6d_0%,#bb8e2d_100%)] text-[#17130b]"
+                        ? "rounded-br-md bg-[#020575] text-white"
                         : message.role === "assistant"
-                          ? "rounded-bl-md border border-[#d7b65d]/18 bg-[linear-gradient(180deg,rgba(255,248,228,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#f7ebc5] backdrop-blur"
-                          : "rounded-bl-md border border-[#8d6b25]/35 bg-[#18140d] text-[#d7c08a]"
+                          ? "rounded-bl-md border border-[#d8dde8] bg-white text-[#1f2937]"
+                          : "rounded-bl-md border border-[#d8dde8] bg-[#eef2ff] text-[#243277]"
                     }`}
                   >
                     {message.content}
@@ -667,7 +726,7 @@ export function WoodbourneGeorgeLiveAssistant() {
 
               {connectionState === "connecting" && (
                 <div className="flex justify-start">
-                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#d7b65d]/18 bg-[linear-gradient(180deg,rgba(255,248,228,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-5 py-4 text-[#f7ebc5] shadow-[0_15px_35px_rgba(0,0,0,0.28)]">
+                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#d8dde8] bg-white px-5 py-4 text-[#1f2937] shadow-sm">
                     <Loader2 className="h-4 w-4 animate-spin" /> George is joining the call…
                   </div>
                 </div>
@@ -675,55 +734,43 @@ export function WoodbourneGeorgeLiveAssistant() {
             </div>
           </div>
 
-          <div className="border-t border-[#d7b65d]/18 bg-[linear-gradient(180deg,rgba(20,20,20,0.98)_0%,rgba(11,11,11,0.98)_100%)] px-4 py-4 sm:px-6">
+          <div className="border-t border-[#e5e7eb] bg-white px-4 py-4 sm:px-6">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-[#c9bb95]">
-                {connectionState === "connected"
-                  ? "You’re in a live conversation. Speak naturally and George should reply automatically, narrow the stock down, and pre-fill the enquiry form when the visitor is ready."
-                  : "Start the live conversation and George will greet the visitor, ask what sort of car they need, then guide them toward the best-fit stock and the next step."}
+              <p className="text-sm leading-6 text-[#4b5563]">
+                George is trained on Woodbourne’s live stock, finance, warranty, dealership trust signals, WhatsApp handoff, and enquiry capture — so visitors get real help rather than a generic bot experience.
               </p>
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={startConversation}
-                  disabled={!canStart}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] px-5 py-3 text-sm font-semibold text-[#16110a] shadow-[0_18px_36px_rgba(194,145,45,0.25)] transition hover:scale-[1.02] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Mic className="h-4 w-4" />
-                  {connectionState === "connected" ? "Live conversation on" : "Start live conversation"}
-                </button>
                 {connectionState === "connected" && (
                   <button
                     type="button"
                     onClick={stopConversation}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#8d6b25]/35 bg-transparent px-5 py-3 text-sm font-semibold text-[#e7d09a] transition hover:border-[#f0cb6d]/45 hover:bg-[#1b160d]"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#d8dde8] bg-white px-5 py-3 text-sm font-semibold text-[#262626] transition hover:border-[#020575]/25 hover:text-[#020575]"
                   >
                     <PhoneOff className="h-4 w-4" /> End conversation
                   </button>
                 )}
               </div>
             </div>
-            {error ? <p className="mx-auto mt-3 w-full max-w-4xl text-sm text-[#ff9a9a]">{error}</p> : null}
           </div>
 
-          <div className="border-t border-[#d7b65d]/18 bg-[radial-gradient(circle_at_top,rgba(95,73,26,0.26)_0%,rgba(14,14,14,0.98)_35%,rgba(7,7,7,1)_100%)] px-5 py-6 text-white sm:px-6 sm:py-8">
+          <div className="border-t border-[#e5e7eb] bg-[#f2f2f7] px-5 py-6 text-[#111827] sm:px-6 sm:py-8">
             <div className="mx-auto w-full max-w-4xl">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-semibold text-[#fff6db]">Woodbourne Enquiry Form</h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c9bb95]">
+                  <h2 className="text-2xl font-semibold text-[#262626]">Woodbourne Enquiry Form</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#4b5563]">
                     George should pre-fill this from the conversation as he learns what the visitor wants. They can then check it, submit it, and it will go to your current GuardX inbox while WhatsApp stays available as the faster handoff.
                   </p>
                 </div>
                 {captureMode ? (
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[#211808] px-4 py-2 text-sm font-medium text-[#f4cd6a] shadow-[0_16px_34px_rgba(0,0,0,0.28)]">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-white px-4 py-2 text-sm font-medium text-[#020575] shadow-sm">
                     <Sparkles className="h-4 w-4" /> George is collecting details now
                   </div>
                 ) : null}
               </div>
 
               {formMostlyReady ? (
-                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#2c7e42]/35 bg-[#0f2416] px-4 py-2 text-sm font-medium text-[#8ce6a8] shadow-[0_16px_34px_rgba(0,0,0,0.28)]">
+                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#cde7d5] bg-[#eefaf1] px-4 py-2 text-sm font-medium text-[#166534] shadow-sm">
                   <CheckCircle2 className="h-4 w-4" /> If this looks right, hit send and it will go through to your current enquiry inbox.
                 </div>
               ) : null}
@@ -733,13 +780,13 @@ export function WoodbourneGeorgeLiveAssistant() {
                   href="https://api.whatsapp.com/send/?phone=447984518439&text&type=phone_number&app_absent=0"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-[#25d366]/40 bg-[#0f2416] px-5 py-3 text-sm font-semibold text-[#9cf0b7] shadow-[0_18px_36px_rgba(0,0,0,0.25)] transition hover:brightness-110"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] shadow-sm transition hover:brightness-110"
                 >
                   <MessageCircle className="h-4 w-4" /> Open WhatsApp handoff
                 </a>
               </div>
 
-              <form action="https://formsubmit.co/info@guardxnetwork.com" method="POST" className="mt-6 space-y-5 rounded-[28px] border border-[#d7b65d]/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.01)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_30px_60px_rgba(0,0,0,0.32)] sm:p-6">
+              <form action="https://formsubmit.co/info@guardxnetwork.com" method="POST" className="mt-6 space-y-5 rounded-[28px] border border-[#d8dde8] bg-white p-5 shadow-sm sm:p-6">
                 <input type="hidden" name="source" value="Woodbourne George page" />
                 <input type="hidden" name="page" value={typeof window !== "undefined" ? window.location.href : "https://askgeorge.app/woodbourne"} />
                 <input type="hidden" name="submissionMode" value="manual_submit" />
@@ -754,35 +801,35 @@ export function WoodbourneGeorgeLiveAssistant() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">First Name</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">First Name</label>
                     <input name="firstName" value={leadForm.firstName} onChange={(event) => setLeadForm((prev) => ({ ...prev, firstName: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Last Name</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Last Name</label>
                     <input name="lastName" value={leadForm.lastName} onChange={(event) => setLeadForm((prev) => ({ ...prev, lastName: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Email</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Email</label>
                     <input type="email" name="email" value={leadForm.email} onChange={(event) => setLeadForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Phone</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Phone</label>
                     <input name="phone" value={leadForm.phone} onChange={(event) => setLeadForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder="Type here..." className={inputClass} />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Car of Interest</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Car of Interest</label>
                     <input name="carOfInterest" value={leadForm.carOfInterest} onChange={(event) => setLeadForm((prev) => ({ ...prev, carOfInterest: event.target.value }))} placeholder="e.g. Toyota Yaris" className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Budget</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Budget</label>
                     <input name="budget" value={leadForm.budget} onChange={(event) => setLeadForm((prev) => ({ ...prev, budget: event.target.value }))} placeholder="e.g. 10000" className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Monthly Budget</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Monthly Budget</label>
                     <input name="monthlyBudget" value={leadForm.monthlyBudget} onChange={(event) => setLeadForm((prev) => ({ ...prev, monthlyBudget: event.target.value }))} placeholder="e.g. 200" className={inputClass} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Fuel Type</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Fuel Type</label>
                     <select name="fuelType" value={leadForm.fuelType} onChange={(event) => setLeadForm((prev) => ({ ...prev, fuelType: event.target.value }))} className={inputClass}>
                       {FUEL_OPTIONS.map((option) => (
                         <option key={option || "blank-fuel"} value={option}>{option || "Select fuel type"}</option>
@@ -790,7 +837,7 @@ export function WoodbourneGeorgeLiveAssistant() {
                     </select>
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Gearbox</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Gearbox</label>
                     <select name="gearbox" value={leadForm.gearbox} onChange={(event) => setLeadForm((prev) => ({ ...prev, gearbox: event.target.value }))} className={inputClass}>
                       {GEARBOX_OPTIONS.map((option) => (
                         <option key={option || "blank-gearbox"} value={option}>{option || "Select gearbox"}</option>
@@ -798,23 +845,23 @@ export function WoodbourneGeorgeLiveAssistant() {
                     </select>
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Use Case</label>
+                    <label className="mb-2 block text-sm font-medium text-[#262626]">Use Case</label>
                     <input name="useCase" value={leadForm.useCase} onChange={(event) => setLeadForm((prev) => ({ ...prev, useCase: event.target.value }))} placeholder="e.g. family use, commuting, first car" className={inputClass} />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Additional Information</label>
+                  <label className="mb-2 block text-sm font-medium text-[#262626]">Additional Information</label>
                   <input name="additionalInformation" value={leadForm.additionalInformation} onChange={(event) => setLeadForm((prev) => ({ ...prev, additionalInformation: event.target.value }))} className={inputClass} />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-[#f7ebc5]">Your Message</label>
+                  <label className="mb-2 block text-sm font-medium text-[#262626]">Your Message</label>
                   <textarea name="message" value={leadForm.message} onChange={(event) => setLeadForm((prev) => ({ ...prev, message: event.target.value }))} rows={6} className={`${inputClass} min-h-[160px] resize-y`} />
                 </div>
 
                 <div className="flex justify-start pt-1">
-                  <button type="submit" className="rounded-full border border-[#f0cb6d]/30 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] px-7 py-3 text-sm font-semibold text-[#16110a] shadow-[0_18px_36px_rgba(194,145,45,0.25)] transition hover:scale-[1.02] hover:brightness-110">
+                  <button type="submit" className="rounded-full bg-[#020575] px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">
                     Send enquiry
                   </button>
                 </div>
@@ -828,12 +875,12 @@ export function WoodbourneGeorgeLiveAssistant() {
             href="https://www.woodbournecarsales.co.uk/"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-[#f0cb6d]/30 bg-[linear-gradient(180deg,#f4d273_0%,#c2912d_100%)] px-8 py-4 text-base font-semibold text-[#16110a] shadow-[0_18px_36px_rgba(194,145,45,0.25)] transition hover:scale-[1.02] hover:brightness-110"
+            className="inline-flex items-center gap-2 rounded-full bg-[#020575] px-8 py-4 text-base font-semibold text-white shadow-sm transition hover:brightness-110"
           >
             <ArrowLeft className="h-5 w-5" /> Back to Woodbourne Car Sales
           </a>
         </div>
       </div>
     </div>
-  )
+  )  )
 }
