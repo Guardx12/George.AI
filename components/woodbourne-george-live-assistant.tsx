@@ -730,7 +730,7 @@ export function WoodbourneGeorgeLiveAssistant() {
           target="_blank"
           rel="noreferrer"
           aria-label="Open WhatsApp"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_18px_35px_rgba(37,211,102,0.35)] transition hover:scale-105 hover:brightness-105 sm:h-14 sm:w-14"
+          className="flex h-20 w-20 sm:h-24 sm:w-24"
         >
           <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7" />
         </a>
