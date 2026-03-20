@@ -193,7 +193,8 @@ function extractBudget(text: string) {
 }
 
 function extractMonthlyBudget(text: string) {
-  return matchFirst(text, [/(:?monthly budget|per month|a month|monthly)\s*(?:of)?\s*£?\s?([0-9][0-9,]{1,})/i])
+  const match = text.match(/(?:monthly budget|per month|a month|monthly)\s*(?:of)?\s*£?\s?([0-9][0-9,]{1,})/i)
+  return match?.[1] ? normalizeWhitespace(match[1]) : ""
 }
 
 function detectCaptureMode(transcript: string) {
@@ -263,7 +264,7 @@ function extractLeadDetailsFromTranscript(userTranscript: string, messages: Live
     gearbox: inferGearbox(userTranscript),
     useCase: inferUseCase(userTranscript),
     summary,
-    captureMode: detectCaptureMode(transcript),
+    captureMode: detectCaptureMode(userTranscript),
   }
 }
 
