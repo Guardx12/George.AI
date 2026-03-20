@@ -54,7 +54,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hi — I’m George, the digital salesperson for Woodbourne Car Sales. Tell me what sort of car you’re after and I’ll narrow it down for you.",
+      "Hi — I’m George from Woodbourne Car Sales. Tell me what sort of car you’re after and I’ll narrow it down for you.",
   },
 ]
 
@@ -742,9 +742,7 @@ export function WoodbourneGeorgeLiveAssistant() {
             <div className="flex items-center gap-3 sm:gap-4">
               <img src="/woodbourne-logo.jpg" alt="Woodbourne Car Sales" className="h-10 w-auto object-contain sm:h-14" />
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#020575] sm:text-xs">Woodbourne Car Sales</p>
-                <h1 className="mt-1 text-xl font-bold tracking-tight text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
-                <p className="mt-1 text-sm text-[#4b5563]">Meet George — here to help you find the right car.</p>
+                <h1 className="sr-only">Woodbourne Car Sales</h1>
               </div>
             </div>
           </div>
@@ -755,12 +753,11 @@ export function WoodbourneGeorgeLiveAssistant() {
         <div className="overflow-hidden rounded-[32px] border border-[#d8dde8] bg-white shadow-[0_24px_70px_rgba(2,5,117,0.08)]">
           <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="bg-[linear-gradient(135deg,#ffffff_0%,#f2f5ff_55%,#e8ecfb_100%)] px-4 py-6 sm:px-8 sm:py-10">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#020575]">Meet George</p>
-              <h2 className="mt-3 max-w-xl text-2xl font-semibold tracking-tight text-[#262626] sm:text-5xl">
-                Meet George — here to help you find the right car.
+              <h2 className="max-w-xl text-2xl font-semibold tracking-tight text-[#262626] sm:text-5xl">
+                Meet George
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
-                Tell George what you're after and he'll help narrow the options down, answer questions clearly, and help you find a car that fits.
+                Tell George what you're after and he’ll help narrow the options down, answer questions clearly, and help you find the right car.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -776,17 +773,10 @@ export function WoodbourneGeorgeLiveAssistant() {
                   href="https://api.whatsapp.com/send?phone=447984518439"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-[#cfd5e2] bg-white px-5 py-3 text-sm font-semibold text-[#111827] transition hover:border-[#020575]/30 hover:text-[#020575]"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-3 text-sm font-semibold text-[#073b1d] transition hover:brightness-105"
                 >
                   <MessageCircle className="h-4 w-4" /> WhatsApp
                 </a>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2 text-xs text-[#4b5563] sm:text-sm">
-                <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">Finance aware</span>
-                <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">Warranty aware</span>
-                <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">WhatsApp handoff</span>
-                {buyerIntent ? <span className="rounded-full border border-[#d8dde8] bg-white px-3 py-2">Intent: {buyerIntent}</span> : null}
               </div>
             </div>
 
@@ -802,7 +792,7 @@ export function WoodbourneGeorgeLiveAssistant() {
                   </div>
                 </div>
                 <p className="mt-5 max-w-sm text-sm leading-6 text-white/90 sm:mt-6 sm:text-base sm:leading-7">
-                  No need to scroll around. George can help you narrow the options down and answer questions as you go.
+                  No need to scroll around. George can help you narrow the options down and answer your questions as you go.
                 </p>
               </div>
             </div>
@@ -840,7 +830,7 @@ export function WoodbourneGeorgeLiveAssistant() {
               </button>
 
               <p className="mx-auto mt-5 max-w-3xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
-                Speak naturally and George will help you narrow things down and answer questions as you go.
+                Speak naturally and George will help you narrow things down and answer your questions as you go.
               </p>
               {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
