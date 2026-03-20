@@ -736,44 +736,23 @@ export function WoodbourneGeorgeLiveAssistant() {
         </a>
       </div>
 
-      <div className="border-b border-[#d7dbe7] bg-[#f2f2f7]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3 sm:gap-4">
-              
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#020575] sm:text-xs">Woodbourne Car Sales x George</p>
-                
-                <p className="mt-1 text-sm text-[#4b5563]">Meet George — here to help you find the right car.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-        
-<div className="mx-auto max-w-4xl px-4 py-8 text-center">
-  
-  <h2 className="mt-4 text-2xl font-semibold text-[#262626] sm:text-4xl">Meet George</h2>
-  <p className="mt-3 text-sm text-[#4b5563] sm:text-base">
-    Tell George what you're after and he’ll help you find the right car.
-  </p>
+        <div className="mx-auto max-w-4xl text-center">
+          <h1 className="text-2xl font-bold text-[#020575] sm:text-3xl">Woodbourne Car Sales</h1>
+          <h2 className="mt-4 text-2xl font-semibold text-[#262626] sm:text-4xl">Meet George</h2>
+          <p className="mt-3 text-sm text-[#4b5563] sm:text-base">
+            Tell George what you're after and he’ll help you find the right car.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <a href="https://www.woodbournecarsales.co.uk/used/cars/" target="_blank" rel="noreferrer" className="rounded-full bg-[#020575] px-5 py-3 text-white font-semibold transition hover:brightness-110">
+              View Stock
+            </a>
+            <a href="https://api.whatsapp.com/send?phone=447984518439" target="_blank" rel="noreferrer" className="rounded-full bg-[#25d366] px-5 py-3 font-semibold text-[#073b1d] transition hover:brightness-105">
+              WhatsApp
+            </a>
+          </div>
 
-  <div className="mt-6 flex flex-wrap justify-center gap-3">
-    <a href="https://www.woodbournecarsales.co.uk/used/cars/" target="_blank"
-      className="rounded-full bg-[#020575] px-5 py-3 text-white font-semibold">
-      View Stock
-    </a>
-
-    <a href="https://api.whatsapp.com/send?phone=447984518439" target="_blank"
-      className="rounded-full bg-[#25d366] px-5 py-3 font-semibold text-[#073b1d]">
-      WhatsApp
-    </a>
-  </div>
-</div>
-
-<div className="text-center mt-6">
+          <div className="mt-8">
 
             <div className="mx-auto max-w-4xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#d8dde8] bg-[#f8fafc] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm">
@@ -806,7 +785,7 @@ export function WoodbourneGeorgeLiveAssistant() {
               </button>
 
               <p className="mx-auto mt-5 max-w-3xl text-sm leading-6 text-[#4b5563] sm:text-base sm:leading-7">
-                Speak naturally and George will help you narrow things down, answer questions, and guide you toward WhatsApp or the enquiry form below.
+                Speak naturally and George will answer questions and help you as you go.
               </p>
               {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
@@ -865,7 +844,7 @@ export function WoodbourneGeorgeLiveAssistant() {
                 <div>
                   <h2 className="text-2xl font-semibold text-[#262626]">Get in touch</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-[#4b5563]">
-                    If you want Woodbourne to come back to you, just make sure your first name, last name, email, telephone, and message are filled in, then either tap WhatsApp or press Send below.
+                    If you'd like Woodbourne to come back to you, please double-check your first name, last name, email, telephone, and message, then hit Send below. If you'd rather message directly, tap WhatsApp instead.
                   </p>
                 </div>
                 {captureMode ? (
