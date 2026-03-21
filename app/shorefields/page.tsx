@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function ShorefieldsGeorgePage() {
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f6fbef_0%,#f9f5e2_38%,#eef8ef_100%)] text-[#234d28]">
+    <main className="min-h-screen bg-[#f7f7f3] text-[#111]">
       <ShorefieldsGeorgeLiveAssistant />
     </main>
   )

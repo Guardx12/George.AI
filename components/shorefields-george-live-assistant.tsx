@@ -7,18 +7,17 @@ import {
   CalendarDays,
   Loader2,
   MapPinned,
-  Mic,
   PhoneOff,
   Sparkles,
   Ticket,
   Trees,
   UtensilsCrossed,
   BadgeHelp,
-  PawPrint,
-  Volume2,
+  Dumbbell,
   RotateCcw,
   ChevronDown,
   ChevronUp,
+  Search,
 } from "lucide-react"
 
 type LiveMessage = {
@@ -36,17 +35,16 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I'm George, your Shorefield mascot and digital guide. I can help whether you're planning your stay or already here, and I can guide you around the park, point you towards facilities, entertainment, food, family fun and nearby walks — would you like help with that now?",
+      "Hello — I’m George, your Shorefield mascot and digital guide. I can help with where to go, what to do, food, entertainment, family fun, nearby walks and getting your bearings around the park.",
   },
 ]
 
 const QUICK_LINKS = [
   { label: "Book Shorefield", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Ticket },
   { label: "Park Map", href: "https://fls-9ed90804-04fe-49f0-b869-7d2f9e0d49c2.laravel.cloud/files/park-maps/shorefield-country-park-map-2026_dl.pdf", icon: MapPinned },
-  { label: "Plan Your Stay", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: MapPinned },
   { label: "What’s On", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: CalendarDays },
-  { label: "Entertainment & Activities", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: Sparkles },
-  { label: "Health & Fitness", href: "https://www.shorefield.co.uk/health-fitness/shorefield-health-fitness-club", icon: PawPrint },
+  { label: "Entertainment", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: Sparkles },
+  { label: "Health & Fitness", href: "https://www.shorefield.co.uk/health-fitness/shorefield-health-fitness-club", icon: Dumbbell },
   { label: "Food & Drink", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: UtensilsCrossed },
   { label: "Accommodation", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: BedDouble },
   { label: "Nearby Attractions", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Trees },
@@ -95,8 +93,8 @@ function detectVisitorName(messages: LiveMessage[]) {
 
 function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
   const instructions = hasStoredSession
-    ? `Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not ask again whether they are planning their stay or already here unless you truly need to. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back in a brighter, happier tone, pick up naturally, and ask one short forward-moving question such as what they can see now, where they are now, or what they want help with next. If it fits naturally, remind them you can help with families, facilities, wayfinding, kids mode and what to do next.`
-    : "Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. Briefly say you can help whether someone is planning their stay or already at the park. Then ask this exact question naturally: Are you planning your stay, or are you already here at Shorefield Country Park? Do not ask lots of questions at once. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, mention food or drink naturally where it fits, and offer a kid-friendly mode if children are involved. Use names lightly and warmly, not in every reply."
+    ? `Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not ask again whether they are planning their stay or already here unless you truly need to. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back in a bright holiday-park tone, pick up naturally, and ask one short forward-moving question such as what they can see now, where they are now, or what they want help with next. If it fits naturally, remind them you can help with families, facilities, wayfinding, kids mode and what to do next.`
+    : "Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. Briefly say you can help whether someone is planning their stay or already at the park. Then ask this exact question naturally: Are you planning your stay, or are you already here at Shorefield Country Park? Do not ask lots of questions at once. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park using landmarks, suggest what to do next, mention food or drink naturally where it fits, and offer a kid-friendly mode if children are involved. Use names lightly and warmly, not in every reply. Never pretend you have GPS precision. Use the main complex and facilities as landmarks."
 
   return {
     type: "response.create",
@@ -427,159 +425,198 @@ export function ShorefieldsGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="overflow-hidden rounded-[36px] border border-[#dfe8d6] bg-white shadow-[0_24px_80px_rgba(23,52,77,0.10)]">
-        <div className="px-5 py-8 text-center sm:px-8 sm:py-10">
-          <div className="flex justify-center">
-            <img
-              src="/shorefield-holidays-logo_v3.svg"
-              alt="Shorefield Holidays"
-              className="h-12 w-auto sm:h-14"
-            />
+    <div className="shorefield-theme min-h-screen bg-[#f7f7f3] text-[#111]">
+      <div className="border-b border-black/10 bg-[#e9eaeb] text-[#111]">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-8 px-5 py-4 text-[18px]">
+          <span className="font-medium border-b-2 border-black pb-4 -mb-4">Holidays</span>
+          <span className="text-black/55">Ownership</span>
+          <span className="text-black/55">Company</span>
+          <div className="ml-auto flex items-center gap-6 text-[17px]">
+            <span className="inline-flex items-center gap-2"><Search className="h-5 w-5" /> Search</span>
+            <span className="h-7 w-px bg-black/15" />
+            <span>Call us on <span className="font-semibold text-[#0b86cf]">01590 648333</span></span>
           </div>
-          <div className="mx-auto mt-5 inline-flex rounded-full border border-[#dce8cb] bg-[#f8fbf1] px-6 py-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#5f7c2f] shadow-sm">Shorefield Country Park</div>
-          <h1 className="mt-6 text-4xl font-black tracking-tight text-[#234d28] sm:text-5xl">Meet George</h1>
-          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#54715a] sm:text-lg">
-            George helps before you arrive and while you&apos;re here, from planning your stay to finding your way around the park, discovering facilities, family fun, food, entertainment, nearby walks, and always knowing what to do next.
-          </p>
+        </div>
+      </div>
 
-          <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center">
+      <div className="border-b border-black/10 bg-white">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-10 px-5 py-8">
+          <img src="/shorefield-holidays-logo_v3.svg" alt="Shorefield Holidays" className="h-16 w-auto" />
+          <nav className="hidden flex-1 items-center justify-center gap-14 text-[19px] lg:flex">
+            <span>Our Holidays</span>
+            <span>Our Parks</span>
+            <span>Special Offers</span>
+            <span>Inspire Me</span>
+            <span>Entertainment & Activities</span>
+          </nav>
+          <button className="rounded-full bg-[#f2f2f2] px-8 py-4 text-[18px] font-medium">Sign In</button>
+        </div>
+      </div>
+
+      <section className="relative overflow-hidden">
+        <div
+          className="h-[520px] w-full bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.10)), url('https://www.shorefield.co.uk/media/l4tlyjod/shorefield-country-park-holidays-hero.jpg')",
+            backgroundColor: "#d7dfc7",
+          }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-white">
+          <div>
+            <div className="shorefield-serif text-[52px] leading-none sm:text-[72px] lg:text-[92px]">Shorefield <span className="shorefield-script font-normal">George</span></div>
+            <p className="shorefield-serif mt-5 text-[26px] sm:text-[36px]">Your Shorefield Country Park guide</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative z-10 mx-auto -mt-12 max-w-[1400px] px-4 sm:px-6">
+        <div className="rounded-[34px] bg-[#efefef] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.08)] sm:p-6">
+          <div className="mb-5 flex gap-8 px-2 text-[18px] text-black/55">
+            <span className="border-b-2 border-black pb-3 text-black">Holiday Accommodation</span>
+            <span className="pb-3">Touring & Camping Pitches</span>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_1fr_auto]">
+            {[
+              ["Location", "Shorefield Country Park"],
+              ["George knows", "Facilities, food, family fun"],
+              ["Mode", "Planning or already here"],
+              ["Best at", "Navigation & what to do next"],
+              ["Holiday George", connectionState === "connected" ? "Live now" : "Tap to start"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[24px] border border-black/10 bg-white px-6 py-5">
+                <div className="text-[15px] text-black/65">{label}</div>
+                <div className="shorefield-serif mt-2 text-[22px] text-[#6b6b6b]">{value}</div>
+              </div>
+            ))}
             <button
               type="button"
               onClick={connectionState === "connected" ? stopConversation : startConversation}
               disabled={connectionState === "connecting"}
+              className="flex h-full min-h-[104px] items-center justify-center rounded-full bg-[#f5bf22] px-7 text-black shadow-[0_12px_24px_rgba(245,191,34,0.38)] transition hover:scale-[1.02] disabled:opacity-70"
               aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
-              className={`group relative flex h-[250px] w-[250px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[300px] sm:w-[300px] ${
-                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-              } ${
-                connectionState === "connected" || connectionState === "connecting"
-                  ? "animate-[pulse_2s_ease-in-out_infinite]"
-                  : "animate-[pulse_4s_ease-in-out_infinite]"
-              }`}
-              style={{
-                background:
-                  "radial-gradient(circle at 32% 24%, #fff7bf 0%, #ffe36e 24%, #f4b544 56%, #ef8f2f 82%, #d56f1f 100%)",
-                boxShadow:
-                  connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 10px rgba(250,211,76,0.18), 0 28px 60px rgba(192,131,28,0.24), inset 0 3px 18px rgba(255,255,255,0.45), inset 0 -14px 28px rgba(168,96,13,0.25)"
-                    : "0 24px 54px rgba(192,131,28,0.18), inset 0 3px 18px rgba(255,255,255,0.38), inset 0 -14px 28px rgba(168,96,13,0.22)",
-              }}
             >
-              <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/20" />
-              <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/30 blur-[10px]" />
-              <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.24)_100%)]" />
-              <img
-                src="/holiday-george-sun.svg"
-                alt="George the Shorefield holiday guide"
-                className={`relative z-10 h-[78%] w-[78%] rounded-full object-contain drop-shadow-[0_18px_30px_rgba(0,0,0,0.18)] transition ${
-                  connectionState === "connected" || connectionState === "connecting" ? "scale-[1.02]" : "scale-100"
-                }`}
-              />
-              <span className="absolute bottom-8 z-20 rounded-full bg-white/88 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-[#6f812d] shadow-sm sm:bottom-10">Holiday George</span>
-              <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
+              <div className="flex items-center gap-4">
+                <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-16 w-16 rounded-full object-contain" />
+                <div className="text-left">
+                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-black/60">Holiday George</div>
+                  <div className="shorefield-serif text-[32px] leading-none">{connectionState === "connected" ? "Live" : connectionState === "connecting" ? "Joining" : "Ask George"}</div>
+                </div>
+              </div>
             </button>
+          </div>
+        </div>
+      </section>
 
-            <div className="mt-6 min-h-[84px] max-w-2xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6a8a2b]">
-                {connectionState === "connected"
-                  ? isModelSpeaking
-                    ? "George is talking"
-                    : "George is live"
-                  : connectionState === "connecting"
-                    ? "Connecting George"
-                    : hasStoredSession
-                      ? "Ready to carry on"
-                      : "Tap the circle to speak to George"}
-              </p>
-              <p className="mt-3 text-base leading-7 text-[#4f6757] sm:text-lg">{latestAssistantMessage}</p>
-              {latestUserMessage ? <p className="mt-2 text-sm text-[#7a8d79]">You: {latestUserMessage}</p> : null}
-              {error ? <p className="mt-3 text-sm font-medium text-[#3f7b5a]">{error}</p> : null}
+      <section className="mx-auto max-w-[1400px] px-4 py-12 sm:px-6 lg:py-16">
+        <div className="grid gap-10 lg:grid-cols-[1.08fr_0.92fr]">
+          <div className="rounded-[34px] bg-white px-8 py-10 shadow-[0_18px_50px_rgba(0,0,0,0.06)] sm:px-10">
+            <div className="shorefield-display text-[48px] leading-[0.95] text-black sm:text-[72px]">Award Winning <span className="shorefield-script font-normal">Coastal Escapes</span></div>
+            <p className="mt-8 max-w-3xl text-[18px] leading-9 text-[#5d5d5d] sm:text-[20px]">
+              George is trained on Shorefield&apos;s website and park layout so he can help guests plan their stay, find their way around, discover facilities, suggest food and entertainment, help families decide what to do next and make the whole experience feel smoother.
+            </p>
+            <p className="mt-6 max-w-3xl text-[18px] leading-9 text-[#5d5d5d] sm:text-[20px]">
+              He uses landmark-based navigation around the main complex, pool, food, entertainment and accommodation areas, and can speak naturally with adults or switch into a more playful family-friendly style when children are involved.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              {[
+                "Where’s the pool?",
+                "What should we do today?",
+                "We’ve got kids — where should we start?",
+                "What’s on tonight?",
+              ].map((item) => (
+                <span key={item} className="rounded-full border border-black/10 bg-[#f7f7f3] px-5 py-3 text-[15px] text-black/75">{item}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[34px] bg-[#eaf3f6] p-8 shadow-[0_18px_50px_rgba(0,0,0,0.05)] sm:p-10">
+            <div className="text-center">
+              <div className="shorefield-display text-[46px] leading-[0.95] text-black sm:text-[66px]">Discover our <span className="shorefield-script font-normal">facilities</span></div>
+              <p className="mx-auto mt-5 max-w-xl text-[18px] leading-8 text-[#3b3b3b]">George naturally points guests towards the right places across the park and helps reduce repetitive staff questions.</p>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {QUICK_LINKS.slice(0, 8).map((link) => {
+                const Icon = link.icon
+                return (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    className="group flex items-center justify-between rounded-[22px] bg-white px-5 py-4 text-[16px] text-black shadow-[0_10px_22px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5"
+                  >
+                    <span className="font-medium">{link.label}</span>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5bf22]/25 text-[#202020]"><Icon className="h-4 w-4" /></span>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-[1400px] px-4 pb-16 sm:px-6">
+        <div className="rounded-[36px] border border-black/8 bg-white shadow-[0_24px_80px_rgba(23,52,77,0.08)]">
+          <div className="px-6 py-8 text-center sm:px-10 sm:py-10">
+            <div className="mx-auto inline-flex rounded-full border border-[#e8dfaf] bg-[#fff8da] px-6 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-[#86711a]">{statusText}</div>
+            <p className="mx-auto mt-5 max-w-4xl text-[18px] leading-8 text-[#4b4b4b] sm:text-[20px]">{latestAssistantMessage}</p>
+            {latestUserMessage ? <p className="mt-3 text-[15px] text-black/50">You: {latestUserMessage}</p> : null}
+            {error ? <p className="mt-4 text-[15px] font-medium text-[#9a4a3d]">{error}</p> : null}
+
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
               {connectionState === "connected" ? (
-                <button
-                  type="button"
-                  onClick={stopConversation}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#234d28] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3b6b3f]"
-                >
-                  <PhoneOff className="h-4 w-4" /> End conversation
+                <button type="button" onClick={stopConversation} className="rounded-full bg-[#143d59] px-6 py-3 text-sm font-semibold text-white">
+                  <span className="inline-flex items-center gap-2"><PhoneOff className="h-4 w-4" /> End conversation</span>
                 </button>
               ) : hasStoredSession ? (
-                <button
-                  type="button"
-                  onClick={clearSavedSession}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#dce8cb] bg-white px-5 py-3 text-sm font-semibold text-[#4d6648] transition hover:bg-[#f8fbf1]"
-                >
-                  <RotateCcw className="h-4 w-4" /> Start fresh
+                <button type="button" onClick={clearSavedSession} className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold text-black/75">
+                  <span className="inline-flex items-center gap-2"><RotateCcw className="h-4 w-4" /> Start fresh</span>
                 </button>
               ) : null}
 
               <button
                 type="button"
                 onClick={() => setShowConversation((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-full border border-[#dce8cb] bg-white px-5 py-3 text-sm font-semibold text-[#4d6648] transition hover:bg-[#f8fbf1]"
+                className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold text-black/75"
               >
-                {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                {showConversation ? "Hide conversation" : "View conversation"}
+                <span className="inline-flex items-center gap-2">{showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}{showConversation ? "Hide conversation" : "View conversation"}</span>
               </button>
             </div>
           </div>
-        </div>
 
-        {showConversation ? (
-          <div className="border-t border-[#dfe8d6] bg-[#fbfcf7] px-4 py-6 sm:px-6 sm:py-8">
-            <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-3xl overflow-y-auto">
-              <div className="flex flex-col gap-4">
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[86%] sm:text-[16px] ${
-                        message.role === "user"
-                          ? "rounded-br-md bg-[#234d28] text-white"
-                          : message.role === "assistant"
-                            ? "rounded-bl-md border border-[#e6eddc] bg-[#f8fbf1] text-[#234d28]"
-                            : "rounded-bl-md border border-[#e6eddc] bg-white text-[#54715a]"
-                      }`}
-                    >
-                      {message.content}
+          {showConversation ? (
+            <div className="border-t border-black/8 bg-[#fbfbf8] px-4 py-6 sm:px-8 sm:py-8">
+              <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-4xl overflow-y-auto">
+                <div className="flex flex-col gap-4">
+                  {messages.map((message) => (
+                    <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[86%] sm:text-[16px] ${
+                          message.role === "user"
+                            ? "rounded-br-md bg-[#143d59] text-white"
+                            : message.role === "assistant"
+                              ? "rounded-bl-md border border-[#ece6cf] bg-[#fffbea] text-[#2c2c2c]"
+                              : "rounded-bl-md border border-black/8 bg-white text-black/70"
+                        }`}
+                      >
+                        {message.content}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {connectionState === "connecting" && (
-                  <div className="flex justify-start">
-                    <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#e6eddc] bg-[#f8fbf1] px-5 py-4 text-[#6a8a2b] shadow-sm">
-                      <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
+                  {connectionState === "connecting" && (
+                    <div className="flex justify-start">
+                      <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#ece6cf] bg-[#fffbea] px-5 py-4 text-[#7a6922] shadow-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ) : null}
-
-        <div className="border-t border-[#dfe8d6] bg-[#f8fbf1] px-5 py-6 sm:px-8 sm:py-8">
-          <h2 className="text-2xl font-bold tracking-tight text-[#234d28]">Helpful buttons</h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {QUICK_LINKS.map((link) => {
-              const Icon = link.icon
-              return (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  className="group flex items-center justify-between gap-3 rounded-[22px] bg-[#234d28] px-4 py-4 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(23,52,77,0.18)] transition hover:-translate-y-0.5 hover:bg-[#3b6b3f]"
-                >
-                  <span>{link.label}</span>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f4b544]/18">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                </a>
-              )
-            })}
-          </div>
+          ) : null}
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }
