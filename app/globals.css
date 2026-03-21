@@ -167,3 +167,42 @@ html {
 .shorefield-script {
   font-family: "Brush Script MT", "Segoe Script", cursive;
 }
+
+
+.shorefield-george-cta,
+.shorefield-george-mini {
+  position: relative;
+  overflow: visible;
+}
+
+.shorefield-george-cta:hover,
+.shorefield-george-mini:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.shorefield-george-cta::before,
+.shorefield-george-mini::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  border: 2px solid rgba(245,191,34,0.24);
+  opacity: 0;
+  animation: shorefieldSignalRing 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+.animate-shorefield-fade-up {
+  animation: shorefieldFadeUp 700ms ease both;
+}
+
+@keyframes shorefieldFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shorefieldSignalRing {
+  0% { opacity: 0.55; transform: scale(0.98); }
+  70% { opacity: 0.1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.09); }
+}
