@@ -428,12 +428,19 @@ export function ShorefieldsGeorgeLiveAssistant() {
 
   return (
     <section className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="overflow-hidden rounded-[36px] border border-[#d8e9e7] bg-white shadow-[0_24px_80px_rgba(23,52,77,0.10)]">
+      <div className="overflow-hidden rounded-[36px] border border-[#dfe8d6] bg-white shadow-[0_24px_80px_rgba(23,52,77,0.10)]">
         <div className="px-5 py-8 text-center sm:px-8 sm:py-10">
-          <div className="mx-auto inline-flex rounded-full border border-[#d7ece8] bg-[#f4fbfa] px-6 py-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#2a6a6b] shadow-sm">Shorefield Country Park</div>
-          <h1 className="mt-6 text-4xl font-black tracking-tight text-[#17344d] sm:text-5xl">Meet George</h1>
-          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#4e687c] sm:text-lg">
-            George helps before you arrive and while you&apos;re here, from planning your stay to finding your way around the park, discovering facilities, food, entertainment, nearby walks, and always knowing what to do next.
+          <div className="flex justify-center">
+            <img
+              src="/shorefield-holidays-logo_v3.svg"
+              alt="Shorefield Holidays"
+              className="h-12 w-auto sm:h-14"
+            />
+          </div>
+          <div className="mx-auto mt-5 inline-flex rounded-full border border-[#dce8cb] bg-[#f8fbf1] px-6 py-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#5f7c2f] shadow-sm">Shorefield Country Park</div>
+          <h1 className="mt-6 text-4xl font-black tracking-tight text-[#234d28] sm:text-5xl">Meet George</h1>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[#54715a] sm:text-lg">
+            George helps before you arrive and while you&apos;re here, from planning your stay to finding your way around the park, discovering facilities, family fun, food, entertainment, nearby walks, and always knowing what to do next.
           </p>
 
           <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center">
@@ -451,28 +458,29 @@ export function ShorefieldsGeorgeLiveAssistant() {
               }`}
               style={{
                 background:
-                  "radial-gradient(circle at 30% 22%, #a7ebe2 0%, #5fcfc0 24%, #1d8fa0 58%, #17344d 100%)",
+                  "radial-gradient(circle at 32% 24%, #fff7bf 0%, #ffe36e 24%, #f4b544 56%, #ef8f2f 82%, #d56f1f 100%)",
                 boxShadow:
                   connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 10px rgba(95,207,192,0.14), 0 28px 60px rgba(23,52,77,0.26), inset 0 3px 18px rgba(255,255,255,0.34), inset 0 -14px 28px rgba(14,67,79,0.35)"
-                    : "0 24px 54px rgba(23,52,77,0.18), inset 0 3px 18px rgba(255,255,255,0.28), inset 0 -14px 28px rgba(14,67,79,0.34)",
+                    ? "0 0 0 10px rgba(250,211,76,0.18), 0 28px 60px rgba(192,131,28,0.24), inset 0 3px 18px rgba(255,255,255,0.45), inset 0 -14px 28px rgba(168,96,13,0.25)"
+                    : "0 24px 54px rgba(192,131,28,0.18), inset 0 3px 18px rgba(255,255,255,0.38), inset 0 -14px 28px rgba(168,96,13,0.22)",
               }}
             >
               <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/20" />
               <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/30 blur-[10px]" />
               <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.24)_100%)]" />
               <img
-                src="/george-preview.png"
-                alt="George the Shorefield Country Park mascot and guide"
-                className={`relative z-10 h-[80%] w-[80%] rounded-full object-cover drop-shadow-[0_18px_30px_rgba(0,0,0,0.22)] transition ${
+                src="/holiday-george-sun.svg"
+                alt="George the Shorefield holiday guide"
+                className={`relative z-10 h-[78%] w-[78%] rounded-full object-contain drop-shadow-[0_18px_30px_rgba(0,0,0,0.18)] transition ${
                   connectionState === "connected" || connectionState === "connecting" ? "scale-[1.02]" : "scale-100"
                 }`}
               />
+              <span className="absolute bottom-8 z-20 rounded-full bg-white/88 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-[#6f812d] shadow-sm sm:bottom-10">Holiday George</span>
               <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
             </button>
 
             <div className="mt-6 min-h-[84px] max-w-2xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#2a6a6b]">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6a8a2b]">
                 {connectionState === "connected"
                   ? isModelSpeaking
                     ? "George is talking"
@@ -483,9 +491,9 @@ export function ShorefieldsGeorgeLiveAssistant() {
                       ? "Ready to carry on"
                       : "Tap the circle to speak to George"}
               </p>
-              <p className="mt-3 text-base leading-7 text-[#3f5d72] sm:text-lg">{latestAssistantMessage}</p>
-              {latestUserMessage ? <p className="mt-2 text-sm text-[#6c8797]">You: {latestUserMessage}</p> : null}
-              {error ? <p className="mt-3 text-sm font-medium text-[#196678]">{error}</p> : null}
+              <p className="mt-3 text-base leading-7 text-[#4f6757] sm:text-lg">{latestAssistantMessage}</p>
+              {latestUserMessage ? <p className="mt-2 text-sm text-[#7a8d79]">You: {latestUserMessage}</p> : null}
+              {error ? <p className="mt-3 text-sm font-medium text-[#3f7b5a]">{error}</p> : null}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
@@ -493,7 +501,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
                 <button
                   type="button"
                   onClick={stopConversation}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#17344d] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1c4766]"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#234d28] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3b6b3f]"
                 >
                   <PhoneOff className="h-4 w-4" /> End conversation
                 </button>
@@ -501,7 +509,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
                 <button
                   type="button"
                   onClick={clearSavedSession}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#d7ece8] bg-white px-5 py-3 text-sm font-semibold text-[#36566b] transition hover:bg-[#f4fbfa]"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#dce8cb] bg-white px-5 py-3 text-sm font-semibold text-[#4d6648] transition hover:bg-[#f8fbf1]"
                 >
                   <RotateCcw className="h-4 w-4" /> Start fresh
                 </button>
@@ -510,7 +518,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
               <button
                 type="button"
                 onClick={() => setShowConversation((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-full border border-[#d7ece8] bg-white px-5 py-3 text-sm font-semibold text-[#36566b] transition hover:bg-[#f4fbfa]"
+                className="inline-flex items-center gap-2 rounded-full border border-[#dce8cb] bg-white px-5 py-3 text-sm font-semibold text-[#4d6648] transition hover:bg-[#f8fbf1]"
               >
                 {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 {showConversation ? "Hide conversation" : "View conversation"}
@@ -520,7 +528,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
         </div>
 
         {showConversation ? (
-          <div className="border-t border-[#d8e9e7] bg-[#f9fcfc] px-4 py-6 sm:px-6 sm:py-8">
+          <div className="border-t border-[#dfe8d6] bg-[#fbfcf7] px-4 py-6 sm:px-6 sm:py-8">
             <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-3xl overflow-y-auto">
               <div className="flex flex-col gap-4">
                 {messages.map((message) => (
@@ -528,10 +536,10 @@ export function ShorefieldsGeorgeLiveAssistant() {
                     <div
                       className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[86%] sm:text-[16px] ${
                         message.role === "user"
-                          ? "rounded-br-md bg-[#17344d] text-white"
+                          ? "rounded-br-md bg-[#234d28] text-white"
                           : message.role === "assistant"
-                            ? "rounded-bl-md border border-[#dfeeed] bg-[#f4fbfa] text-[#17344d]"
-                            : "rounded-bl-md border border-[#dfeeed] bg-white text-[#4e687c]"
+                            ? "rounded-bl-md border border-[#e6eddc] bg-[#f8fbf1] text-[#234d28]"
+                            : "rounded-bl-md border border-[#e6eddc] bg-white text-[#54715a]"
                       }`}
                     >
                       {message.content}
@@ -541,7 +549,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
 
                 {connectionState === "connecting" && (
                   <div className="flex justify-start">
-                    <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#dfeeed] bg-[#f4fbfa] px-5 py-4 text-[#2a6a6b] shadow-sm">
+                    <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#e6eddc] bg-[#f8fbf1] px-5 py-4 text-[#6a8a2b] shadow-sm">
                       <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
                     </div>
                   </div>
@@ -551,8 +559,8 @@ export function ShorefieldsGeorgeLiveAssistant() {
           </div>
         ) : null}
 
-        <div className="border-t border-[#d8e9e7] bg-[#f4fbfa] px-5 py-6 sm:px-8 sm:py-8">
-          <h2 className="text-2xl font-bold tracking-tight text-[#17344d]">Helpful buttons</h2>
+        <div className="border-t border-[#dfe8d6] bg-[#f8fbf1] px-5 py-6 sm:px-8 sm:py-8">
+          <h2 className="text-2xl font-bold tracking-tight text-[#234d28]">Helpful buttons</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {QUICK_LINKS.map((link) => {
               const Icon = link.icon
@@ -560,10 +568,10 @@ export function ShorefieldsGeorgeLiveAssistant() {
                 <a
                   key={link.label}
                   href={link.href}
-                  className="group flex items-center justify-between gap-3 rounded-[22px] bg-[#17344d] px-4 py-4 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(23,52,77,0.18)] transition hover:-translate-y-0.5 hover:bg-[#1c4766]"
+                  className="group flex items-center justify-between gap-3 rounded-[22px] bg-[#234d28] px-4 py-4 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(23,52,77,0.18)] transition hover:-translate-y-0.5 hover:bg-[#3b6b3f]"
                 >
                   <span>{link.label}</span>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#63d1c4]/18">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f4b544]/18">
                     <Icon className="h-4 w-4" />
                   </span>
                 </a>
