@@ -33,7 +33,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
 const QUICK_LINKS = [
   { label: "Book Shorefield", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Ticket },
   { label: "Park Map", href: "https://fls-9ed90804-04fe-49f0-b869-7d2f9e0d49c2.laravel.cloud/files/park-maps/shorefield-country-park-map-2026_dl.pdf", icon: MapPinned },
-  { label: "What’s On", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: CalendarDays },
+  { label: "What’s On", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/whats-on-shorefield", icon: CalendarDays },
   { label: "Accommodation", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: BedDouble },
 ]
 
@@ -431,12 +431,12 @@ export function ShorefieldsGeorgeLiveAssistant() {
           </a>
           <nav className="hidden flex-1 items-center justify-center gap-14 text-[19px] lg:flex">
             <a href="https://www.shorefield.co.uk/holidays" className="hover:text-black/65 transition">Our Holidays</a>
-            <a href="https://www.shorefield.co.uk/our-parks" className="hover:text-black/65 transition">Our Parks</a>
-            <a href="https://www.shorefield.co.uk/special-offers" className="hover:text-black/65 transition">Special Offers</a>
-            <a href="https://www.shorefield.co.uk/inspire-me" className="hover:text-black/65 transition">Inspire Me</a>
-            <a href="https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment" className="hover:text-black/65 transition">Entertainment & Activities</a>
+            <a href="https://www.shorefield.co.uk/holidays/locations" className="hover:text-black/65 transition">Our Parks</a>
+            <a href="https://www.shorefield.co.uk/holidays/special-offers" className="hover:text-black/65 transition">Special Offers</a>
+            <a href="https://www.shorefield.co.uk/holidays/inspire-me" className="hover:text-black/65 transition">Inspire Me</a>
+            <a href="https://www.shorefield.co.uk/holidays/entertainment-and-activities" className="hover:text-black/65 transition">Entertainment & Activities</a>
           </nav>
-          <a href="https://www.shorefield.co.uk/sign-in" className="rounded-full bg-[#f2f2f2] px-8 py-4 text-[18px] font-medium transition hover:bg-[#e9e9e9]">Sign In</a>
+          <a href="https://www.shorefield.co.uk/login" className="rounded-full bg-[#f2f2f2] px-8 py-4 text-[18px] font-medium transition hover:bg-[#e9e9e9]">Sign In</a>
         </div>
       </div>
 
