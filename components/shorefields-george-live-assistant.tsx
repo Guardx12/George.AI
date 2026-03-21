@@ -28,14 +28,14 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-const STORAGE_KEY = "shorefields-george-session-v3"
+const STORAGE_KEY = "shorefields-george-session-v4"
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "system",
     content:
-      "Hello — I’m George, your Shorefield holiday guide. I can help before you arrive and while you're here, from planning your stay to finding your way around the park, discovering facilities, family fun, food, entertainment, nearby walks and what to do next.",
+      "Hello — I'm George, your Shorefield holiday guide. I can help with your stay, finding your way around the park, family fun, food, entertainment, nearby walks and what to do next.",
   },
 ]
 
@@ -430,13 +430,13 @@ export function ShorefieldsGeorgeLiveAssistant() {
     <div className="shorefield-theme min-h-screen bg-[#f7f7f3] text-[#111]">
       <div className="border-b border-black/10 bg-[#e9eaeb] text-[#111]">
         <div className="mx-auto flex max-w-[1400px] items-center gap-8 px-5 py-4 text-[18px]">
-          <span className="font-medium border-b-2 border-black pb-4 -mb-4">Holidays</span>
-          <span className="text-black/55">Ownership</span>
-          <span className="text-black/55">Company</span>
+          <a href="https://www.shorefield.co.uk/holidays" className="font-medium border-b-2 border-black pb-4 -mb-4">Holidays</a>
+          <a href="https://www.shorefield.co.uk/ownership" className="text-black/55 hover:text-black transition">Ownership</a>
+          <a href="https://www.shorefield.co.uk/company" className="text-black/55 hover:text-black transition">Company</a>
           <div className="ml-auto flex items-center gap-6 text-[17px]">
-            <span className="inline-flex items-center gap-2"><Search className="h-5 w-5" /> Search</span>
+            <a href="https://www.shorefield.co.uk/search" className="inline-flex items-center gap-2 hover:text-black/70 transition"><Search className="h-5 w-5" /> Search</a>
             <span className="h-7 w-px bg-black/15" />
-            <span>Call us on <span className="font-semibold text-[#0b86cf]">01590 648333</span></span>
+            <a href="tel:01590648333">Call us on <span className="font-semibold text-[#0b86cf]">01590 648333</span></a>
           </div>
         </div>
       </div>
@@ -445,13 +445,13 @@ export function ShorefieldsGeorgeLiveAssistant() {
         <div className="mx-auto flex max-w-[1400px] items-center gap-10 px-5 py-8">
           <img src="/shorefield-holidays-logo_v3.svg" alt="Shorefield Holidays" className="h-16 w-auto" />
           <nav className="hidden flex-1 items-center justify-center gap-14 text-[19px] lg:flex">
-            <span>Our Holidays</span>
-            <span>Our Parks</span>
-            <span>Special Offers</span>
-            <span>Inspire Me</span>
-            <span>Entertainment & Activities</span>
+            <a href="https://www.shorefield.co.uk/holidays" className="hover:text-black/65 transition">Our Holidays</a>
+            <a href="https://www.shorefield.co.uk/our-parks" className="hover:text-black/65 transition">Our Parks</a>
+            <a href="https://www.shorefield.co.uk/special-offers" className="hover:text-black/65 transition">Special Offers</a>
+            <a href="https://www.shorefield.co.uk/inspire-me" className="hover:text-black/65 transition">Inspire Me</a>
+            <a href="https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment" className="hover:text-black/65 transition">Entertainment & Activities</a>
           </nav>
-          <button className="rounded-full bg-[#f2f2f2] px-8 py-4 text-[18px] font-medium">Sign In</button>
+          <a href="https://www.shorefield.co.uk/sign-in" className="rounded-full bg-[#f2f2f2] px-8 py-4 text-[18px] font-medium transition hover:bg-[#e9e9e9]">Sign In</a>
         </div>
       </div>
 
@@ -469,7 +469,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
             <div className="shorefield-serif text-[44px] leading-none sm:text-[66px] lg:text-[88px]">Shorefield <span className="shorefield-script font-normal">George</span></div>
             <p className="shorefield-serif mt-4 text-[24px] sm:text-[34px]">Your Shorefield Country Park guide</p>
             <p className="mx-auto mt-5 max-w-3xl text-[18px] leading-8 text-white/92 sm:text-[20px]">
-              Tap George to get help with your stay, find your way around the park, discover family fun, food, entertainment and the best next thing to do.
+              Talk to George for help with your stay, directions around the park, family fun, food, entertainment and the best next thing to do.
             </p>
             <div className="mt-8 flex justify-center">
               <button
@@ -487,120 +487,6 @@ export function ShorefieldsGeorgeLiveAssistant() {
                   <span className="shorefield-serif block text-[34px] leading-none">{connectionState === "connected" ? "Talk to George" : connectionState === "connecting" ? "Connecting George" : "Talk to George"}</span>
                   <span className="mt-1 block text-[15px] text-black/75">Get instant help with directions, facilities, family fun and what to do next.</span>
                 </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative z-10 mx-auto -mt-12 max-w-[1400px] px-4 sm:px-6">
-        <div className="rounded-[34px] bg-[#efefef] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.08)] sm:p-6">
-          <div className="mb-5 flex gap-8 px-2 text-[18px] text-black/55">
-            <span className="border-b-2 border-black pb-3 text-black">Holiday Accommodation</span>
-            <span className="pb-3">Touring & Camping Pitches</span>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr_1fr_1fr]">
-            {[
-              ["Location", "Shorefield Country Park"],
-              ["George knows", "Facilities, food and family fun"],
-              ["Mode", "Planning or already here"],
-              ["Best at", "Navigation and what to do next"],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-[24px] border border-black/10 bg-white px-6 py-5 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(0,0,0,0.06)]">
-                <div className="text-[15px] text-black/65">{label}</div>
-                <div className="shorefield-serif mt-2 text-[22px] text-[#6b6b6b]">{value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-[1400px] px-4 py-12 sm:px-6 lg:py-16">
-        <div className="grid gap-10 lg:grid-cols-[1.08fr_0.92fr]">
-          <div className="rounded-[34px] bg-white px-8 py-10 shadow-[0_18px_50px_rgba(0,0,0,0.06)] sm:px-10">
-            <div className="shorefield-display text-[48px] leading-[0.95] text-black sm:text-[72px]">Award Winning <span className="shorefield-script font-normal">Coastal Escapes</span></div>
-            <p className="mt-8 max-w-3xl text-[18px] leading-9 text-[#5d5d5d] sm:text-[20px]">
-              George helps guests make the most of their stay, whether you are planning ahead or already on park. He can help you find your way around, discover facilities, choose somewhere to eat, find family-friendly things to do and work out what to do next.
-            </p>
-            <p className="mt-6 max-w-3xl text-[18px] leading-9 text-[#5d5d5d] sm:text-[20px]">
-              He uses the Shorefield website and park layout to guide you with landmarks like the main complex, Beachcomber facilities, entertainment areas and accommodation zones, and he can switch into a more playful family-friendly style when children are involved.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              {[
-                "Where's the pool?",
-                "What should we do today?",
-                "We've got kids — where should we start?",
-                "What's on tonight?",
-              ].map((item) => (
-                <span key={item} className="rounded-full border border-black/10 bg-[#f7f7f3] px-5 py-3 text-[15px] text-black/75 transition duration-300 hover:border-[#f5bf22] hover:bg-[#fff8da]">{item}</span>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[34px] bg-[#eaf3f6] p-8 shadow-[0_18px_50px_rgba(0,0,0,0.05)] sm:p-10">
-            <div className="text-center">
-              <div className="shorefield-display text-[46px] leading-[0.95] text-black sm:text-[66px]">Discover our <span className="shorefield-script font-normal">facilities</span></div>
-              <p className="mx-auto mt-5 max-w-xl text-[18px] leading-8 text-[#3b3b3b]">George naturally points guests towards the right places across the park and helps make your stay smoother from the moment you arrive.</p>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {QUICK_LINKS.slice(0, 8).map((link) => {
-                const Icon = link.icon
-                return (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    className="group flex items-center justify-between rounded-[22px] bg-white px-5 py-4 text-[16px] text-black shadow-[0_10px_22px_rgba(0,0,0,0.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(0,0,0,0.08)]"
-                  >
-                    <span className="font-medium">{link.label}</span>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5bf22]/25 text-[#202020] transition group-hover:bg-[#f5bf22] group-hover:text-black"><Icon className="h-4 w-4" /></span>
-                  </a>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-[1400px] px-4 pb-16 sm:px-6">
-        <div className="overflow-hidden rounded-[36px] border border-black/8 bg-white shadow-[0_24px_80px_rgba(23,52,77,0.08)]">
-          <div className="bg-[linear-gradient(180deg,#fffef8,white)] px-6 py-8 text-center sm:px-10 sm:py-10">
-            <div className="mx-auto inline-flex rounded-full border border-[#e8dfaf] bg-[#fff8da] px-6 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-[#86711a] animate-shorefield-fade-up">{statusText}</div>
-            <div className="mx-auto mt-6 flex justify-center">
-              <button
-                type="button"
-                onClick={connectionState === "connected" ? stopConversation : startConversation}
-                disabled={connectionState === "connecting"}
-                className="shorefield-george-mini group inline-flex items-center gap-3 rounded-full bg-[#f5bf22] px-6 py-4 text-left text-black shadow-[0_14px_36px_rgba(245,191,34,0.28)] transition disabled:opacity-70"
-              >
-                <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-11 w-11 rounded-full object-contain" />
-                <span>
-                  <span className="block text-[11px] font-bold uppercase tracking-[0.18em] text-black/55">Holiday George</span>
-                  <span className="shorefield-serif block text-[28px] leading-none">{connectionState === "connected" ? "George is listening" : connectionState === "connecting" ? "Joining now" : "Tap to start"}</span>
-                </span>
-              </button>
-            </div>
-            <p className="mx-auto mt-6 max-w-4xl text-[18px] leading-8 text-[#4b4b4b] sm:text-[20px]">{latestAssistantMessage}</p>
-            {latestUserMessage ? <p className="mt-3 text-[15px] text-black/50">You: {latestUserMessage}</p> : null}
-            {error ? <p className="mt-4 text-[15px] font-medium text-[#9a4a3d]">{error}</p> : null}
-
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-              {connectionState === "connected" ? (
-                <button type="button" onClick={stopConversation} className="rounded-full bg-[#143d59] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0f3148]">
-                  <span className="inline-flex items-center gap-2"><PhoneOff className="h-4 w-4" /> End Conversation</span>
-                </button>
-              ) : hasStoredSession ? (
-                <button type="button" onClick={clearSavedSession} className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold text-black/75 transition hover:bg-[#f7f7f3]">
-                  <span className="inline-flex items-center gap-2"><RotateCcw className="h-4 w-4" /> Start Fresh</span>
-                </button>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={() => setShowConversation((prev) => !prev)}
-                className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold text-black/75 transition hover:bg-[#f7f7f3]"
-              >
-                <span className="inline-flex items-center gap-2">{showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}{showConversation ? "Hide Conversation" : "View Conversation"}</span>
               </button>
             </div>
           </div>
