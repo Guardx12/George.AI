@@ -2,20 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  ArrowLeft,
   BedDouble,
   CalendarDays,
   Loader2,
   MapPinned,
-  Sparkles,
   Ticket,
-  Trees,
-  UtensilsCrossed,
-  BadgeHelp,
-  Dumbbell,
   RotateCcw,
-  ChevronDown,
-  ChevronUp,
   Search,
 } from "lucide-react"
 
@@ -42,13 +34,7 @@ const QUICK_LINKS = [
   { label: "Book Shorefield", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Ticket },
   { label: "Park Map", href: "https://fls-9ed90804-04fe-49f0-b869-7d2f9e0d49c2.laravel.cloud/files/park-maps/shorefield-country-park-map-2026_dl.pdf", icon: MapPinned },
   { label: "What’s On", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: CalendarDays },
-  { label: "Entertainment", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: Sparkles },
-  { label: "Health & Fitness", href: "https://www.shorefield.co.uk/health-fitness/shorefield-health-fitness-club", icon: Dumbbell },
-  { label: "Food & Drink", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: UtensilsCrossed },
   { label: "Accommodation", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: BedDouble },
-  { label: "Nearby Attractions", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Trees },
-  { label: "FAQs", href: "https://www.shorefield.co.uk/frequently-asked-questions", icon: BadgeHelp },
-  { label: "Back to Shorefield", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: ArrowLeft },
 ]
 
 type StoredSession = {
@@ -109,7 +95,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null)
   const [hasStoredSession, setHasStoredSession] = useState(false)
   const [visitorName, setVisitorName] = useState<string | null>(null)
-  const [showConversation, setShowConversation] = useState(false)
+  const [showConversation, setShowConversation] = useState(true)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -483,21 +469,6 @@ export function ShorefieldsGeorgeLiveAssistant() {
               </button>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-left">
-              {QUICK_LINKS.slice(0, 8).map(({ label, href, icon: Icon }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shorefield-george-mini inline-flex items-center gap-2 rounded-full bg-white/92 px-4 py-3 text-[15px] font-medium text-[#1b1b1b] shadow-[0_14px_35px_rgba(0,0,0,0.18)] transition hover:bg-white"
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </a>
-              ))}
-            </div>
-
             <div className="mt-8 inline-flex items-center gap-3 rounded-full bg-black/20 px-5 py-3 text-[15px] backdrop-blur-md">
               {connectionState === "connecting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className={`h-2.5 w-2.5 rounded-full ${connectionState === "connected" ? "bg-[#8ef06b]" : "bg-white/80"}`} />}
               <span>{error ? "George is having trouble connecting" : statusText}</span>
@@ -506,123 +477,123 @@ export function ShorefieldsGeorgeLiveAssistant() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1240px] px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[34px] border border-black/8 bg-white/90 p-6 shadow-[0_25px_80px_rgba(16,24,40,0.08)] sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.24em] text-[#8e7a2f]">Holiday George</p>
-                <h2 className="shorefield-serif mt-2 text-[34px] leading-tight text-[#111]">Talk to George</h2>
-                <p className="mt-3 max-w-2xl text-[17px] leading-8 text-black/70">
-                  George can help before you arrive and while you’re here — from finding the pool and places to eat to family fun,
-                  entertainment, nearby attractions and the best next thing to do.
-                </p>
-              </div>
+      <section className="mx-auto max-w-[980px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="rounded-[34px] border border-black/8 bg-white/95 p-6 shadow-[0_25px_80px_rgba(16,24,40,0.08)] sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[13px] font-semibold uppercase tracking-[0.24em] text-[#8e7a2f]">Holiday George</p>
+              <h2 className="shorefield-serif mt-2 text-[32px] leading-tight text-[#111]">Talk to George</h2>
+              <p className="mt-3 max-w-2xl text-[16px] leading-7 text-black/70">
+                Ask for help with your stay, the park map, what’s on, accommodation, directions around the park, and what to do next.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConversation((value) => !value)}
+                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3 text-[15px] font-medium text-black/75 transition hover:bg-[#f7f7f3]"
+              >
+                {showConversation ? "Hide conversation" : "Show conversation"}
+              </button>
               <button
                 type="button"
                 onClick={clearSavedSession}
-                className="hidden items-center gap-2 rounded-full border border-black/10 bg-[#f7f7f3] px-4 py-2.5 text-[14px] font-medium text-black/70 transition hover:bg-[#efefe8] sm:inline-flex"
+                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f7f7f3] px-5 py-3 text-[15px] font-medium text-black/70 transition hover:bg-[#efefe8]"
               >
                 <RotateCcw className="h-4 w-4" /> Start fresh
               </button>
             </div>
+          </div>
 
-            <div className="mt-6 rounded-[28px] border border-[#ece6cf] bg-[#fffbea] p-5 shadow-sm">
-              <div className="flex items-start gap-4">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#f5bf22]/25 p-1">
-                  <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-10 w-10 object-contain" />
-                </span>
-                <div>
-                  <p className="shorefield-serif text-[26px] text-[#111]">{hasStoredSession ? "Ready to carry on" : "Ready when you are"}</p>
-                  <p className="mt-2 text-[16px] leading-7 text-black/70">{latestAssistantMessage}</p>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={connectionState === "connected" ? stopConversation : startConversation}
-                  disabled={connectionState === "connecting"}
-                  className="shorefield-george-mini inline-flex items-center gap-3 rounded-full bg-[#f5bf22] px-5 py-3.5 text-[16px] font-semibold text-black shadow-[0_16px_34px_rgba(245,191,34,0.28)] transition disabled:opacity-70"
-                >
-                  <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-6 w-6 object-contain" />
-                  {connectionState === "connecting" ? "Connecting George" : connectionState === "connected" ? "Listening now" : "Start talking to George"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConversation((value) => !value)}
-                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3.5 text-[15px] font-medium text-black/75 transition hover:bg-[#f7f7f3]"
-                >
-                  {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {showConversation ? "Hide conversation" : "View conversation"}
-                </button>
-                <button
-                  type="button"
-                  onClick={clearSavedSession}
-                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3.5 text-[15px] font-medium text-black/75 transition hover:bg-[#f7f7f3] sm:hidden"
-                >
-                  <RotateCcw className="h-4 w-4" /> Start fresh
-                </button>
+          <div className="mt-6 rounded-[28px] border border-[#ece6cf] bg-[#fffbea] p-5 shadow-sm">
+            <div className="flex items-start gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#f5bf22]/25 p-1">
+                <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-10 w-10 object-contain" />
+              </span>
+              <div>
+                <p className="shorefield-serif text-[24px] text-[#111]">{hasStoredSession ? "Ready to carry on" : "Ready when you are"}</p>
+                <p className="mt-2 text-[16px] leading-7 text-black/70">{latestAssistantMessage}</p>
               </div>
             </div>
 
-            {showConversation ? (
-              <div className="mt-6 animate-shorefield-fade-up rounded-[28px] border border-black/8 bg-[#fbfbf8] p-4 sm:p-6">
-                <div ref={scrollRef} className="max-h-[420px] overflow-y-auto pr-2">
-                  <div className="flex flex-col gap-4">
-                    {messages.map((message) => (
-                      <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm transition sm:max-w-[86%] sm:text-[16px] ${
-                            message.role === "user"
-                              ? "rounded-br-md bg-[#143d59] text-white"
-                              : message.role === "assistant"
-                                ? "rounded-bl-md border border-[#ece6cf] bg-[#fffbea] text-[#2c2c2c]"
-                                : "rounded-bl-md border border-black/8 bg-white text-black/70"
-                          }`}
-                        >
-                          {message.content}
-                        </div>
-                      </div>
-                    ))}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={connectionState === "connected" ? stopConversation : startConversation}
+                disabled={connectionState === "connecting"}
+                className="shorefield-george-mini inline-flex items-center gap-3 rounded-full bg-[#f5bf22] px-5 py-3.5 text-[16px] font-semibold text-black shadow-[0_16px_34px_rgba(245,191,34,0.28)] transition disabled:opacity-70"
+              >
+                <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-6 w-6 object-contain" />
+                {connectionState === "connecting" ? "Connecting George" : connectionState === "connected" ? "Listening now" : "Start talking to George"}
+              </button>
+              <div className="inline-flex items-center gap-3 rounded-full bg-[#f7f7f3] px-4 py-3 text-[14px] text-black/70">
+                {connectionState === "connecting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className={`h-2.5 w-2.5 rounded-full ${connectionState === "connected" ? "bg-[#8ef06b]" : "bg-[#d3b147]"}`} />}
+                <span>{error ? "George is having trouble connecting" : statusText}</span>
+              </div>
+            </div>
+          </div>
 
-                    {connectionState === "connecting" && (
-                      <div className="flex justify-start">
-                        <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#ece6cf] bg-[#fffbea] px-5 py-4 text-[#7a6922] shadow-sm">
-                          <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
-                        </div>
+          {showConversation ? (
+            <div className="mt-6 animate-shorefield-fade-up rounded-[28px] border border-black/8 bg-[#fbfbf8] p-4 sm:p-6">
+              <div ref={scrollRef} className="max-h-[420px] overflow-y-auto pr-2">
+                <div className="flex flex-col gap-4">
+                  {messages.map((message) => (
+                    <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm transition sm:max-w-[86%] sm:text-[16px] ${
+                          message.role === "user"
+                            ? "rounded-br-md bg-[#143d59] text-white"
+                            : message.role === "assistant"
+                              ? "rounded-bl-md border border-[#ece6cf] bg-[#fffbea] text-[#2c2c2c]"
+                              : "rounded-bl-md border border-black/8 bg-white text-black/70"
+                        }`}
+                      >
+                        {message.content}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ))}
+
+                  {connectionState === "connecting" && (
+                    <div className="flex justify-start">
+                      <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#ece6cf] bg-[#fffbea] px-5 py-4 text-[#7a6922] shadow-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            ) : null}
-
-            {error ? <p className="mt-4 text-[14px] text-[#b42318]">{error}</p> : null}
-          </div>
-
-          <div className="rounded-[34px] border border-black/8 bg-[#edf3f5] p-6 shadow-[0_25px_80px_rgba(16,24,40,0.06)] sm:p-8">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.24em] text-[#8e7a2f]">Helpful things guests ask</p>
-            <h3 className="shorefield-serif mt-2 text-[32px] leading-tight">Try one of these</h3>
-            <div className="mt-5 grid gap-3">
-              {[
-                "Where’s the pool?",
-                "What should we do today?",
-                "We’ve got kids — where should we start?",
-                "What’s on tonight?",
-                "Where can we eat?",
-                "What’s nearby if we want to go out?",
-              ].map((item) => (
-                <div key={item} className="rounded-[20px] bg-white/85 px-5 py-4 text-[16px] leading-7 text-black/75 shadow-sm">
-                  {item}
-                </div>
-              ))}
             </div>
-            <p className="mt-6 text-[16px] leading-8 text-black/65">
-              George gives friendly landmark-based help around the park, points you towards the main complex, and can help with food,
-              family fun, entertainment, accommodation and nearby attractions.
-            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap justify-center gap-3 text-left">
+            {QUICK_LINKS.map(({ label, href, icon: Icon }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="shorefield-george-mini inline-flex items-center gap-2 rounded-full bg-[#eef3f5] px-4 py-3 text-[15px] font-medium text-[#1b1b1b] shadow-[0_14px_35px_rgba(0,0,0,0.08)] transition hover:bg-white"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </a>
+            ))}
           </div>
+
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            {[
+              "Where’s the pool?",
+              "What should we do today?",
+              "We’ve got kids — where should we start?",
+              "What’s on tonight?",
+            ].map((item) => (
+              <div key={item} className="rounded-full border border-black/8 bg-[#f7f7f3] px-4 py-2.5 text-[14px] text-black/70 shadow-sm">
+                {item}
+              </div>
+            ))}
+          </div>
+
+          {error ? <p className="mt-4 text-[14px] text-[#b42318]">{error}</p> : null}
         </div>
       </section>
     </div>
