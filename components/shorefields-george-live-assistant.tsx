@@ -36,7 +36,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hello — I'm George, your helpful guide for Shorefield Country Park. I can help whether you're planning your stay or already here, and I can guide you around the park, point you towards facilities, entertainment, food and nearby walks — would you like help with that now?",
+      "Hello — I'm George, your Shorefield mascot and digital guide. I can help whether you're planning your stay or already here, and I can guide you around the park, point you towards facilities, entertainment, food, family fun and nearby walks — would you like help with that now?",
   },
 ]
 
@@ -95,8 +95,8 @@ function detectVisitorName(messages: LiveMessage[]) {
 
 function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
   const instructions = hasStoredSession
-    ? `Introduce yourself as George for Shorefield Country Park in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not ask again whether they are planning their stay or already here unless you truly need to. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back in a brighter, happier tone, pick up naturally, and ask one short forward-moving question such as what they can see now, where they are now, or what they want help with next. If it fits naturally, remind them you can help with families, facilities and what to do next.`
-    : "Introduce yourself as George for Shorefield Country Park in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. Briefly say you can help whether someone is planning their stay or already at the park. Briefly say you can help whether someone is planning their stay or already at the park. Then ask this exact question naturally: Are you planning your stay, or are you already here at Shorefield Country Park? Do not ask lots of questions at once. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, and mention food or drink naturally where it fits. Use names lightly and warmly, not in every reply."
+    ? `Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not ask again whether they are planning their stay or already here unless you truly need to. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back in a brighter, happier tone, pick up naturally, and ask one short forward-moving question such as what they can see now, where they are now, or what they want help with next. If it fits naturally, remind them you can help with families, facilities, wayfinding, kids mode and what to do next.`
+    : "Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. Briefly say you can help whether someone is planning their stay or already at the park. Then ask this exact question naturally: Are you planning your stay, or are you already here at Shorefield Country Park? Do not ask lots of questions at once. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park, suggest what to do next, mention food or drink naturally where it fits, and offer a kid-friendly mode if children are involved. Use names lightly and warmly, not in every reply."
 
   return {
     type: "response.create",
@@ -463,7 +463,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
               <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.24)_100%)]" />
               <img
                 src="/george-preview.png"
-                alt="George the Shorefield Country Park guide"
+                alt="George the Shorefield Country Park mascot and guide"
                 className={`relative z-10 h-[80%] w-[80%] rounded-full object-cover drop-shadow-[0_18px_30px_rgba(0,0,0,0.22)] transition ${
                   connectionState === "connected" || connectionState === "connecting" ? "scale-[1.02]" : "scale-100"
                 }`}
