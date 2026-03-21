@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Loader2,
   MapPinned,
-  PhoneOff,
   Sparkles,
   Ticket,
   Trees,
@@ -45,12 +44,10 @@ const QUICK_LINKS = [
   { label: "What’s On", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: CalendarDays },
   { label: "Entertainment", href: "https://www.shorefield.co.uk/holidays/entertainment-and-activities/on-park-entertainment/whats-on-shorefield", icon: Sparkles },
   { label: "Health & Fitness", href: "https://www.shorefield.co.uk/health-fitness/shorefield-health-fitness-club", icon: Dumbbell },
-  { label: "Plan Your Stay", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Ticket },
   { label: "Food & Drink", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: UtensilsCrossed },
   { label: "Accommodation", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: BedDouble },
   { label: "Nearby Attractions", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: Trees },
   { label: "FAQs", href: "https://www.shorefield.co.uk/frequently-asked-questions", icon: BadgeHelp },
-  { label: "Park FAQs", href: "https://www.shorefield.co.uk/frequently-asked-questions", icon: BadgeHelp },
   { label: "Back to Shorefield", href: "https://www.shorefield.co.uk/holidays/locations/shorefield-country-park", icon: ArrowLeft },
 ]
 
@@ -127,7 +124,6 @@ export function ShorefieldsGeorgeLiveAssistant() {
     () => [...messages].reverse().find((message) => message.role === "assistant")?.content ?? INITIAL_MESSAGES[0].content,
     [messages],
   )
-  const latestUserMessage = useMemo(() => [...messages].reverse().find((message) => message.role === "user")?.content ?? null, [messages])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -311,6 +307,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
     setConnectionState("connecting")
     setError(null)
     setStatusText("Connecting George…")
+    setShowConversation(true)
     setMessages((prev) => (hasStoredSession && prev.length > 1 ? prev : INITIAL_MESSAGES))
 
     try {
@@ -443,7 +440,9 @@ export function ShorefieldsGeorgeLiveAssistant() {
 
       <div className="border-b border-black/10 bg-white">
         <div className="mx-auto flex max-w-[1400px] items-center gap-10 px-5 py-8">
-          <img src="/shorefield-holidays-logo_v3.svg" alt="Shorefield Holidays" className="h-16 w-auto" />
+          <a href="https://www.shorefield.co.uk/holidays/locations/shorefield-country-park">
+            <img src="/shorefield-holidays-logo_v3.svg" alt="Shorefield Holidays" className="h-16 w-auto" />
+          </a>
           <nav className="hidden flex-1 items-center justify-center gap-14 text-[19px] lg:flex">
             <a href="https://www.shorefield.co.uk/holidays" className="hover:text-black/65 transition">Our Holidays</a>
             <a href="https://www.shorefield.co.uk/our-parks" className="hover:text-black/65 transition">Our Parks</a>
@@ -455,73 +454,175 @@ export function ShorefieldsGeorgeLiveAssistant() {
         </div>
       </div>
 
-      <section className="relative overflow-hidden border-b border-black/10">
-        <div
-          className="h-[560px] w-full bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.18)), url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1800&q=80')",
-            backgroundColor: "#d7dfc7",
-          }}
-        />
-        <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-white">
-          <div className="animate-shorefield-fade-up max-w-5xl">
-            <div className="shorefield-serif text-[44px] leading-none sm:text-[66px] lg:text-[88px]">Shorefield <span className="shorefield-script font-normal">George</span></div>
-            <p className="shorefield-serif mt-4 text-[24px] sm:text-[34px]">Your Shorefield Country Park guide</p>
-            <p className="mx-auto mt-5 max-w-3xl text-[18px] leading-8 text-white/92 sm:text-[20px]">
-              Talk to George for help with your stay, directions around the park, family fun, food, entertainment and the best next thing to do.
-            </p>
-            <div className="mt-8 flex justify-center">
+      <section className="relative min-h-[720px] overflow-hidden border-b border-black/10 bg-black">
+        <img src="/shorefield-hero-top.png" alt="Shorefield Country Park" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/35" />
+        <div className="relative z-10 mx-auto flex min-h-[720px] max-w-[1400px] flex-col items-center justify-center px-6 py-16 text-center text-white">
+          <div className="animate-shorefield-fade-up max-w-6xl">
+            <h1 className="shorefield-serif text-[48px] leading-[0.95] sm:text-[80px] lg:text-[108px]">
+              Shorefield <span className="shorefield-script font-normal">Country Park</span>
+            </h1>
+            <p className="shorefield-serif mt-6 text-[28px] sm:text-[42px]">Your New Forest Holiday Park</p>
+
+            <div className="mt-10 flex justify-center">
               <button
                 type="button"
                 onClick={connectionState === "connected" ? stopConversation : startConversation}
                 disabled={connectionState === "connecting"}
-                className="shorefield-george-cta group inline-flex items-center gap-4 rounded-full bg-[#f5bf22] px-7 py-5 text-left text-black shadow-[0_22px_60px_rgba(245,191,34,0.38)] transition disabled:opacity-70"
-                aria-label={connectionState === "connected" ? "Talk to George now" : "Talk to George now"}
+                className="shorefield-george-cta group inline-flex max-w-[760px] items-center gap-4 rounded-full bg-[#f5bf22] px-7 py-5 text-left text-black shadow-[0_22px_60px_rgba(245,191,34,0.38)] transition disabled:opacity-70"
+                aria-label="Talk to George"
               >
                 <span className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-white/35 p-1 backdrop-blur-sm">
                   <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-14 w-14 rounded-full object-contain" />
                 </span>
                 <span>
                   <span className="block text-[12px] font-bold uppercase tracking-[0.24em] text-black/60">Holiday George</span>
-                  <span className="shorefield-serif block text-[34px] leading-none">{connectionState === "connected" ? "Talk to George" : connectionState === "connecting" ? "Connecting George" : "Talk to George"}</span>
-                  <span className="mt-1 block text-[15px] text-black/75">Get instant help with directions, facilities, family fun and what to do next.</span>
+                  <span className="shorefield-serif block text-[34px] leading-none">{connectionState === "connecting" ? "Connecting George" : "Talk to George"}</span>
+                  <span className="mt-1 block text-[15px] text-black/75">Ask anything about your stay, directions, food, family fun, or what to do next.</span>
                 </span>
               </button>
             </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-left">
+              {QUICK_LINKS.slice(0, 8).map(({ label, href, icon: Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shorefield-george-mini inline-flex items-center gap-2 rounded-full bg-white/92 px-4 py-3 text-[15px] font-medium text-[#1b1b1b] shadow-[0_14px_35px_rgba(0,0,0,0.18)] transition hover:bg-white"
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </a>
+              ))}
+            </div>
+
+            <div className="mt-8 inline-flex items-center gap-3 rounded-full bg-black/20 px-5 py-3 text-[15px] backdrop-blur-md">
+              {connectionState === "connecting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className={`h-2.5 w-2.5 rounded-full ${connectionState === "connected" ? "bg-[#8ef06b]" : "bg-white/80"}`} />}
+              <span>{error ? "George is having trouble connecting" : statusText}</span>
+            </div>
           </div>
+        </div>
+      </section>
 
-          {showConversation ? (
-            <div className="border-t border-black/8 bg-[#fbfbf8] px-4 py-6 sm:px-8 sm:py-8 animate-shorefield-fade-up">
-              <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-4xl overflow-y-auto">
-                <div className="flex flex-col gap-4">
-                  {messages.map((message) => (
-                    <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm transition sm:max-w-[86%] sm:text-[16px] ${
-                          message.role === "user"
-                            ? "rounded-br-md bg-[#143d59] text-white"
-                            : message.role === "assistant"
-                              ? "rounded-bl-md border border-[#ece6cf] bg-[#fffbea] text-[#2c2c2c]"
-                              : "rounded-bl-md border border-black/8 bg-white text-black/70"
-                        }`}
-                      >
-                        {message.content}
-                      </div>
-                    </div>
-                  ))}
+      <section className="mx-auto max-w-[1240px] px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[34px] border border-black/8 bg-white/90 p-6 shadow-[0_25px_80px_rgba(16,24,40,0.08)] sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[13px] font-semibold uppercase tracking-[0.24em] text-[#8e7a2f]">Holiday George</p>
+                <h2 className="shorefield-serif mt-2 text-[34px] leading-tight text-[#111]">Talk to George</h2>
+                <p className="mt-3 max-w-2xl text-[17px] leading-8 text-black/70">
+                  George can help before you arrive and while you’re here — from finding the pool and places to eat to family fun,
+                  entertainment, nearby attractions and the best next thing to do.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={clearSavedSession}
+                className="hidden items-center gap-2 rounded-full border border-black/10 bg-[#f7f7f3] px-4 py-2.5 text-[14px] font-medium text-black/70 transition hover:bg-[#efefe8] sm:inline-flex"
+              >
+                <RotateCcw className="h-4 w-4" /> Start fresh
+              </button>
+            </div>
 
-                  {connectionState === "connecting" && (
-                    <div className="flex justify-start">
-                      <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#ece6cf] bg-[#fffbea] px-5 py-4 text-[#7a6922] shadow-sm">
-                        <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
-                      </div>
-                    </div>
-                  )}
+            <div className="mt-6 rounded-[28px] border border-[#ece6cf] bg-[#fffbea] p-5 shadow-sm">
+              <div className="flex items-start gap-4">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#f5bf22]/25 p-1">
+                  <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-10 w-10 object-contain" />
+                </span>
+                <div>
+                  <p className="shorefield-serif text-[26px] text-[#111]">{hasStoredSession ? "Ready to carry on" : "Ready when you are"}</p>
+                  <p className="mt-2 text-[16px] leading-7 text-black/70">{latestAssistantMessage}</p>
                 </div>
               </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={connectionState === "connected" ? stopConversation : startConversation}
+                  disabled={connectionState === "connecting"}
+                  className="shorefield-george-mini inline-flex items-center gap-3 rounded-full bg-[#f5bf22] px-5 py-3.5 text-[16px] font-semibold text-black shadow-[0_16px_34px_rgba(245,191,34,0.28)] transition disabled:opacity-70"
+                >
+                  <img src="/holiday-george-sun.svg" alt="Holiday George" className="h-6 w-6 object-contain" />
+                  {connectionState === "connecting" ? "Connecting George" : connectionState === "connected" ? "Listening now" : "Start talking to George"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConversation((value) => !value)}
+                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3.5 text-[15px] font-medium text-black/75 transition hover:bg-[#f7f7f3]"
+                >
+                  {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showConversation ? "Hide conversation" : "View conversation"}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSavedSession}
+                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3.5 text-[15px] font-medium text-black/75 transition hover:bg-[#f7f7f3] sm:hidden"
+                >
+                  <RotateCcw className="h-4 w-4" /> Start fresh
+                </button>
+              </div>
             </div>
-          ) : null}
+
+            {showConversation ? (
+              <div className="mt-6 animate-shorefield-fade-up rounded-[28px] border border-black/8 bg-[#fbfbf8] p-4 sm:p-6">
+                <div ref={scrollRef} className="max-h-[420px] overflow-y-auto pr-2">
+                  <div className="flex flex-col gap-4">
+                    {messages.map((message) => (
+                      <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm transition sm:max-w-[86%] sm:text-[16px] ${
+                            message.role === "user"
+                              ? "rounded-br-md bg-[#143d59] text-white"
+                              : message.role === "assistant"
+                                ? "rounded-bl-md border border-[#ece6cf] bg-[#fffbea] text-[#2c2c2c]"
+                                : "rounded-bl-md border border-black/8 bg-white text-black/70"
+                          }`}
+                        >
+                          {message.content}
+                        </div>
+                      </div>
+                    ))}
+
+                    {connectionState === "connecting" && (
+                      <div className="flex justify-start">
+                        <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#ece6cf] bg-[#fffbea] px-5 py-4 text-[#7a6922] shadow-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {error ? <p className="mt-4 text-[14px] text-[#b42318]">{error}</p> : null}
+          </div>
+
+          <div className="rounded-[34px] border border-black/8 bg-[#edf3f5] p-6 shadow-[0_25px_80px_rgba(16,24,40,0.06)] sm:p-8">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.24em] text-[#8e7a2f]">Helpful things guests ask</p>
+            <h3 className="shorefield-serif mt-2 text-[32px] leading-tight">Try one of these</h3>
+            <div className="mt-5 grid gap-3">
+              {[
+                "Where’s the pool?",
+                "What should we do today?",
+                "We’ve got kids — where should we start?",
+                "What’s on tonight?",
+                "Where can we eat?",
+                "What’s nearby if we want to go out?",
+              ].map((item) => (
+                <div key={item} className="rounded-[20px] bg-white/85 px-5 py-4 text-[16px] leading-7 text-black/75 shadow-sm">
+                  {item}
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 text-[16px] leading-8 text-black/65">
+              George gives friendly landmark-based help around the park, points you towards the main complex, and can help with food,
+              family fun, entertainment, accommodation and nearby attractions.
+            </p>
+          </div>
         </div>
       </section>
     </div>
