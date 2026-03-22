@@ -19,14 +19,14 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-const STORAGE_KEY = "shorefields-george-session-v4"
+const STORAGE_KEY = "shorefields-george-session-v5"
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "system",
     content:
-      "Hello — I'm George, your Shorefield holiday guide. I can help with your stay, finding your way around the park, family fun, food, entertainment, nearby walks and what to do next.",
+      "Hello — I'm George, your Shorefield mascot and holiday guide. I can help whether you're planning your stay, already on park, looking for food or facilities, figuring out what to do next, or keeping the kids entertained safely.",
   },
 ]
 
@@ -78,8 +78,8 @@ function detectVisitorName(messages: LiveMessage[]) {
 
 function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
   const instructions = hasStoredSession
-    ? `Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not ask again whether they are planning their stay or already here unless you truly need to. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back in a bright holiday-park tone, pick up naturally, and ask one short forward-moving question such as what they can see now, where they are now, or what they want help with next. If it fits naturally, remind them you can help with families, facilities, wayfinding, kids mode and what to do next.`
-    : "Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. Briefly say you can help whether someone is planning their stay or already at the park. If the user has already made that clear in what they just said, do not ask again. Otherwise ask this exact question naturally: Are you planning your stay, or are you already here at Shorefield Country Park? Do not ask lots of questions at once. If they are planning, guide them towards the most relevant buttons on the page. If they are already here, guide them around the park using landmarks, suggest what to do next, mention food or drink naturally where it fits, and offer a kid-friendly mode if children are involved. Use names lightly and warmly, not in every reply. Never pretend you have GPS precision. Use the main complex and facilities as landmarks."
+    ? `Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, family-friendly, and grounded in the Shorefield site. This visitor already has an ongoing conversation with you on this device. Do not restart from scratch and do not repeat your full intro. Do not ask again whether they are planning or already here unless you genuinely need to clarify it. ${visitorName ? `Their name is ${visitorName}. Use it lightly and warmly.` : ""} ${lastUserMessage ? `The last thing they said before returning was: ${lastUserMessage}` : ""} Briefly welcome them back, pick up naturally from where they left off, and ask one short forward-moving question based on context. If they seem to be on park, keep it practical and quick. If they seem to be planning, keep it helpful and guiding. If children are involved, you can mention that you can keep things fun or play a quick safe game, but only if it fits naturally.`
+    : "Introduce yourself as George, Shorefield's mascot and digital guide, in warm, natural British English only. Keep it short, cheerful, upbeat, and family-friendly. Briefly explain that you can help whether someone is planning their stay, already on park, looking for food or facilities, wanting to know what to do next, or trying to keep the kids entertained. If the user has already made their situation clear, do not ask again. Otherwise ask this exact question naturally: Are you planning your stay, already here at Shorefield, or settling in for your visit? Ask only one useful question. If they are planning or pre-arrival, guide them towards the most relevant buttons on the page. If they are already here, keep the tone quicker and more practical, use landmarks rather than pretending you have live GPS, and help with things like where to go next, food, family activities, comfort breaks, and safe kid-friendly ideas. If children are involved, you may naturally mention that you can play a quick safe game or keep things more fun for them. Never make anything up. Use names lightly and warmly, not in every reply."
 
   return {
     type: "response.create",
@@ -464,7 +464,7 @@ export function ShorefieldsGeorgeLiveAssistant() {
                 <span>
                   <span className="block text-[12px] font-bold uppercase tracking-[0.24em] text-black/60">Holiday George</span>
                   <span className="shorefield-serif block text-[34px] leading-none">{connectionState === "connecting" ? "Connecting George" : "Talk to George"}</span>
-                  <span className="mt-1 block text-[15px] text-black/75">Ask anything about your stay, directions, food, family fun, or what to do next.</span>
+                  <span className="mt-1 block text-[15px] text-black/75">Ask about your stay, finding your way, food and drink, family fun, comfort stops, or what to do next.</span>
                 </span>
               </button>
             </div>
@@ -496,10 +496,10 @@ export function ShorefieldsGeorgeLiveAssistant() {
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             {[
-              "Where’s the pool?",
-              "What should we do today?",
-              "We’ve got kids — where should we start?",
-              "What’s on tonight?",
+              "We're already here — what should we do next?",
+              "Where's the pool or main complex?",
+              "We've got kids — where should we start?",
+              "Can we play a quick game?",
             ].map((item) => (
               <div key={item} className="rounded-full border border-black/8 bg-[#f7f7f3] px-4 py-2.5 text-[14px] text-black/70 shadow-sm">
                 {item}
