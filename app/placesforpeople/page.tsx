@@ -17,17 +17,6 @@ export const metadata: Metadata = {
   },
 }
 
-const helpfulLinks = [
-  { label: "Join now", href: "https://www.placesleisure.org/membership/" },
-  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable" },
-  { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/" },
-  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/" },
-  { label: "Centre information", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex" },
-  { label: "Contact Steyning", href: "https://www.placesleisure.org/contact-us" },
-  { label: "Steyning opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info" },
-  { label: "FAQs", href: "https://www.placesleisure.org/faqs" },
-]
-
 export default function PlacesForPeoplePage() {
   return (
     <main className="min-h-screen bg-[#efefef] text-[#394553]">
@@ -64,23 +53,22 @@ export default function PlacesForPeoplePage() {
         <div className="mx-auto max-w-[1240px] px-4 py-4 text-[16px] sm:px-6 lg:px-8">
           <span className="text-[#f47c00]">Home</span>
           <span className="px-3 text-[#394553]">&gt;</span>
-          <span className="text-[#f47c00]">Steyning Leisure Centrex</span>
+          <span className="text-[#f47c00]">Steyning Leisure Centre</span>
         </div>
       </section>
 
       <section className="bg-[#efefef]">
-        <div className="mx-auto max-w-[900px] px-4 py-10 sm:px-6 lg:py-14">
+        <div className="mx-auto max-w-[980px] px-4 py-8 sm:px-6 sm:py-10 lg:py-14">
           <div className="text-center">
-            <div className="text-[30px] font-black leading-none text-[#394553] sm:text-[40px]">Welcome to</div>
-            <h1 className="mt-3 text-[54px] font-black leading-[0.95] tracking-tight text-[#394553] sm:text-[82px]">
+            <div className="text-[24px] font-black leading-none text-[#394553] sm:text-[32px] lg:text-[40px]">Welcome to</div>
+            <h1 className="mt-3 text-[clamp(2.7rem,10vw,5.25rem)] font-black leading-[0.95] tracking-tight text-[#394553]">
               Steyning Leisure
               <br />
-              Centrex
+              Centre
             </h1>
-            <p className="mx-auto mt-8 max-w-[760px] text-[26px] leading-[1.8] text-[#394553] sm:text-[28px]">
-              Meet George for Steyning Leisure Centre. Tap the big round button to speak and George can help with
-              memberships, the live timetable, swimming, classes, centre questions, directions around the centre, and
-              guided gym workouts.
+            <p className="mx-auto mt-6 max-w-[760px] text-[18px] leading-[1.8] text-[#394553] sm:mt-8 sm:text-[22px] lg:text-[26px]">
+              Tap the big round button to speak. George can help with memberships, the live timetable, swimming,
+              classes, centre questions, directions around the centre, and guided gym workouts.
             </p>
           </div>
         </div>
@@ -92,36 +80,17 @@ export default function PlacesForPeoplePage() {
         </div>
       </section>
 
-      <section className="bg-[#efefef] pb-14">
-        <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-          <div className="rounded-[10px] bg-white p-5 sm:p-7">
-            <div className="text-center text-[14px] font-bold uppercase tracking-[0.24em] text-[#394553]">Helpful buttons</div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {helpfulLinks.map((link) => (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  className="rounded-full border-2 border-[#394553] bg-white px-5 py-4 text-center text-[18px] font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
-                >
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <footer className="bg-[#394553] text-white">
-        <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-6 px-4 py-10 sm:px-6 lg:flex-row lg:px-8">
+      <footer className="bg-[#60656d] text-white">
+        <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:px-8">
           <div className="text-center lg:text-left">
-            <div className="text-[22px] font-semibold">George</div>
-            <a href="https://getgeorge.app" className="mt-2 inline-block text-[18px] text-white underline underline-offset-4">
+            <div className="text-[20px] font-semibold">George</div>
+            <a href="https://getgeorge.app" className="mt-2 inline-block text-[16px] text-white underline underline-offset-4 sm:text-[18px]">
               getgeorge.app
             </a>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="relative h-[78px] w-[78px] overflow-hidden rounded-full border border-white/25 bg-black/10">
+            <div className="relative h-[74px] w-[74px] overflow-hidden rounded-full border border-white/25 bg-black/10 sm:h-[78px] sm:w-[78px]">
               <Image src="/george-logo.png" alt="George" fill className="object-contain p-2" />
             </div>
           </div>

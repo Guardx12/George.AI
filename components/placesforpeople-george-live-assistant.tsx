@@ -31,7 +31,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hi — I'm George for Steyning Leisure Centre. I can help with memberships, swimming, classes, facilities, opening times, getting around the centre, and guided gym sessions. If you want a workout, I'll work out whether you're a beginner, intermediate or advanced, then guide you through it step by step. Tap the button and speak to me whenever you're ready.",
+      "Hi — I'm George for Steyning Leisure Centre. I can help with memberships, the live timetable, swimming, classes, facilities, opening times, getting around the centre, and guided gym sessions. If you want a workout, I'll work out whether you're a beginner, intermediate or advanced, then guide you through it step by step. If you're ever unsure about anything in the gym, please ask a member of staff.",
   },
 ]
 
@@ -383,41 +383,42 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="overflow-hidden rounded-[10px] border border-[#dddddd] bg-[#efefef] shadow-sm">
-      <div className="px-4 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <section className="overflow-hidden rounded-[14px] border border-[#d9d9d9] bg-[#efefef] shadow-[0_18px_36px_rgba(57,69,83,0.08)]">
+      <div className="px-4 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
         <div className="mx-auto max-w-[980px] text-center">
-          <div className="text-[20px] font-semibold tracking-tight text-[#394553]">George</div>
-          <h2 className="mt-2 text-[40px] font-black tracking-tight text-[#394553] sm:text-[56px]">Tap to speak</h2>
-          <p className="mx-auto mt-4 max-w-[780px] text-[22px] leading-[1.8] text-[#394553] sm:text-[24px]">
-            George can help with memberships, the live timetable, swimming, classes, centre information, and guided workouts.
+          <div className="text-[18px] font-semibold tracking-tight text-[#394553] sm:text-[20px]">George</div>
+          <h2 className="mt-2 text-[34px] font-black tracking-tight text-[#394553] sm:text-[48px] lg:text-[56px]">Tap to speak</h2>
+          <p className="mx-auto mt-4 max-w-[780px] text-[17px] leading-[1.8] text-[#394553] sm:text-[20px] lg:text-[22px]">
+            George can help with memberships, the live timetable, swimming, classes, centre information, and guided workouts. If you are ever unsure in the gym, please ask a member of staff.
           </p>
 
-          <div className="mt-10 flex justify-center">
+          <div className="mt-7 flex justify-center sm:mt-10">
             <button
               type="button"
               onClick={connectionState === "connected" ? stopConversation : startConversation}
               disabled={connectionState === "connecting"}
-              className={`relative flex h-[260px] w-[260px] items-center justify-center rounded-full border-[8px] border-[#1d2329] transition duration-300 ${
+              className={`relative flex h-[220px] w-[220px] sm:h-[250px] sm:w-[250px] items-center justify-center rounded-full border-[8px] border-[#2d333a] transition duration-300 lg:h-[270px] lg:w-[270px] ${
                 connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-              } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2s_ease-in-out_infinite]" : ""}`}
+              } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
               style={{
                 background:
-                  "radial-gradient(circle at 35% 30%, #37b6ff 0%, #1498f8 34%, #0f2031 68%, #0a141c 100%)",
+                  "radial-gradient(circle at 30% 24%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.22) 14%, rgba(255,170,46,0.18) 18%, #8d939a 34%, #515962 62%, #353c44 82%, #2c333a 100%), linear-gradient(145deg, #8d939a 0%, #525b64 48%, #2c333a 100%)",
                 boxShadow:
                   connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 8px rgba(255,255,255,0.25), 0 0 0 18px rgba(57,69,83,0.18), 0 26px 40px rgba(0,0,0,0.28), inset 0 6px 18px rgba(255,255,255,0.12)"
-                    : "0 0 0 8px rgba(255,255,255,0.22), 0 24px 38px rgba(0,0,0,0.24), inset 0 6px 18px rgba(255,255,255,0.1)",
+                    ? "0 0 0 8px rgba(255,255,255,0.32), 0 0 0 16px rgba(244,124,0,0.18), 0 28px 44px rgba(0,0,0,0.30), inset 0 10px 24px rgba(255,255,255,0.34), inset 0 -14px 26px rgba(0,0,0,0.24)"
+                    : "0 0 0 8px rgba(255,255,255,0.28), 0 22px 36px rgba(0,0,0,0.24), inset 0 10px 24px rgba(255,255,255,0.30), inset 0 -14px 24px rgba(0,0,0,0.22)",
               }}
             >
-              <span className="absolute inset-[20px] rounded-full border border-[#5ed0ff]/40" />
-              <span className="absolute left-[18%] top-[18%] h-5 w-5 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
-              <span className="absolute right-[21%] top-[26%] h-3 w-3 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
-              <span className="absolute left-[22%] bottom-[26%] h-3 w-3 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
-              <span className="absolute right-[24%] bottom-[22%] h-5 w-5 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
-              <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full border-[6px] border-[#1d2329] bg-[#0d1a24] shadow-[inset_0_0_30px_rgba(49,199,255,0.18)]">
+              <span className="absolute inset-[16px] rounded-full border border-white/35" />
+              <span className="absolute inset-x-[18%] top-[10%] h-8 sm:h-10 rounded-full bg-white/30 blur-md" />
+              <span className="absolute left-[16%] top-[26%] h-4 w-4 rounded-full bg-[#f8a12a] shadow-[0_0_14px_rgba(248,161,42,0.9)]" />
+              <span className="absolute right-[18%] top-[24%] h-3 w-3 rounded-full bg-[#ffd08a] shadow-[0_0_12px_rgba(255,208,138,0.85)]" />
+              <span className="absolute left-[22%] bottom-[22%] h-3 w-3 rounded-full bg-[#ffd08a] shadow-[0_0_12px_rgba(255,208,138,0.85)]" />
+              <span className="absolute right-[22%] bottom-[20%] h-4 w-4 rounded-full bg-[#f47c00] shadow-[0_0_14px_rgba(244,124,0,0.9)]" />
+              <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full border-[6px] border-[#2d333a] bg-[radial-gradient(circle_at_30%_28%,#fff8ec_0%,#ffd89f_16%,#f4a432_32%,#646b73_34%,#4f5861_62%,#39424a_100%)] shadow-[inset_0_10px_22px_rgba(255,255,255,0.34),inset_0_-18px_28px_rgba(0,0,0,0.22)]">
                 <div>
-                  <div className="text-[28px] font-black uppercase tracking-[0.22em] text-[#31c7ff]">George</div>
-                  <div className="mt-3 px-4 text-[18px] font-semibold leading-7 text-white">
+                  <div className="text-[24px] font-black uppercase tracking-[0.2em] text-white sm:text-[28px]">George</div>
+                  <div className="mt-3 px-4 text-[16px] font-semibold leading-6 text-white/95 sm:text-[18px] sm:leading-7">
                     {connectionState === "connected" ? "Tap to end" : connectionState === "connecting" ? "Connecting…" : "Tap to speak"}
                   </div>
                 </div>
@@ -425,7 +426,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             </button>
           </div>
 
-          <div className="mx-auto mt-8 max-w-[820px] rounded-[10px] bg-[#e6e6e6] px-5 py-5 text-left sm:px-6">
+          <div className="mx-auto mt-7 max-w-[820px] rounded-[14px] bg-[#e6e6e6] px-4 py-5 text-left sm:px-6">
             <p className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#394553]">
               {connectionState === "connected"
                 ? isModelSpeaking
@@ -437,8 +438,8 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                     ? "Ready to carry on"
                     : "Ready when you are"}
             </p>
-            <p className="mt-3 text-[18px] leading-8 text-[#394553]">{latestAssistantMessage}</p>
-            {latestUserMessage ? <p className="mt-2 text-[15px] text-[#5f6770]">You: {latestUserMessage}</p> : null}
+            <p className="mt-3 text-[16px] leading-7 text-[#394553] sm:text-[18px] sm:leading-8">{latestAssistantMessage}</p>
+            {latestUserMessage ? <p className="mt-2 text-[14px] text-[#5f6770] sm:text-[15px]">You: {latestUserMessage}</p> : null}
             {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -471,15 +472,15 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             </div>
           </div>
 
-          <div className="mt-8">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-7">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {QUICK_LINKS.map((link) => {
                 const Icon = link.icon
                 return (
                   <a
                     key={link.label}
                     href={link.href}
-                    className="flex items-center justify-between gap-3 rounded-full border-2 border-[#394553] bg-white px-5 py-4 text-left text-[16px] font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
+                    className="flex items-center justify-between gap-3 rounded-full border-2 border-[#394553] bg-white px-4 py-4 text-left text-[15px] font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white sm:px-5 sm:text-[16px]"
                   >
                     <span>{link.label}</span>
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f47c00] text-white">
