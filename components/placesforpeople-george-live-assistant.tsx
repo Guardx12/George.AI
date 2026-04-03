@@ -10,7 +10,6 @@ import {
   MapPinned,
   PhoneOff,
   RotateCcw,
-  Sparkles,
   Waves,
   BadgeHelp,
   Users,
@@ -37,10 +36,10 @@ const INITIAL_MESSAGES: LiveMessage[] = [
 ]
 
 const QUICK_LINKS = [
-  { label: "Join now", href: "https://www.placesleisure.org/membership/", icon: Sparkles },
+  { label: "Join now", href: "https://www.placesleisure.org/membership/", icon: CalendarDays },
   { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable", icon: CalendarDays },
   { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/", icon: Dumbbell },
-  { label: "Swimming lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", icon: Waves },
+  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", icon: Waves },
   { label: "Centre information", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex", icon: MapPinned },
   { label: "Contact Steyning", href: "https://www.placesleisure.org/contact-us", icon: Users },
   { label: "Steyning opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info", icon: Clock3 },
@@ -384,37 +383,41 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="overflow-hidden rounded-[26px] border border-[#d8ddd8] bg-white shadow-[0_22px_60px_rgba(19,54,50,0.08)]">
-      <div className="px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
-        <div className="mx-auto max-w-[920px] text-center">
-          <div className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#0f4d47]">George</div>
-          <h2 className="mt-3 text-[34px] font-black tracking-tight text-[#173632] sm:text-[46px]">Talk to George</h2>
-          <p className="mt-4 text-[17px] leading-8 text-[#596765]">
-            George can help with memberships, the live timetable, swimming, gym questions, centre information, and guided workouts.
+    <section className="overflow-hidden rounded-[10px] border border-[#dddddd] bg-[#efefef] shadow-sm">
+      <div className="px-4 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <div className="mx-auto max-w-[980px] text-center">
+          <div className="text-[20px] font-semibold tracking-tight text-[#394553]">George</div>
+          <h2 className="mt-2 text-[40px] font-black tracking-tight text-[#394553] sm:text-[56px]">Tap to speak</h2>
+          <p className="mx-auto mt-4 max-w-[780px] text-[22px] leading-[1.8] text-[#394553] sm:text-[24px]">
+            George can help with memberships, the live timetable, swimming, classes, centre information, and guided workouts.
           </p>
 
-          <div className="mt-8 flex justify-center">
+          <div className="mt-10 flex justify-center">
             <button
               type="button"
               onClick={connectionState === "connected" ? stopConversation : startConversation}
               disabled={connectionState === "connecting"}
-              className={`relative flex h-[240px] w-[240px] items-center justify-center rounded-full transition duration-300 ${
+              className={`relative flex h-[260px] w-[260px] items-center justify-center rounded-full border-[8px] border-[#1d2329] transition duration-300 ${
                 connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-              } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2s_ease-in-out_infinite]" : "animate-[pulse_4s_ease-in-out_infinite]"}`}
+              } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2s_ease-in-out_infinite]" : ""}`}
               style={{
-                background: "radial-gradient(circle at 30% 25%, #f7b26a 0%, #ef7d00 25%, #15655c 66%, #0f4d47 100%)",
+                background:
+                  "radial-gradient(circle at 35% 30%, #37b6ff 0%, #1498f8 34%, #0f2031 68%, #0a141c 100%)",
                 boxShadow:
                   connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 12px rgba(239,125,0,0.10), 0 28px 60px rgba(15,77,71,0.28), inset 0 3px 18px rgba(255,255,255,0.35), inset 0 -16px 34px rgba(7,52,47,0.32)"
-                    : "0 24px 54px rgba(15,77,71,0.22), inset 0 3px 18px rgba(255,255,255,0.3), inset 0 -16px 34px rgba(7,52,47,0.32)",
+                    ? "0 0 0 8px rgba(255,255,255,0.25), 0 0 0 18px rgba(57,69,83,0.18), 0 26px 40px rgba(0,0,0,0.28), inset 0 6px 18px rgba(255,255,255,0.12)"
+                    : "0 0 0 8px rgba(255,255,255,0.22), 0 24px 38px rgba(0,0,0,0.24), inset 0 6px 18px rgba(255,255,255,0.1)",
               }}
             >
-              <span className="pointer-events-none absolute inset-[10px] rounded-full border border-white/20" />
-              <span className="pointer-events-none absolute left-[12%] top-[12%] h-[20%] w-[48%] rounded-full bg-white/28 blur-[12px]" />
-              <div className="relative z-10 flex h-[78%] w-[78%] items-center justify-center rounded-full bg-[linear-gradient(180deg,#fffaf4_0%,#fde7d0_100%)] text-center shadow-[inset_0_4px_12px_rgba(255,255,255,0.8),0_14px_30px_rgba(0,0,0,0.12)]">
+              <span className="absolute inset-[20px] rounded-full border border-[#5ed0ff]/40" />
+              <span className="absolute left-[18%] top-[18%] h-5 w-5 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
+              <span className="absolute right-[21%] top-[26%] h-3 w-3 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
+              <span className="absolute left-[22%] bottom-[26%] h-3 w-3 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
+              <span className="absolute right-[24%] bottom-[22%] h-5 w-5 rounded-full bg-[#31c7ff] shadow-[0_0_10px_rgba(49,199,255,0.9)]" />
+              <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full border-[6px] border-[#1d2329] bg-[#0d1a24] shadow-[inset_0_0_30px_rgba(49,199,255,0.18)]">
                 <div>
-                  <div className="text-[22px] font-black uppercase tracking-[0.22em] text-[#0f4d47]">George</div>
-                  <div className="mt-2 px-4 text-sm font-medium leading-6 text-[#355552]">
+                  <div className="text-[28px] font-black uppercase tracking-[0.22em] text-[#31c7ff]">George</div>
+                  <div className="mt-3 px-4 text-[18px] font-semibold leading-7 text-white">
                     {connectionState === "connected" ? "Tap to end" : connectionState === "connecting" ? "Connecting…" : "Tap to speak"}
                   </div>
                 </div>
@@ -422,8 +425,8 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             </button>
           </div>
 
-          <div className="mx-auto mt-8 max-w-[760px] rounded-[20px] bg-[#f7f8f5] px-5 py-5 text-left sm:px-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0f4d47]">
+          <div className="mx-auto mt-8 max-w-[820px] rounded-[10px] bg-[#e6e6e6] px-5 py-5 text-left sm:px-6">
+            <p className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#394553]">
               {connectionState === "connected"
                 ? isModelSpeaking
                   ? "George is talking"
@@ -434,8 +437,8 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                     ? "Ready to carry on"
                     : "Ready when you are"}
             </p>
-            <p className="mt-3 text-[16px] leading-8 text-[#24423f]">{latestAssistantMessage}</p>
-            {latestUserMessage ? <p className="mt-2 text-sm text-[#60716e]">You: {latestUserMessage}</p> : null}
+            <p className="mt-3 text-[18px] leading-8 text-[#394553]">{latestAssistantMessage}</p>
+            {latestUserMessage ? <p className="mt-2 text-[15px] text-[#5f6770]">You: {latestUserMessage}</p> : null}
             {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -443,7 +446,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                 <button
                   type="button"
                   onClick={stopConversation}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#0f4d47] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#f47c00] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
                 >
                   <PhoneOff className="h-4 w-4" /> End conversation
                 </button>
@@ -451,7 +454,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                 <button
                   type="button"
                   onClick={clearSavedSession}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#d6ddd8] bg-white px-5 py-3 text-sm font-semibold text-[#355552] transition hover:bg-[#f7fbfa]"
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-[#394553] bg-white px-5 py-3 text-sm font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
                 >
                   <RotateCcw className="h-4 w-4" /> Start fresh
                 </button>
@@ -460,7 +463,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
               <button
                 type="button"
                 onClick={() => setShowConversation((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-full border border-[#d6ddd8] bg-white px-5 py-3 text-sm font-semibold text-[#355552] transition hover:bg-[#f7fbfa]"
+                className="inline-flex items-center gap-2 rounded-full border-2 border-[#394553] bg-white px-5 py-3 text-sm font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
               >
                 {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 {showConversation ? "Hide conversation" : "View conversation"}
@@ -469,18 +472,17 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
           </div>
 
           <div className="mt-8">
-            <div className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0f4d47]">Helpful buttons</div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {QUICK_LINKS.map((link) => {
                 const Icon = link.icon
                 return (
                   <a
                     key={link.label}
                     href={link.href}
-                    className="flex items-center justify-between gap-3 rounded-[18px] border border-[#d8ddd8] bg-white px-4 py-4 text-left text-sm font-semibold text-[#173632] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#fafbf8]"
+                    className="flex items-center justify-between gap-3 rounded-full border-2 border-[#394553] bg-white px-5 py-4 text-left text-[16px] font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
                   >
                     <span>{link.label}</span>
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3f6f2] text-[#0f4d47]">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f47c00] text-white">
                       <Icon className="h-4 w-4" />
                     </span>
                   </a>
@@ -492,7 +494,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
       </div>
 
       {showConversation ? (
-        <div className="border-t border-[#d8ddd8] bg-[#fbfcf9] px-5 py-6 sm:px-8 lg:px-10">
+        <div className="border-t border-[#d7d7d7] bg-[#f8f8f8] px-5 py-6 sm:px-8 lg:px-10">
           <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-4xl overflow-y-auto">
             <div className="flex flex-col gap-4">
               {messages.map((message) => (
@@ -500,10 +502,10 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                   <div
                     className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[84%] sm:text-[16px] ${
                       message.role === "user"
-                        ? "rounded-br-md bg-[#0f4d47] text-white"
+                        ? "rounded-br-md bg-[#394553] text-white"
                         : message.role === "assistant"
-                          ? "rounded-bl-md border border-[#dde3de] bg-white text-[#163632]"
-                          : "rounded-bl-md border border-[#dde3de] bg-[#f6f8f4] text-[#50625f]"
+                          ? "rounded-bl-md border border-[#dde3de] bg-white text-[#394553]"
+                          : "rounded-bl-md border border-[#dde3de] bg-[#f1f1f1] text-[#5a6672]"
                     }`}
                   >
                     {message.content}
@@ -513,7 +515,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
               {connectionState === "connecting" && (
                 <div className="flex justify-start">
-                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#dde3de] bg-white px-5 py-4 text-[#24423f] shadow-sm">
+                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#dde3de] bg-white px-5 py-4 text-[#394553] shadow-sm">
                     <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
                   </div>
                 </div>

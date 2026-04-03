@@ -1,137 +1,128 @@
 import type { Metadata } from "next"
 import Image from "next/image"
-import { Menu, MapPin, Phone, Clock3 } from "lucide-react"
+import { Menu } from "lucide-react"
 import { PlacesForPeopleGeorgeLiveAssistant } from "@/components/placesforpeople-george-live-assistant"
 
 export const metadata: Metadata = {
   title: "Steyning Leisure Centre | Meet George",
   description:
-    "A cleaner Steyning Leisure Centre styled George page with a simple layout, live timetable-aware assistant, and direct centre links.",
+    "A Steyning Leisure Centre styled George page with Places Leisure inspired dark slate, orange, and light grey styling.",
   alternates: { canonical: "https://askgeorge.app/placesforpeople" },
   openGraph: {
     title: "Steyning Leisure Centre | Meet George",
     description:
-      "A cleaner Steyning Leisure Centre styled George page with a simple layout, live timetable-aware assistant, and direct centre links.",
+      "A Steyning Leisure Centre styled George page with Places Leisure inspired dark slate, orange, and light grey styling.",
     url: "https://askgeorge.app/placesforpeople",
     type: "website",
   },
 }
 
-const utilityLinks = [
-  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/" },
+const helpfulLinks = [
+  { label: "Join now", href: "https://www.placesleisure.org/membership/" },
+  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable" },
   { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/" },
-  { label: "Sports", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/" },
-  { label: "Family & Kids", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/" },
+  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/" },
+  { label: "Centre information", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex" },
+  { label: "Contact Steyning", href: "https://www.placesleisure.org/contact-us" },
+  { label: "Steyning opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info" },
+  { label: "FAQs", href: "https://www.placesleisure.org/faqs" },
 ]
 
 export default function PlacesForPeoplePage() {
   return (
-    <main className="min-h-screen bg-[#f4f4ef] text-[#173632] places-leisure-theme">
-      <header>
-        <div className="bg-[#0f4d47] text-white">
-          <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-3 px-4 py-3 text-[15px] sm:px-6 lg:px-8">
-            <nav className="flex flex-wrap items-center gap-5">
-              <a href="https://www.placesleisure.org/our-purpose/" className="hover:opacity-80">Our purpose</a>
-              <a href="https://www.placesleisure.org/our-people/" className="hover:opacity-80">Our people</a>
-              <a href="https://www.placesleisure.org/find-centre/" className="hover:opacity-80">Our centres</a>
-              <a href="https://www.placesleisure.org/membership/" className="hover:opacity-80">Join now</a>
-              <a href="https://www.placesleisure.org/contact-us/" className="hover:opacity-80">Contact us</a>
-            </nav>
-            <div className="text-sm font-semibold tracking-[0.18em] uppercase">Places Leisure</div>
+    <main className="min-h-screen bg-[#efefef] text-[#394553]">
+      <header className="bg-[#394553] text-white">
+        <div className="mx-auto max-w-[1240px] px-4 pt-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between rounded-full border border-white/35 bg-[#d8d8dd] px-5 py-3 text-black shadow-[0_1px_0_rgba(255,255,255,0.4)_inset] sm:mx-auto sm:max-w-[520px]">
+            <div className="h-6 w-6 rounded-sm border-[3px] border-black border-t-[5px] border-b-0" />
+            <div className="text-[20px] font-black tracking-tight sm:text-[22px]">placesleisure.org</div>
+            <div className="text-[28px] leading-none">↻</div>
           </div>
         </div>
 
-        <div className="border-b border-[#d8ddd8] bg-white">
-          <div className="mx-auto flex max-w-[1240px] items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
-            <a href="https://www.placesleisure.org/" className="text-[26px] font-black tracking-tight text-[#ef7d00] sm:text-[32px]">
-              Places <span className="text-[#0f4d47]">Leisure</span>
-            </a>
-            <button type="button" aria-label="Main Menu" className="rounded-full border border-[#d8ddd8] p-3 text-[#173632]">
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
+        <div className="mx-auto flex max-w-[1240px] items-center justify-between px-4 pb-6 pt-8 sm:px-6 lg:px-8">
+          <a href="https://www.placesleisure.org/" className="flex items-center gap-3" aria-label="Places Leisure homepage">
+            <div className="flex h-12 w-12 items-center justify-center text-[#f47c00]">
+              <svg viewBox="0 0 42 42" className="h-12 w-12 fill-current" aria-hidden="true">
+                <path d="M19.2 2.7 8.3 13.6c-2.3 2.3-2.3 6 0 8.3l10.1 10.1c2 2 5.2 2 7.2 0l8.2-8.2-6.1-6.1-6.7 6.7-6.8-6.8 10.9-10.9-5.9-5.9Z" />
+              </svg>
+            </div>
+            <div className="leading-none">
+              <div className="text-[28px] font-black tracking-tight sm:text-[32px]">Places</div>
+              <div className="-mt-1 text-[28px] font-black tracking-tight sm:text-[32px]">Leisure</div>
+              <div className="mt-1 text-[11px] text-white/90">Part of Places for People</div>
+            </div>
+          </a>
+
+          <button type="button" aria-label="Main Menu" className="text-white">
+            <Menu className="h-14 w-14 stroke-[2.5]" />
+          </button>
         </div>
       </header>
 
-      <section className="border-b border-[#d8ddd8] bg-white">
-        <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8">
-          <div className="text-[15px] font-medium text-[#5a6664]">Places Leisure</div>
-          <div className="mt-1 text-[30px] font-black tracking-tight text-[#173632] sm:text-[36px]">Steyning Leisure Centre</div>
-          <div className="mt-2 text-[15px] font-semibold text-[#5a6664]">Closes today at 9.00pm</div>
+      <section className="border-b border-[#dddddd] bg-[#ffffff]">
+        <div className="mx-auto max-w-[1240px] px-4 py-4 text-[16px] sm:px-6 lg:px-8">
+          <span className="text-[#f47c00]">Home</span>
+          <span className="px-3 text-[#394553]">&gt;</span>
+          <span className="text-[#f47c00]">Steyning Leisure Centrex</span>
+        </div>
+      </section>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            {utilityLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="rounded-full border border-[#d9dfdb] bg-[#f7f8f5] px-4 py-2 text-sm font-semibold text-[#173632] transition hover:bg-[#eff2ed]"
-              >
-                {link.label}
-              </a>
-            ))}
+      <section className="bg-[#efefef]">
+        <div className="mx-auto max-w-[900px] px-4 py-10 sm:px-6 lg:py-14">
+          <div className="text-center">
+            <div className="text-[30px] font-black leading-none text-[#394553] sm:text-[40px]">Welcome to</div>
+            <h1 className="mt-3 text-[54px] font-black leading-[0.95] tracking-tight text-[#394553] sm:text-[82px]">
+              Steyning Leisure
+              <br />
+              Centrex
+            </h1>
+            <p className="mx-auto mt-8 max-w-[760px] text-[26px] leading-[1.8] text-[#394553] sm:text-[28px]">
+              Meet George for Steyning Leisure Centre. Tap the big round button to speak and George can help with
+              memberships, the live timetable, swimming, classes, centre questions, directions around the centre, and
+              guided gym workouts.
+            </p>
           </div>
         </div>
       </section>
 
-      <section className="border-b border-[#d8ddd8] bg-[#e8f3ed]">
-        <div className="mx-auto max-w-[1240px] px-4 py-4 sm:px-6 lg:px-8">
-          <div className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#0f4d47]">Partial Pool Closure</div>
-          <p className="mt-2 max-w-[980px] text-[15px] leading-7 text-[#355552]">
-            Please be aware that part of the pool is closed until further notice due to a fault with the movable floor. All lane swims will operate as general swim only, and only half of the pool will be available.
-          </p>
+      <section className="bg-[#efefef] pb-12">
+        <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
+          <PlacesForPeopleGeorgeLiveAssistant />
         </div>
       </section>
 
-      <section className="bg-white">
-        <div className="mx-auto max-w-[1240px] px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-          <div className="grid gap-6 rounded-[24px] border border-[#d8ddd8] bg-[#fbfbf8] p-5 sm:p-6 lg:grid-cols-[1.05fr_0.95fr] lg:p-8">
-            <div>
-              <div className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#0f4d47]">Meet George</div>
-              <h1 className="mt-3 text-[34px] font-black leading-tight tracking-tight text-[#173632] sm:text-[48px]">
-                George for Steyning Leisure Centre
-              </h1>
-              <p className="mt-4 max-w-[700px] text-[17px] leading-8 text-[#556462]">
-                A simpler Steyning page with George front and centre. George can help with memberships, swimming, classes,
-                centre information, opening times, directions around the centre, and guided gym sessions.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3 text-[15px] font-medium text-[#355552]">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm"><MapPin className="h-4 w-4 text-[#ef7d00]" /> Horsham Road, Steyning, West Sussex, BN44 3AA</span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm"><Phone className="h-4 w-4 text-[#ef7d00]" /> 01903 879666</span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm"><Clock3 className="h-4 w-4 text-[#ef7d00]" /> Open now · closes at 9.00pm</span>
-              </div>
-            </div>
-            <div className="rounded-[24px] bg-[linear-gradient(180deg,#0f4d47_0%,#15655c_100%)] p-6 text-white shadow-[0_24px_60px_rgba(15,77,71,0.22)]">
-              <div className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#c8efe5]">Live with George</div>
-              <p className="mt-4 text-[17px] leading-8 text-white/92">
-                Tap George and speak naturally. He can answer centre questions, use the live timetable, and guide gym users step by step based on whether they are beginner, intermediate, or advanced.
-              </p>
+      <section className="bg-[#efefef] pb-14">
+        <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
+          <div className="rounded-[10px] bg-white p-5 sm:p-7">
+            <div className="text-center text-[14px] font-bold uppercase tracking-[0.24em] text-[#394553]">Helpful buttons</div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {helpfulLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className="rounded-full border-2 border-[#394553] bg-white px-5 py-4 text-center text-[18px] font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
+                >
+                  {link.label}
+                </a>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1240px] px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <PlacesForPeopleGeorgeLiveAssistant />
-      </section>
-
-      <footer className="border-t border-[#d8ddd8] bg-[#0f4d47] text-white">
-        <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-6 px-4 py-10 text-center sm:px-6 lg:flex-row lg:px-8 lg:text-left">
-          <div>
-            <div className="text-[28px] font-black tracking-tight text-[#ef7d00]">
-              Places <span className="text-white">Leisure</span>
-            </div>
-            <div className="mt-3 text-sm text-white/75">A George page for Steyning Leisure Centre</div>
-            <a href="https://getgeorge.app" className="mt-3 inline-block text-sm font-semibold text-white underline underline-offset-4">
+      <footer className="bg-[#394553] text-white">
+        <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-6 px-4 py-10 sm:px-6 lg:flex-row lg:px-8">
+          <div className="text-center lg:text-left">
+            <div className="text-[22px] font-semibold">George</div>
+            <a href="https://getgeorge.app" className="mt-2 inline-block text-[18px] text-white underline underline-offset-4">
               getgeorge.app
             </a>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="relative h-[70px] w-[70px] overflow-hidden rounded-full border border-white/20 bg-white/10">
+            <div className="relative h-[78px] w-[78px] overflow-hidden rounded-full border border-white/25 bg-black/10">
               <Image src="/george-logo.png" alt="George" fill className="object-contain p-2" />
-            </div>
-            <div className="text-sm leading-7 text-white/80">
-              Helpful buttons stay underneath George so visitors can still jump straight to the official Steyning pages.
             </div>
           </div>
         </div>
