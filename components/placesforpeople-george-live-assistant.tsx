@@ -37,13 +37,13 @@ const INITIAL_MESSAGES: LiveMessage[] = [
 ]
 
 const QUICK_LINKS = [
-  { label: "Join now", href: "https://placesleisure.gladstonego.cloud/Pages/BookingsPage?centerId=1066", icon: Sparkles },
+  { label: "Join now", href: "https://www.placesleisure.org/membership/", icon: Sparkles },
   { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable", icon: CalendarDays },
-  { label: "Fitness & Health", href: "https://www.placesleisure.org/activities/fitness-and-health", icon: Dumbbell },
-  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/activities/swimming", icon: Waves },
+  { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/", icon: Dumbbell },
+  { label: "Swimming lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", icon: Waves },
   { label: "Centre information", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex", icon: MapPinned },
   { label: "Contact Steyning", href: "https://www.placesleisure.org/contact-us", icon: Users },
-  { label: "Opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info", icon: Clock3 },
+  { label: "Steyning opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info", icon: Clock3 },
   { label: "FAQs", href: "https://www.placesleisure.org/faqs", icon: BadgeHelp },
 ]
 
@@ -384,118 +384,115 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="rounded-[32px] border border-[#d6e3de] bg-white shadow-[0_28px_80px_rgba(10,56,52,0.10)]">
-      <div className="grid gap-8 p-6 lg:grid-cols-[1.15fr_0.85fr] lg:p-8">
-        <div>
-          <div className="inline-flex items-center rounded-full bg-[#e8f2ef] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#235a54]">
-            Live with George
-          </div>
-          <h2 className="mt-5 text-3xl font-black tracking-tight text-[#163632] sm:text-4xl">Talk to George about the centre</h2>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-[#50625f]">
-            George can help visitors with memberships, classes, swimming, gym questions, opening times, facilities,
-            accessibility, and simple workout guidance that matches what they want to do.
+    <section className="overflow-hidden rounded-[26px] border border-[#d8ddd8] bg-white shadow-[0_22px_60px_rgba(19,54,50,0.08)]">
+      <div className="px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <div className="mx-auto max-w-[920px] text-center">
+          <div className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#0f4d47]">George</div>
+          <h2 className="mt-3 text-[34px] font-black tracking-tight text-[#173632] sm:text-[46px]">Talk to George</h2>
+          <p className="mt-4 text-[17px] leading-8 text-[#596765]">
+            George can help with memberships, the live timetable, swimming, gym questions, centre information, and guided workouts.
           </p>
 
-          <div className="mt-8 flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+          <div className="mt-8 flex justify-center">
             <button
               type="button"
               onClick={connectionState === "connected" ? stopConversation : startConversation}
               disabled={connectionState === "connecting"}
-              className={`relative flex h-[220px] w-[220px] items-center justify-center rounded-full transition duration-300 ${
+              className={`relative flex h-[240px] w-[240px] items-center justify-center rounded-full transition duration-300 ${
                 connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
               } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2s_ease-in-out_infinite]" : "animate-[pulse_4s_ease-in-out_infinite]"}`}
               style={{
-                background: "radial-gradient(circle at 30% 25%, #7fe0cc 0%, #22a08c 30%, #126d63 64%, #0c4d46 100%)",
+                background: "radial-gradient(circle at 30% 25%, #f7b26a 0%, #ef7d00 25%, #15655c 66%, #0f4d47 100%)",
                 boxShadow:
                   connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 10px rgba(18,109,99,0.10), 0 28px 60px rgba(12,77,70,0.32), inset 0 3px 18px rgba(255,255,255,0.32), inset 0 -14px 28px rgba(7,52,47,0.35)"
-                    : "0 24px 54px rgba(12,77,70,0.24), inset 0 3px 18px rgba(255,255,255,0.28), inset 0 -14px 28px rgba(7,52,47,0.34)",
+                    ? "0 0 0 12px rgba(239,125,0,0.10), 0 28px 60px rgba(15,77,71,0.28), inset 0 3px 18px rgba(255,255,255,0.35), inset 0 -16px 34px rgba(7,52,47,0.32)"
+                    : "0 24px 54px rgba(15,77,71,0.22), inset 0 3px 18px rgba(255,255,255,0.3), inset 0 -16px 34px rgba(7,52,47,0.32)",
               }}
             >
               <span className="pointer-events-none absolute inset-[10px] rounded-full border border-white/20" />
-              <span className="pointer-events-none absolute left-[12%] top-[12%] h-[20%] w-[48%] rounded-full bg-white/28 blur-[10px]" />
-              <div className="relative z-10 flex h-[78%] w-[78%] items-center justify-center rounded-full bg-[linear-gradient(180deg,#f6fffc_0%,#d4f3eb_100%)] text-center shadow-[inset_0_4px_12px_rgba(255,255,255,0.8),0_14px_30px_rgba(0,0,0,0.12)]">
+              <span className="pointer-events-none absolute left-[12%] top-[12%] h-[20%] w-[48%] rounded-full bg-white/28 blur-[12px]" />
+              <div className="relative z-10 flex h-[78%] w-[78%] items-center justify-center rounded-full bg-[linear-gradient(180deg,#fffaf4_0%,#fde7d0_100%)] text-center shadow-[inset_0_4px_12px_rgba(255,255,255,0.8),0_14px_30px_rgba(0,0,0,0.12)]">
                 <div>
-                  <div className="text-[20px] font-black uppercase tracking-[0.22em] text-[#0d554d]">George</div>
-                  <div className="mt-2 px-4 text-sm font-medium leading-6 text-[#2d5d57]">
+                  <div className="text-[22px] font-black uppercase tracking-[0.22em] text-[#0f4d47]">George</div>
+                  <div className="mt-2 px-4 text-sm font-medium leading-6 text-[#355552]">
                     {connectionState === "connected" ? "Tap to end" : connectionState === "connecting" ? "Connecting…" : "Tap to speak"}
                   </div>
                 </div>
               </div>
             </button>
+          </div>
 
-            <div className="max-w-xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#126d63]">
-                {connectionState === "connected"
-                  ? isModelSpeaking
-                    ? "George is talking"
-                    : "George is live"
-                  : connectionState === "connecting"
-                    ? "Connecting George"
-                    : hasStoredSession
-                      ? "Ready to carry on"
-                      : "Ready when you are"}
-              </p>
-              <p className="mt-3 text-base leading-7 text-[#24423f] sm:text-lg">{latestAssistantMessage}</p>
-              {latestUserMessage ? <p className="mt-2 text-sm text-[#60716e]">You: {latestUserMessage}</p> : null}
-              {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
+          <div className="mx-auto mt-8 max-w-[760px] rounded-[20px] bg-[#f7f8f5] px-5 py-5 text-left sm:px-6">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0f4d47]">
+              {connectionState === "connected"
+                ? isModelSpeaking
+                  ? "George is talking"
+                  : "George is live"
+                : connectionState === "connecting"
+                  ? "Connecting George"
+                  : hasStoredSession
+                    ? "Ready to carry on"
+                    : "Ready when you are"}
+            </p>
+            <p className="mt-3 text-[16px] leading-8 text-[#24423f]">{latestAssistantMessage}</p>
+            {latestUserMessage ? <p className="mt-2 text-sm text-[#60716e]">You: {latestUserMessage}</p> : null}
+            {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
 
-              <div className="mt-5 flex flex-wrap gap-3">
-                {connectionState === "connected" ? (
-                  <button
-                    type="button"
-                    onClick={stopConversation}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#0f5f56] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
-                  >
-                    <PhoneOff className="h-4 w-4" /> End conversation
-                  </button>
-                ) : hasStoredSession ? (
-                  <button
-                    type="button"
-                    onClick={clearSavedSession}
-                    className="inline-flex items-center gap-2 rounded-full border border-[#d6e3de] bg-white px-5 py-3 text-sm font-semibold text-[#355552] transition hover:bg-[#f7fbfa]"
-                  >
-                    <RotateCcw className="h-4 w-4" /> Start fresh
-                  </button>
-                ) : null}
-
+            <div className="mt-5 flex flex-wrap gap-3">
+              {connectionState === "connected" ? (
                 <button
                   type="button"
-                  onClick={() => setShowConversation((prev) => !prev)}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#d6e3de] bg-white px-5 py-3 text-sm font-semibold text-[#355552] transition hover:bg-[#f7fbfa]"
+                  onClick={stopConversation}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#0f4d47] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
                 >
-                  {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {showConversation ? "Hide conversation" : "View conversation"}
+                  <PhoneOff className="h-4 w-4" /> End conversation
                 </button>
-              </div>
+              ) : hasStoredSession ? (
+                <button
+                  type="button"
+                  onClick={clearSavedSession}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#d6ddd8] bg-white px-5 py-3 text-sm font-semibold text-[#355552] transition hover:bg-[#f7fbfa]"
+                >
+                  <RotateCcw className="h-4 w-4" /> Start fresh
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setShowConversation((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-full border border-[#d6ddd8] bg-white px-5 py-3 text-sm font-semibold text-[#355552] transition hover:bg-[#f7fbfa]"
+              >
+                {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {showConversation ? "Hide conversation" : "View conversation"}
+              </button>
             </div>
           </div>
-        </div>
 
-        <div className="rounded-[28px] border border-[#dbe8e3] bg-[#f6fbf9] p-5">
-          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-[#126d63]">Helpful buttons</div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            {QUICK_LINKS.map((link) => {
-              const Icon = link.icon
-              return (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  className="flex items-center justify-between gap-3 rounded-[20px] bg-[#0f5f56] px-4 py-4 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,95,86,0.16)] transition hover:-translate-y-0.5 hover:brightness-105"
-                >
-                  <span>{link.label}</span>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/12">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                </a>
-              )
-            })}
+          <div className="mt-8">
+            <div className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0f4d47]">Helpful buttons</div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {QUICK_LINKS.map((link) => {
+                const Icon = link.icon
+                return (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    className="flex items-center justify-between gap-3 rounded-[18px] border border-[#d8ddd8] bg-white px-4 py-4 text-left text-sm font-semibold text-[#173632] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#fafbf8]"
+                  >
+                    <span>{link.label}</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3f6f2] text-[#0f4d47]">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  </a>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       {showConversation ? (
-        <div className="border-t border-[#d6e3de] bg-[#fbfefd] px-6 py-6 lg:px-8 lg:py-8">
+        <div className="border-t border-[#d8ddd8] bg-[#fbfcf9] px-5 py-6 sm:px-8 lg:px-10">
           <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-4xl overflow-y-auto">
             <div className="flex flex-col gap-4">
               {messages.map((message) => (
@@ -503,10 +500,10 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                   <div
                     className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[84%] sm:text-[16px] ${
                       message.role === "user"
-                        ? "rounded-br-md bg-[#0f5f56] text-white"
+                        ? "rounded-br-md bg-[#0f4d47] text-white"
                         : message.role === "assistant"
-                          ? "rounded-bl-md border border-[#dde9e5] bg-white text-[#163632]"
-                          : "rounded-bl-md border border-[#dde9e5] bg-[#f6fbf9] text-[#50625f]"
+                          ? "rounded-bl-md border border-[#dde3de] bg-white text-[#163632]"
+                          : "rounded-bl-md border border-[#dde3de] bg-[#f6f8f4] text-[#50625f]"
                     }`}
                   >
                     {message.content}
@@ -516,7 +513,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
               {connectionState === "connecting" && (
                 <div className="flex justify-start">
-                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#dde9e5] bg-white px-5 py-4 text-[#24423f] shadow-sm">
+                  <div className="inline-flex items-center gap-3 rounded-[24px] rounded-bl-md border border-[#dde3de] bg-white px-5 py-4 text-[#24423f] shadow-sm">
                     <Loader2 className="h-4 w-4 animate-spin" /> George is joining the conversation…
                   </div>
                 </div>
