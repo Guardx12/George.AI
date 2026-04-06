@@ -74,9 +74,12 @@ function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: b
 
 const quickLinks = [
   { label: "Join now", href: "https://placesleisure.gladstonego.cloud/memberships?siteId=7" },
-  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable/" },
-  { label: "Login", href: "https://placesleisure.gladstonego.cloud/" },
-  { label: "Contact us", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/#contact" },
+  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/" },
+  { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/" },
+  { label: "Sports", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/" },
+  { label: "Family & Kids", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/" },
+  { label: "More", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/more/" },
+  { label: "Contact us", href: "https://www.placesleisure.org/contact-us/" },
 ]
 
 export function PlacesForPeopleGeorgeLiveAssistant() {
