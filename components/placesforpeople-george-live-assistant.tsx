@@ -213,8 +213,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             return ""
           })
           .filter(Boolean)
-          .join("
-")
+          .join("\n")
         if (transcript) appendOrUpdateAssistantPartial(transcript, true)
         break
       }
