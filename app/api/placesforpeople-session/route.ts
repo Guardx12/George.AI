@@ -75,6 +75,80 @@ const STRUCTURED_KNOWLEDGE = `
 - You are a digital member of staff, not a medical professional and not a personal trainer replacing on-site supervision.
 `
 
+
+const MEMBERSHIP_KNOWLEDGE = `
+### Membership source of truth
+Use these membership details as your source of truth for pricing, payment routes, recommendation logic, and join guidance.
+
+Adult monthly direct debit:
+- Premium Plus Flexi — £75.00/month — all sites — gym, swimming, health suite, classes — full access
+- Premium Flexi — £55.50/month — selected centre — gym, swimming, classes
+- Swim Flexi — £34.00/month — selected centre — swimming only
+- Swim Plus Flexi — £36.00/month — all sites — swimming only
+- Gym Only Flexi — £34.00/month — selected centre — gym only
+
+Adult recurring card:
+- Premium Plus Flexi — £75.00/month
+- Premium Plus 16-25 Flexi — £56.00/month
+- Swim Plus Flexi — £36.00/month
+
+Adult pay upfront:
+- Premium Plus — £780.00/year — all sites — full access
+- Premium — £585.00/year — selected centre — gym, swimming, classes
+- Swim Plus — £380.00/year — all sites — swimming only
+
+Young adult monthly direct debit:
+- Premium Plus 16-25 Flexi — £56.00/month — all sites — gym, swimming, health suite, classes
+- Premium 16-18 Flexi — £30.00/month — selected centre — gym, swimming, classes
+- Premium 19-25 Flexi — £35.00/month — selected centre — gym, swimming, classes
+
+Young adult recurring card:
+- Premium Plus 16-25 Flexi — £56.00/month
+- Premium 16-18 Flexi — £30.00/month
+- Premium 19-25 Flexi — £35.00/month
+
+Concession monthly direct debit:
+- Premium Concession Flexi — £47.00/month — selected centre — gym, swimming, classes
+- Premium Plus Concession Flexi — £63.50/month — all sites — gym, swimming, classes
+
+Concession recurring card:
+- Premium Concession Flexi — £47.00/month
+- Premium Plus Concession Flexi — £63.50/month
+
+Concession pay upfront:
+- Premium Concession — £445.00/year — selected centre
+- Premium Plus Concession — £665.00/year — all sites, health suite included
+
+PAYG:
+- Places PAYG — £0 to register — no membership, pay per session
+- PAYG prices vary by activity and time, so never invent a session price. Say the visitor can register for free and see the exact session price at booking.
+
+### Recommendation rules
+- Always recommend the cheapest suitable option first.
+- Match intent first. If they only want gym, recommend Gym Only Flexi before broader memberships.
+- If they only want swimming, recommend Swim Flexi or Swim Plus Flexi.
+- If they want classes and gym at one centre, recommend Premium Flexi or the age-specific Premium option.
+- If they want all sites or maximum flexibility, recommend Plus options.
+- If they mention best value or long-term use, mention pay-upfront options.
+- If they are 16-18, prefer Premium 16-18 Flexi.
+- If they are 19-25, prefer Premium 19-25 Flexi unless they need all-sites access, then use Premium Plus 16-25 Flexi.
+- If they are concession-eligible, mention concession options.
+- Direct debit and recurring card prices are the same when both are available.
+- If a user wants to pay by card, only recommend options that actually allow recurring card.
+- There are no junior memberships listed. Teens use supervised sessions rather than their own membership.
+
+### Join flow guidance
+When someone wants to join, guide them clearly through the site in this order:
+1. Tell them to click the Join now button below.
+2. Tell them to select Steyning Leisure Centre from the drop-down list.
+3. Tell them to click Join now on the next page.
+4. Tell them to choose the right category such as adult, young adult, concession, or PAYG.
+5. Tell them to choose how they want to pay: direct debit, recurring card, or pay upfront if available.
+6. Remind them which membership you recommended so they pick the right one.
+- Keep join guidance short, practical, and step by step.
+- If useful, say “If it helps, I can quickly run through what you’ll see on the next page before you go.”
+`
+
 function stripHtml(html: string) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -287,6 +361,8 @@ Important response rules:
 - if an answer depends on centre policy or eligibility and the notes are not fully clear, explain the likely answer carefully and recommend checking with the centre
 
 ${STRUCTURED_KNOWLEDGE}
+
+${MEMBERSHIP_KNOWLEDGE}
 
 TIMETABLE FEED NOTES:
 ${timetableNotes}

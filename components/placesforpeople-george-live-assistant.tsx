@@ -24,14 +24,14 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-const STORAGE_KEY = "placesforpeople-george-session-v2"
+const STORAGE_KEY = "placesforpeople-george-session-v3"
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "system",
     content:
-      "Hi — I'm George for Steyning Leisure Centre. I can help with memberships, the live timetable, swimming, classes, facilities, opening times, getting around the centre, and guided gym sessions. If you want a workout, I'll work out whether you're a beginner, intermediate or advanced, then guide you through it step by step. If you're ever unsure about anything in the gym, please ask a member of staff.",
+      "Hi — I'm George for Steyning Leisure Centre. I can help you find the right membership, check the live timetable, answer centre questions, and walk you through the join process step by step. If you want to join, I’ll tell you which button to click next and what you’ll see on the next page.",
   },
 ]
 
@@ -42,7 +42,7 @@ const QUICK_LINKS = [
   { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", icon: Waves },
   { label: "Centre information", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex", icon: MapPinned },
   { label: "Contact Steyning", href: "https://www.placesleisure.org/contact-us", icon: Users },
-  { label: "Steyning opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info", icon: Clock3 },
+  { label: "Opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info", icon: Clock3 },
   { label: "FAQs", href: "https://www.placesleisure.org/faqs", icon: BadgeHelp },
 ]
 
@@ -87,8 +87,8 @@ function detectVisitorName(messages: LiveMessage[]) {
 
 function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
   const instructions = hasStoredSession
-    ? `Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Ask one short helpful question about what they want help with next.`
-    : "Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. Keep it short, confident, welcoming, and practical. Make it clear you can help with the gym, swimming, classes, memberships, opening times, facilities, directions around the centre, and guided workout flows. Mention that if they want a workout you can quickly work out whether they are a beginner, intermediate or advanced and guide them through the session step by step. Ask one short question about what they want help with first."
+    ? `Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Ask one short helpful question about what they want help with next. If they sound like they want to join, quickly move into membership guidance and the exact join steps.`
+    : "Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. Keep it short, confident, welcoming, and practical. Make it clear you can help with memberships, the live timetable, swimming, classes, opening times, facilities, and the exact join process. Mention that if they want to join, you can recommend the right option and tell them which button to click next. Ask one short question about what they want help with first."
 
   return {
     type: "response.create",
@@ -383,51 +383,43 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="overflow-hidden rounded-[14px] border border-[#d9d9d9] bg-[#efefef] shadow-[0_18px_36px_rgba(57,69,83,0.08)]">
-      <div className="px-4 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
+    <section className="overflow-hidden rounded-[28px] border border-[#d7dde3] bg-white shadow-[0_24px_60px_rgba(57,69,83,0.12)]">
+      <div className="bg-[linear-gradient(180deg,#ffffff_0%,#f6f8fa_100%)] px-4 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
         <div className="mx-auto max-w-[980px] text-center">
-          <div className="text-[18px] font-semibold tracking-tight text-[#394553] sm:text-[20px]">George</div>
-          <h2 className="mt-2 text-[34px] font-black tracking-tight text-[#394553] sm:text-[48px] lg:text-[56px]">Tap to speak</h2>
-          <p className="mx-auto mt-4 max-w-[780px] text-[17px] leading-[1.8] text-[#394553] sm:text-[20px] lg:text-[22px]">
-            George can help with memberships, the live timetable, swimming, classes, centre information, and guided workouts. If you are ever unsure in the gym, please ask a member of staff.
+          <div className="text-[14px] font-bold uppercase tracking-[0.18em] text-[#687381] sm:text-[15px]">Speak to George</div>
+          <h2 className="mt-2 text-[34px] font-black tracking-tight text-[#394553] sm:text-[48px] lg:text-[56px]">Tap the button to talk</h2>
+          <p className="mx-auto mt-4 max-w-[780px] text-[17px] leading-[1.8] text-[#4f5d6c] sm:text-[20px] lg:text-[22px]">
+            George can recommend the right membership, check the live timetable, answer centre questions,
+            and guide visitors through joining step by step.
           </p>
 
-          <div className="mt-7 flex justify-center sm:mt-10">
+          <div className="mt-8 flex justify-center sm:mt-10">
             <button
               type="button"
               onClick={connectionState === "connected" ? stopConversation : startConversation}
               disabled={connectionState === "connecting"}
-              className={`relative flex h-[220px] w-[220px] sm:h-[250px] sm:w-[250px] items-center justify-center rounded-full border-[8px] border-[#2d333a] transition duration-300 lg:h-[270px] lg:w-[270px] ${
-                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+              className={`group relative flex h-[210px] w-[210px] items-center justify-center rounded-full transition duration-300 sm:h-[236px] sm:w-[236px] lg:h-[260px] lg:w-[260px] ${
+                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.015]"
               } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
-              style={{
-                background:
-                  "radial-gradient(circle at 30% 24%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.22) 14%, rgba(255,170,46,0.18) 18%, #8d939a 34%, #515962 62%, #353c44 82%, #2c333a 100%), linear-gradient(145deg, #8d939a 0%, #525b64 48%, #2c333a 100%)",
-                boxShadow:
-                  connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 8px rgba(255,255,255,0.32), 0 0 0 16px rgba(244,124,0,0.18), 0 28px 44px rgba(0,0,0,0.30), inset 0 10px 24px rgba(255,255,255,0.34), inset 0 -14px 26px rgba(0,0,0,0.24)"
-                    : "0 0 0 8px rgba(255,255,255,0.28), 0 22px 36px rgba(0,0,0,0.24), inset 0 10px 24px rgba(255,255,255,0.30), inset 0 -14px 24px rgba(0,0,0,0.22)",
-              }}
             >
-              <span className="absolute inset-[16px] rounded-full border border-white/35" />
-              <span className="absolute inset-x-[18%] top-[10%] h-8 sm:h-10 rounded-full bg-white/30 blur-md" />
-              <span className="absolute left-[16%] top-[26%] h-4 w-4 rounded-full bg-[#f8a12a] shadow-[0_0_14px_rgba(248,161,42,0.9)]" />
-              <span className="absolute right-[18%] top-[24%] h-3 w-3 rounded-full bg-[#ffd08a] shadow-[0_0_12px_rgba(255,208,138,0.85)]" />
-              <span className="absolute left-[22%] bottom-[22%] h-3 w-3 rounded-full bg-[#ffd08a] shadow-[0_0_12px_rgba(255,208,138,0.85)]" />
-              <span className="absolute right-[22%] bottom-[20%] h-4 w-4 rounded-full bg-[#f47c00] shadow-[0_0_14px_rgba(244,124,0,0.9)]" />
-              <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full border-[6px] border-[#2d333a] bg-[radial-gradient(circle_at_30%_28%,#fff8ec_0%,#ffd89f_16%,#f4a432_32%,#646b73_34%,#4f5861_62%,#39424a_100%)] shadow-[inset_0_10px_22px_rgba(255,255,255,0.34),inset_0_-18px_28px_rgba(0,0,0,0.22)]">
-                <div>
-                  <div className="text-[24px] font-black uppercase tracking-[0.2em] text-white sm:text-[28px]">George</div>
-                  <div className="mt-3 px-4 text-[16px] font-semibold leading-6 text-white/95 sm:text-[18px] sm:leading-7">
-                    {connectionState === "connected" ? "Tap to end" : connectionState === "connecting" ? "Connecting…" : "Tap to speak"}
-                  </div>
+              <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_28%_24%,rgba(255,255,255,0.95),rgba(255,255,255,0.22)_18%,rgba(244,124,0,0.18)_22%,rgba(65,77,91,0.92)_58%,#394553_100%)] shadow-[0_20px_40px_rgba(57,69,83,0.28),inset_0_10px_24px_rgba(255,255,255,0.28),inset_0_-14px_24px_rgba(0,0,0,0.18)]" />
+              <span className="absolute inset-[8px] rounded-full border border-white/35" />
+              <span className="absolute inset-[22px] rounded-full border border-white/15" />
+              <span className="absolute inset-[26px] rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.24),transparent_34%)]" />
+              <div className="relative z-10 flex h-[72%] w-[72%] flex-col items-center justify-center rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.03))] px-5 text-center backdrop-blur-[1px]">
+                <div className="text-[22px] font-black uppercase tracking-[0.22em] text-white sm:text-[26px]">George</div>
+                <div className="mt-3 text-[15px] font-semibold leading-6 text-white/95 sm:text-[17px] sm:leading-7">
+                  {connectionState === "connected" ? "Tap to end" : connectionState === "connecting" ? "Connecting…" : "Tap to speak"}
+                </div>
+                <div className="mt-3 text-[12px] font-medium uppercase tracking-[0.18em] text-white/70 sm:text-[13px]">
+                  Live voice assistant
                 </div>
               </div>
             </button>
           </div>
 
-          <div className="mx-auto mt-7 max-w-[820px] rounded-[14px] bg-[#e6e6e6] px-4 py-5 text-left sm:px-6">
-            <p className="text-[14px] font-bold uppercase tracking-[0.16em] text-[#394553]">
+          <div className="mx-auto mt-8 max-w-[860px] rounded-[24px] border border-[#e2e7eb] bg-white px-5 py-5 text-left shadow-[0_10px_28px_rgba(57,69,83,0.06)] sm:px-6">
+            <p className="text-[13px] font-bold uppercase tracking-[0.18em] text-[#687381] sm:text-[14px]">
               {connectionState === "connected"
                 ? isModelSpeaking
                   ? "George is talking"
@@ -472,7 +464,43 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             </div>
           </div>
 
-          <div className="mt-7">
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+            <div className="rounded-[24px] border border-[#e2e7eb] bg-[#f8fafb] p-5 text-left shadow-[0_10px_24px_rgba(57,69,83,0.05)] sm:p-6">
+              <div className="text-[13px] font-bold uppercase tracking-[0.18em] text-[#687381] sm:text-[14px]">Join process George should guide</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {[
+                  "1. Click Join now below",
+                  "2. Select Steyning Leisure Centre from the drop-down list",
+                  "3. Click Join now on the next page",
+                  "4. Choose adult, concession, young adult or PAYG",
+                  "5. Pick direct debit, recurring card or pay upfront if available",
+                  "6. Continue through the form with the option George recommended",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-[#dfe5ea] bg-white px-4 py-4 text-sm font-semibold leading-6 text-[#394553]">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-[#e2e7eb] bg-[#394553] p-5 text-left text-white shadow-[0_14px_32px_rgba(57,69,83,0.16)] sm:p-6">
+              <div className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/70 sm:text-[14px]">Try asking George</div>
+              <div className="mt-4 space-y-3">
+                {[
+                  "I’m 22 and just want to use the gym.",
+                  "I only want swimming and I’d rather pay by card.",
+                  "I’m a student — do you have concession options?",
+                  "What happens after I click Join now?",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm leading-6 text-white/95">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {QUICK_LINKS.map((link) => {
                 const Icon = link.icon
@@ -480,10 +508,10 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
                   <a
                     key={link.label}
                     href={link.href}
-                    className="flex items-center justify-between gap-3 rounded-full border-2 border-[#394553] bg-white px-4 py-4 text-left text-[15px] font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white sm:px-5 sm:text-[16px]"
+                    className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left text-[15px] font-semibold transition sm:px-5 sm:text-[16px] ${link.label === "Join now" ? "border-[#f47c00]/30 bg-[#fff6ed] text-[#9e5200] hover:bg-[#fef0df]" : "border-[#dfe5ea] bg-white text-[#394553] hover:border-[#394553] hover:bg-[#394553] hover:text-white"}`}
                   >
                     <span>{link.label}</span>
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f47c00] text-white">
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-full ${link.label === "Join now" ? "bg-[#f47c00] text-white" : "bg-[#f47c00] text-white"}`}>
                       <Icon className="h-4 w-4" />
                     </span>
                   </a>
