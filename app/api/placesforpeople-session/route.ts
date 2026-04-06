@@ -33,17 +33,17 @@ const EXTRA_CENTRE_LINK_PATTERNS = [
 
 const LINK_MAP = {
   joinNow: "https://placesleisure.gladstonego.cloud/memberships?siteId=7",
-  timetable: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable",
-  swimmingLessonsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/",
+  timetable: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable",
+  swimmingLessonsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable",
   fitnessHealthPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/",
-  sportsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/",
+  sportsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/#timetable",
   familyKidsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/",
   more: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/more/",
   contact: "https://www.placesleisure.org/contact-us/",
   centre: "https://www.placesleisure.org/centres/steyning-leisure-centrex/",
   activeRealityBooking: "https://ecom.roller.app/activerealitysteyning/checkout/en/home",
   partyBookingForm: "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf",
-  swimmingLessonsBooking: "https://www.placesleisure.org/courses/swimming-lessons/",
+  swimmingLessonsBooking: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable",
 } as const
 
 const STRUCTURED_KNOWLEDGE = `
@@ -215,10 +215,10 @@ const STRUCTURED_KNOWLEDGE = `
 
 - Hard rules for link choice:
   - If someone asks to join, sign up, or become a member, use the Join now link.
-  - If someone asks to book swimming, lane swimming, family fun swimming, or Aquafit, use the timetable link.
-  - If someone asks about swimming lessons or wants to enrol in lessons, use the swimming lessons booking link.
+  - If someone asks to book swimming, lane swimming, family fun swimming, Aquafit, classes, kids sessions, or book a tour, use the swimming timetable link.
+  - If someone asks about swimming lessons or wants to enrol in lessons, use the swimming timetable link.
   - If someone asks about the gym, classes, pay-as-you-go gym, PT, support sessions, junior gym, exercise referral, or gym accessibility, use the Fitness & Health page unless they need a live time, in which case use the timetable.
-  - If someone asks about badminton, basketball, table tennis, squash, or booking a court, use the timetable for bookings and the Sports page only for general information.
+  - If someone asks about badminton, basketball, table tennis, squash, or booking a court, use the sports timetable link.
   - If someone asks about Active Reality, use the direct Active Reality booking link.
   - If someone asks about parties, kids' parties, birthday parties, or booking a party, use the party booking form link. Never send them to the Family & Kids page for that request.
   - If someone asks about family activities broadly and there is no stronger action link, use the Family & Kids page.
@@ -233,7 +233,9 @@ const STRUCTURED_KNOWLEDGE = `
 - Examples you should follow exactly in spirit:
   - If the visitor says "I want to book a kids' party", respond with the party booking form route, for example: "That sounds like a great idea. You can download the party booking form here. Once you've got it, fill it in and email it to the centre, or call 01903 879666 if you'd rather talk it through."
   - If the visitor says "I want to book Active Reality", respond with the Active Reality booking route, for example: "Perfect — you can book Active Reality here. Once you're there, pick the session that suits you and follow the booking steps."
-  - If the visitor says "I want to go swimming", respond with the timetable route, for example: "You can book swimming here. Once you're on the timetable, choose the swim session you want and pick a time that suits you."
+  - If the visitor says "I want to go swimming", respond with the swimming timetable route, for example: "You can book swimming here. Once you're on the timetable, choose the swim session you want and pick a time that suits you."
+  - If the visitor says "I want to play table tennis", respond with the sports timetable route, for example: "You can book here. Once you're on the sports timetable, choose the activity you want and pick a time that suits you."
+  - If the visitor says "I want to book a class", respond with the swimming timetable route, for example: "You can view the timetable here. Once you're there, choose the class, kids session, or tour that suits you."
 
 ### Navigation and centre guidance
 - You can guide people in a general, helpful way using the facilities and sections known from the notes.

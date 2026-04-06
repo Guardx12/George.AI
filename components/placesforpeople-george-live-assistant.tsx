@@ -81,10 +81,10 @@ function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: b
 
 const quickLinks: QuickLink[] = [
   { label: "Join now", href: "https://placesleisure.gladstonego.cloud/memberships?siteId=7", prompt: "Help me join", description: "Direct Steyning memberships" },
-  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable", prompt: "What is on today?", description: "Live classes, sports, swimming and gym times" },
-  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", prompt: "Show me swimming and lessons", description: "Pool, family fun, lessons and Aquafit" },
+  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "What is on today?", description: "Live classes, swimming, kids sessions and tours" },
+  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "Show me swimming and lessons", description: "Swimming, lessons, classes, kids sessions and tours" },
   { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/", prompt: "Show me gym and fitness", description: "Gym, classes, PT, support and junior fitness" },
-  { label: "Sports", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/", prompt: "Show me sports", description: "Badminton, basketball, table tennis and squash" },
+  { label: "Sports", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/#timetable", prompt: "Show me sports", description: "Badminton, basketball, table tennis and squash bookings" },
   { label: "Family & Kids", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/", prompt: "Show me family activities", description: "Active Reality, parties and family activities" },
   { label: "More", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/more/", prompt: "Show me more centre activities", description: "Travel, parking, facility hire and shop" },
   { label: "Centre info", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/", prompt: "Show me centre information", description: "Opening times, facilities and accessibility" },
@@ -133,14 +133,15 @@ function splitTextWithUrls(text: string) {
 
   const phraseLinks: Array<[RegExp, string]> = [
     [/\bjoin here\b/gi, "https://placesleisure.gladstonego.cloud/memberships?siteId=7"],
-    [/\bview the timetable here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
-    [/\bbook swimming here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
-    [/\bbook swimming lessons here\b/gi, "https://www.placesleisure.org/courses/swimming-lessons/"],
+    [/\bview the timetable here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook swimming here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook swimming lessons here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
     [/\bbook active reality here\b/gi, "https://ecom.roller.app/activerealitysteyning/checkout/en/home"],
     [/\bdownload the party booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
     [/\bbook a kids'? party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
     [/\bbook a party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
     [/\bparty booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
+    [/\bbook here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/#timetable"],
     [/\bfind out more here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/"],
   ]
 
