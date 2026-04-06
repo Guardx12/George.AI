@@ -19,12 +19,12 @@ export default function PlacesForPeoplePage() {
       <header className="bg-[#394553] text-white">
         <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8">
           <a href="https://www.placesleisure.org/" className="inline-flex items-center gap-3" aria-label="Places Leisure homepage">
-            <div className="flex h-12 w-12 items-center justify-center text-[#f47c00]">
-              <svg viewBox="0 0 42 42" className="h-12 w-12 fill-current" aria-hidden="true">
-                <path d="M19.2 2.7 8.3 13.6c-2.3 2.3-2.3 6 0 8.3l10.1 10.1c2 2 5.2 2 7.2 0l8.2-8.2-6.1-6.1-6.7 6.7-6.8-6.8 10.9-10.9-5.9-5.9Z" />
-              </svg>
-            </div>
-            <div className="leading-none">
+            <img
+              src="https://www.placesleisure.org/static/images/logo.svg"
+              alt="Places Leisure"
+              className="h-12 w-auto object-contain"
+            />
+            <div className="leading-none sr-only">
               <div className="text-[28px] font-black tracking-tight sm:text-[32px]">Places</div>
               <div className="-mt-1 text-[28px] font-black tracking-tight sm:text-[32px]">Leisure</div>
               <div className="mt-1 text-[11px] text-white/90">Part of Places for People</div>
