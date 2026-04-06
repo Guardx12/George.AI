@@ -99,6 +99,10 @@ function getQuickLinkAnchorText(link: QuickLink) {
       return "view the timetable here"
     case "Sports":
       return "book here"
+    case "Swimming & Lessons":
+      return "book swimming here"
+    case "Family & Kids":
+      return "find out more here"
     default:
       return "find out more here"
   }
@@ -125,36 +129,38 @@ function applyQuickLinkToTranscript(text: string, link: QuickLink | null) {
 
 
 function splitTextWithUrls(text: string) {
+  const phraseLinks: Array<[RegExp, string]> = [
+    [/\bjoin here\b/gi, "https://placesleisure.gladstonego.cloud/memberships?siteId=7"],
+    [/\bview the timetable here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
+    [/\bbook swimming here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
+    [/\bbook swimming lessons here\b/gi, "https://www.placesleisure.org/courses/swimming-lessons/"],
+    [/\bbook active reality here\b/gi, "https://ecom.roller.app/activerealitysteyning/checkout/en/home"],
+    [/\bdownload the party booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
+    [/\bbook here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
+    [/\bfind out more here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/"],
+  ]
+
+  let autoLinkedText = text
+  for (const [pattern, href] of phraseLinks) {
+    autoLinkedText = autoLinkedText.replace(pattern, (match) => `[${match}](${href})`)
+  }
+
   const parts: Array<{ value: string; href?: string; isLink: boolean }> = []
   const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
   let lastIndex = 0
   let match: RegExpExecArray | null
 
-  while ((match = markdownLinkRegex.exec(text)) !== null) {
+  while ((match = markdownLinkRegex.exec(autoLinkedText)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ value: text.slice(lastIndex, match.index), isLink: false })
+      parts.push({ value: autoLinkedText.slice(lastIndex, match.index), isLink: false })
     }
     parts.push({ value: match[1], href: match[2], isLink: true })
     lastIndex = markdownLinkRegex.lastIndex
   }
 
-  const trailing = text.slice(lastIndex)
+  const trailing = autoLinkedText.slice(lastIndex)
   if (trailing) {
-    const urlRegex = /(https?:\/\/[^\s]+)/g
-    let trailingLastIndex = 0
-    let urlMatch: RegExpExecArray | null
-
-    while ((urlMatch = urlRegex.exec(trailing)) !== null) {
-      if (urlMatch.index > trailingLastIndex) {
-        parts.push({ value: trailing.slice(trailingLastIndex, urlMatch.index), isLink: false })
-      }
-      parts.push({ value: urlMatch[1], href: urlMatch[1], isLink: true })
-      trailingLastIndex = urlRegex.lastIndex
-    }
-
-    if (trailingLastIndex < trailing.length) {
-      parts.push({ value: trailing.slice(trailingLastIndex), isLink: false })
-    }
+    parts.push({ value: trailing, isLink: false })
   }
 
   return parts.filter((part) => part.value)

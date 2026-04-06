@@ -33,14 +33,17 @@ const EXTRA_CENTRE_LINK_PATTERNS = [
 
 const LINK_MAP = {
   joinNow: "https://placesleisure.gladstonego.cloud/memberships?siteId=7",
-  swimmingLessons: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/",
-  fitnessHealth: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/",
-  sports: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/",
-  familyKids: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/",
+  timetable: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable",
+  swimmingLessonsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/",
+  fitnessHealthPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/",
+  sportsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/",
+  familyKidsPage: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/",
   more: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/more/",
   contact: "https://www.placesleisure.org/contact-us/",
-  timetable: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable",
   centre: "https://www.placesleisure.org/centres/steyning-leisure-centrex/",
+  activeRealityBooking: "https://ecom.roller.app/activerealitysteyning/checkout/en/home",
+  partyBookingForm: "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf",
+  swimmingLessonsBooking: "https://www.placesleisure.org/courses/swimming-lessons/",
 } as const
 
 const STRUCTURED_KNOWLEDGE = `
@@ -199,14 +202,14 @@ const STRUCTURED_KNOWLEDGE = `
 - Use these exact links, and prefer just one most relevant link rather than listing lots at once:
   - Join now: ${LINK_MAP.joinNow}
   - Timetable: ${LINK_MAP.timetable}
-  - Swimming & Lessons: ${LINK_MAP.swimmingLessons}
-  - Fitness & Health: ${LINK_MAP.fitnessHealth}
-  - Sports: ${LINK_MAP.sports}
-  - Family & Kids: ${LINK_MAP.familyKids}
+  - Swimming & Lessons: ${LINK_MAP.swimmingLessonsPage}
+  - Fitness & Health: ${LINK_MAP.fitnessHealthPage}
+  - Sports: ${LINK_MAP.sportsPage}
+  - Family & Kids: ${LINK_MAP.familyKidsPage}
   - More: ${LINK_MAP.more}
   - Contact us: ${LINK_MAP.contact}
   - Centre page: ${LINK_MAP.centre}
-- If someone asks to join, guide them naturally and embed the Join now link as a markdown link with short anchor text such as [join here](URL). Do not display or read out the raw URL.
+- If someone asks to join, guide them naturally and tell them they can join here. Do not say or display any raw URL, hidden link target, site ID, or parameter.
 - If someone asks about swimming, lessons, aquafit, pool details, or family fun in the pool, send them to the Swimming & Lessons link and briefly explain what they should look for on that page.
 - If someone asks about the gym, classes, pay-as-you-go gym, PT, support sessions, junior gym, exercise referral, or accessibility in the gym, send them to the Fitness & Health link and briefly explain what they should do on that page.
 - If someone asks about badminton, basketball, table tennis, squash, or booking a court, send them to the Sports link or timetable link depending on whether they need information or times, and briefly explain what they should do once there.
@@ -218,7 +221,7 @@ const STRUCTURED_KNOWLEDGE = `
 - You can guide people in a general, helpful way using the facilities and sections known from the notes.
 - Do not claim precise live location tracking or exact room-by-room directions unless clearly provided in the notes.
 - If someone wants to book, join, view the timetable, contact the centre, or confirm details you cannot safely verify, actively direct them to the relevant page or button such as Join now, View timetable, Fitness & Health, Swimming & Lessons, Sports, Family & Kids, Centre information, Contact us, opening times, or FAQs.
-- When a booking or sign-up action is needed, use natural phrasing like “If that sounds like the right fit, you can join here.” or “You can book here.” Make the words 'join here', 'book here', 'view it here', or 'find out more here' clickable using the exact approved URL. Do not display or read out raw URLs.
+- When a booking or sign-up action is needed, use natural phrasing like “If that sounds like the right fit, you can join here.” or “You can book here.” Say only the visible phrase. Do not say or display any raw URL, hidden link target, site ID, query string, or parameter.
 - After giving a clickable link, tell the visitor what to do on that page in one short practical sentence. Examples: “Once you’re there, choose the membership that suits you, then select how you’d like to pay.” “Once you’re on the timetable page, pick the activity you want, choose a time, and follow the booking steps.”
 - Always nudge toward the next step. Do not just drop a link. Guide them clearly, simply, and in a conversion-focused way.
 - Keep next-step guidance short, practical, and matched to the page you linked to.
