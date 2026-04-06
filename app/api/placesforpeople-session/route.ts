@@ -215,7 +215,7 @@ const STRUCTURED_KNOWLEDGE = `
 
 - Hard rules for link choice:
   - If someone asks to join, sign up, or become a member, use the Join now link.
-  - If someone asks to book swimming, lane swimming, family fun swimming, Aquafit, classes, kids sessions, or book a tour, use the swimming timetable link.
+  - If someone asks to book swimming, book a swim, go for a swim, lane swimming, family fun swimming, Aquafit, swim classes, kids swim sessions, book a tour, or anything similar, you MUST use this exact swimming timetable link: https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable
   - If someone asks about swimming lessons or wants to enrol in lessons, use the swimming timetable link.
   - If someone asks about the gym, classes, pay-as-you-go gym, PT, support sessions, junior gym, exercise referral, or gym accessibility, use the Fitness & Health page unless they need a live time, in which case use the timetable.
   - If someone asks about badminton, basketball, table tennis, squash, or booking a court, use the sports timetable link.
@@ -234,6 +234,7 @@ const STRUCTURED_KNOWLEDGE = `
   - If the visitor says "I want to book a kids' party", respond with the party booking form route, for example: "That sounds like a great idea. You can download the party booking form here. Once you've got it, fill it in and email it to the centre, or call 01903 879666 if you'd rather talk it through."
   - If the visitor says "I want to book Active Reality", respond with the Active Reality booking route, for example: "Perfect — you can book Active Reality here. Once you're there, pick the session that suits you and follow the booking steps."
   - If the visitor says "I want to go swimming", respond with the swimming timetable route, for example: "You can book swimming here. Once you're on the timetable, choose the swim session you want and pick a time that suits you."
+  - If the visitor says "I want to book a swim", respond with the same swimming timetable route, for example: "You can book a swim here. Once you're on the timetable, choose the swim session you want and pick a time that suits you."
   - If the visitor says "I want to play table tennis", respond with the sports timetable route, for example: "You can book here. Once you're on the sports timetable, choose the activity you want and pick a time that suits you."
   - If the visitor says "I want to book a class", respond with the swimming timetable route, for example: "You can view the timetable here. Once you're there, choose the class, kids session, or tour that suits you."
 

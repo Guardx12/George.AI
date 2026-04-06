@@ -81,7 +81,7 @@ function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: b
 
 const quickLinks: QuickLink[] = [
   { label: "Join now", href: "https://placesleisure.gladstonego.cloud/memberships?siteId=7", prompt: "Help me join", description: "Direct Steyning memberships" },
-  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "What is on today?", description: "Live classes, swimming, kids sessions and tours" },
+  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "What is on today? Use the swimming timetable link for swim bookings, classes, kids sessions and tours.", description: "Live classes, swimming, kids sessions and tours" },
   { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "Show me swimming and lessons", description: "Swimming, lessons, classes, kids sessions and tours" },
   { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/", prompt: "Show me gym and fitness", description: "Gym, classes, PT, support and junior fitness" },
   { label: "Sports", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/#timetable", prompt: "Show me sports", description: "Badminton, basketball, table tennis and squash bookings" },
@@ -135,7 +135,13 @@ function splitTextWithUrls(text: string) {
     [/\bjoin here\b/gi, "https://placesleisure.gladstonego.cloud/memberships?siteId=7"],
     [/\bview the timetable here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
     [/\bbook swimming here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook a swim here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook your swim here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook a swim session here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
     [/\bbook swimming lessons here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook swim classes here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook kids sessions here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
+    [/\bbook a tour here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
     [/\bbook active reality here\b/gi, "https://ecom.roller.app/activerealitysteyning/checkout/en/home"],
     [/\bdownload the party booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
     [/\bbook a kids'? party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
@@ -558,14 +564,15 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           {quickLinks.map((link) => (
-            <button
+            <a
               key={link.label}
-              type="button"
-              onClick={() => void handleQuickLink(link)}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex items-center rounded-full border border-[#cfd5dc] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:border-[#f47c00] hover:text-[#f47c00]"
             >
               {link.label}
-            </button>
+            </a>
           ))}
         </div>
 
