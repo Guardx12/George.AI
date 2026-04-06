@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Loader2, Mic, PhoneOff, RotateCcw } from "lucide-react"
+import { Loader2, Mic } from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -74,8 +74,9 @@ function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: b
 
 const quickLinks = [
   { label: "Join now", href: "https://placesleisure.gladstonego.cloud/memberships?siteId=7" },
-  { label: "Live timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centre/timetables/" },
-  { label: "Memberships", href: "https://www.placesleisure.org/membership/" },
+  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable/" },
+  { label: "Login", href: "https://placesleisure.gladstonego.cloud/" },
+  { label: "Contact us", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/#contact" },
 ]
 
 export function PlacesForPeopleGeorgeLiveAssistant() {
@@ -354,11 +355,11 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
           } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
           style={{
-            background: "radial-gradient(circle at 30% 28%, #56606c 0%, #434b55 52%, #394553 100%)",
+            background: "radial-gradient(circle at 30% 28%, #6c7580 0%, #59616b 48%, #414951 100%)",
             boxShadow:
               connectionState === "connected" || connectionState === "connecting"
-                ? "0 0 0 4px rgba(244,124,0,0.24), 0 0 0 11px rgba(244,124,0,0.08), 0 16px 28px rgba(57,69,83,0.20), inset 0 8px 16px rgba(255,255,255,0.14), inset 0 -8px 16px rgba(0,0,0,0.18)"
-                : "0 0 0 4px rgba(244,124,0,0.88), 0 14px 24px rgba(57,69,83,0.14), inset 0 8px 16px rgba(255,255,255,0.14), inset 0 -8px 16px rgba(0,0,0,0.18)",
+                ? "0 0 0 4px rgba(244,124,0,0.22), 0 0 0 10px rgba(244,124,0,0.09), 0 16px 28px rgba(57,69,83,0.20), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)"
+                : "0 0 0 4px rgba(244,124,0,0.82), 0 14px 24px rgba(57,69,83,0.14), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)",
           }}
         >
           <span className="absolute inset-[10px] rounded-full border border-white/15" />
@@ -380,7 +381,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
               href={link.href}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center rounded-full border border-[#d7dce2] bg-white px-5 py-2.5 text-sm font-semibold text-[#394553] shadow-sm transition hover:border-[#f47c00] hover:text-[#f47c00]"
+              className="inline-flex items-center rounded-full border border-[#cfd5dc] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:border-[#f47c00] hover:text-[#f47c00]"
             >
               {link.label}
             </a>
@@ -388,41 +389,8 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
         </div>
 
         {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
-
-        {connectionState === "connected" ? (
-          <button
-            type="button"
-            onClick={stopConversation}
-            className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#d6dbe1] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:bg-[#f6f7f8]"
-          >
-            <PhoneOff className="h-4 w-4" /> End conversation
-          </button>
-        ) : hasStoredSession ? (
-          <button
-            type="button"
-            onClick={clearSavedSession}
-            className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#d6dbe1] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:bg-[#f6f7f8]"
-          >
-            <RotateCcw className="h-4 w-4" /> Start fresh
-          </button>
-        ) : null}
-
-        <div className="mt-14 border-t border-[#d6dbe1] pt-10">
-          <img
-            src="/george-preview.png"
-            alt="George preview"
-            className="mx-auto w-full max-w-[520px] rounded-[24px] border border-[#d6dbe1] bg-white object-cover shadow-[0_18px_40px_rgba(57,69,83,0.08)]"
-          />
-          <a
-            href="https://getgeorge.app"
-            target="_blank"
-            rel="noreferrer"
-            className="mt-6 inline-flex text-[18px] font-bold tracking-tight text-[#394553] transition hover:text-[#f47c00]"
-          >
-            GetGeorge.app
-          </a>
-        </div>
       </div>
     </section>
   )
+
 }

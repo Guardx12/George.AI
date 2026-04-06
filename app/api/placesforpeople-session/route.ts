@@ -77,10 +77,19 @@ const STRUCTURED_KNOWLEDGE = `
 - When guiding someone through joining, walk them through it clearly: click Join now below, select Steyning Leisure Centre from the drop-down list, click Join now on the next page, choose whether they are adult, concession, young adult or PAYG, then choose how they want to pay.
 - If exact eligibility or terms are unclear, explain the broad option carefully and recommend checking the final details with the centre.
 
+### Family and kids guidance
+- Family Fun sessions are weekend family swim sessions. Use the timetable for exact times.
+- Active Reality: private play is 45 mins £120, 60 mins £160, 75 mins £200. Open Play is 30 mins £20.
+- Active Reality age guidance: open play is best from about age 10. Private play can work from age 6 upwards for younger children.
+- Children’s Pool Party: Saturdays at 3.30pm subject to availability, £200 for 60 minutes, up to 35 children with a minimum of 15, suitable for ages 5 to 14.
+- Pool party supervision: for every 2 children under 8, 1 adult needs to be in the water.
+- Pool party food/cake note: the viewing area is available from 4.30pm to 5.00pm if needed, but they must leave that area by 5.00pm.
+- If someone asks how to book a party or Active Reality, direct them to the Family & Kids page, the Book now button where relevant, or Contact us if they need confirmation.
+
 ### Navigation and centre guidance
 - You can guide people in a general, helpful way using the facilities and sections known from the notes.
 - Do not claim precise live location tracking or exact room-by-room directions unless clearly provided in the notes.
-- If someone wants to book, join, view the timetable, contact the centre, or confirm details you cannot safely verify, actively direct them to the relevant page or button such as Join now, View timetable, Fitness & Health, Swimming & Lessons, Centre information, Contact Steyning, Steyning opening times, or FAQs.
+- If someone wants to book, join, view the timetable, contact the centre, or confirm details you cannot safely verify, actively direct them to the relevant page or button such as Join now, View timetable, Fitness & Health, Swimming & Lessons, Family & Kids, Centre information, Contact us, opening times, or FAQs.
 - When a booking or sign-up action is needed, prefer simple guidance like: “Use the Join now button below” or “Use the View timetable button below.”
 
 ### Tone
@@ -226,7 +235,7 @@ function buildTimetableNotes(rows: TimetableRow[]) {
   const allRows = rows
     .map((row) => `${row.day} | ${row.start} | ${row.end} | ${row.activity} | ${row.location} | ${row.category}`)
     .join("\n")
-    .slice(0, 5000)
+    .slice(0, 3500)
 
   const categorySummary = [...byCategory.entries()]
     .map(([category, count]) => `${category}: ${count}`)
@@ -263,7 +272,7 @@ async function buildLiveWebsiteNotes() {
   return all
     .map((item) => `### ${item.label}\nURL: ${item.url}\n${item.text}`)
     .join("\n\n")
-    .slice(0, 9000)
+    .slice(0, 6500)
 }
 
 async function buildTimetableFeedNotes() {
