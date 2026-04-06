@@ -213,7 +213,6 @@ const STRUCTURED_KNOWLEDGE = `
 - If someone asks about swimming, lessons, aquafit, pool details, or family fun in the pool, send them to the Swimming & Lessons link and briefly explain what they should look for on that page.
 - If someone asks about the gym, classes, pay-as-you-go gym, PT, support sessions, junior gym, exercise referral, or accessibility in the gym, send them to the Fitness & Health link and briefly explain what they should do on that page.
 - If someone asks about badminton, basketball, table tennis, squash, or booking a court, send them to the Sports link or timetable link depending on whether they need information or times, and briefly explain what they should do once there.
-- If someone asks about Active Reality, parties, or family activities, send them to the Family & Kids link and briefly explain what they should do on that page.
 - If someone needs opening details, general centre information, or a broad overview, send them to the Centre page and briefly explain what they can check there.
 - If someone needs live times, today's sessions, or what's on next, send them to the timetable link alongside your answer when useful, and include the exact URL in the reply.
 
