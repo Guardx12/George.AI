@@ -348,6 +348,12 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     setConnectionState("idle")
   }
 
+  const teaserMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" || message.role === "user")
+  const teaserLabel = teaserMessage?.role === "user" ? "You" : "George"
+  const teaserText = teaserMessage?.content || INITIAL_MESSAGES[0].content
+
   return (
     <section className="py-8 text-center sm:py-10">
       <div className="mx-auto max-w-[760px]">
@@ -379,38 +385,15 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
           George can recommend the right membership, check the live timetable, answer any questions, and help you get signed up.
         </p>
 
-        <div className="mt-8 rounded-[28px] border border-[#d8dde3] bg-white p-4 text-left shadow-[0_20px_40px_rgba(57,69,83,0.08)] sm:p-6">
+        <div className="mx-auto mt-5 max-w-[560px] rounded-[20px] border border-[#d8dde3] bg-white px-4 py-3 text-left shadow-[0_12px_28px_rgba(57,69,83,0.08)] sm:px-5">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f47c00]/10 text-[#f47c00]">
-              <MessageSquareText className="h-5 w-5" />
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#f47c00]/10 text-[#f47c00]">
+              <MessageSquareText className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase tracking-[0.14em] text-[#f47c00]">George quick help</p>
-              <p className="mt-2 text-[15px] leading-7 text-[#394553] sm:text-[16px]">
-                George now uses an approved Steyning link map. For the main things visitors ask about, the right page is already here to tap straight away, and George is instructed to send the single best matching link in his reply.
-              </p>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#f47c00]">{teaserLabel}</p>
+              <p className="mt-1 text-[14px] leading-6 text-[#394553] sm:text-[15px]">{teaserText}</p>
             </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {quickLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                className="group rounded-2xl border border-[#d8dde3] bg-[#fafbfc] px-4 py-4 transition hover:border-[#f47c00] hover:bg-white"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[15px] font-bold text-[#394553]">{link.label}</p>
-                    <p className="mt-1 text-sm leading-6 text-[#5c6977]">{link.description}</p>
-                  </div>
-                  <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#f47c00] transition group-hover:translate-x-0.5" />
-                </div>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#7b8794]">Prompt George with: {link.prompt}</p>
-              </a>
-            ))}
           </div>
         </div>
 
@@ -428,7 +411,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
           ))}
         </div>
 
-        <p className="mx-auto mt-4 max-w-[720px] text-sm leading-6 text-[#5c6977]">George is set up to use the live timetable for time-based questions, the centre knowledge pack for fixed information, and these approved links for the best next click.</p>
 
         {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
       </div>
