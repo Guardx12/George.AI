@@ -129,32 +129,45 @@ function applyQuickLinkToTranscript(text: string, link: QuickLink | null) {
 
 
 function splitTextWithUrls(text: string) {
+  let autoLinkedText = text
+
+  const phraseLinks: Array<[RegExp, string]> = [
+    [/\bjoin here\b/gi, "https://placesleisure.gladstonego.cloud/memberships?siteId=7"],
+    [/\bview the timetable here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
+    [/\bbook swimming here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable"],
+    [/\bbook swimming lessons here\b/gi, "https://www.placesleisure.org/courses/swimming-lessons/"],
+    [/\bbook active reality here\b/gi, "https://ecom.roller.app/activerealitysteyning/checkout/en/home"],
+    [/\bdownload the party booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
+    [/\bbook a kids'? party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
+    [/\bbook a party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
+    [/\bparty booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
+    [/\bfind out more here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/"],
+  ]
+
+  for (const [pattern, href] of phraseLinks) {
+    autoLinkedText = autoLinkedText.replace(pattern, (match) => `[${match}](${href})`)
+  }
+
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
   const parts: Array<{ value: string; href?: string; isLink: boolean }> = []
-
   let lastIndex = 0
   let match: RegExpExecArray | null
 
-  while ((match = linkRegex.exec(text)) !== null) {
+  while ((match = linkRegex.exec(autoLinkedText)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ value: text.slice(lastIndex, match.index), isLink: false })
+      parts.push({ value: autoLinkedText.slice(lastIndex, match.index), isLink: false })
     }
-
-    parts.push({
-      value: match[1],
-      href: match[2],
-      isLink: true,
-    })
-
+    parts.push({ value: match[1], href: match[2], isLink: true })
     lastIndex = linkRegex.lastIndex
   }
 
-  if (lastIndex < text.length) {
-    parts.push({ value: text.slice(lastIndex), isLink: false })
+  if (lastIndex < autoLinkedText.length) {
+    parts.push({ value: autoLinkedText.slice(lastIndex), isLink: false })
   }
 
-  return parts
+  return parts.filter((part) => part.value)
 }
+
 export function PlacesForPeopleGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
@@ -288,7 +301,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return false
 
-    const userPrompt = `${link.prompt}. Please naturally offer the next step and embed this exact approved URL as a markdown link with short anchor text such as [join here](${link.href}), [book here](${link.href}), [view it here](${link.href}) or [find out more here](${link.href}). Do not show or read out the raw URL. After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Then end naturally with a short line like "If you need anything else, just ask."`
+    const userPrompt = `${link.prompt}. Say only the visible clickable phrase and never the hidden destination behind it. Do not say any URL, site ID, parameter, domain, or web address. After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Then end naturally with a short line like "If you need anything else, just ask."`
     setMessages((prev) => [...prev, makeMessage("user", link.label)])
 
     channel.send(JSON.stringify({
@@ -303,7 +316,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     channel.send(JSON.stringify({
       type: "response.create",
       response: {
-        instructions: `Reply as George for Steyning Leisure Centre. Answer helpfully and naturally. Do not read out or display the raw URL. Instead, embed this exact approved URL as a markdown link with very short anchor text such as [join here](${link.href}), [book here](${link.href}), [view it here](${link.href}) or [find out more here](${link.href}). After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Keep it short, warm and action-focused, and finish with a line like "If you need any more details, just ask."`,
+        instructions: `Reply as George for Steyning Leisure Centre. Be warm, natural and action-focused. Say only the visible clickable phrase and never the hidden destination behind it. Do not say, read out, display, or hint at any URL, domain, web address, site ID, query string, or parameter. After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Finish with a short helpful follow-up.`,
       },
     }))
 
