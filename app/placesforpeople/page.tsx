@@ -33,21 +33,9 @@ export default function PlacesForPeoplePage() {
         </div>
       </header>
 
-      <section className="bg-[#efefef] pb-12 pt-8 sm:pb-16 sm:pt-10">
-        <div className="mx-auto max-w-[960px] px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-[36px] font-black tracking-tight text-[#394553] sm:text-[48px]">Talk to George</h1>
-            <p className="mx-auto mt-4 max-w-[760px] text-[18px] leading-8 text-[#394553] sm:text-[20px]">
-              George can recommend the right membership, check the live timetable, answer questions about the centre,
-              and help guide you through joining.
-            </p>
-          </div>
-
-          <div className="mt-8 sm:mt-10">
-            <PlacesForPeopleGeorgeLiveAssistant />
-          </div>
-        </div>
-      </section>
+      <div className="mx-auto max-w-[960px] px-4 sm:px-6 lg:px-8">
+        <PlacesForPeopleGeorgeLiveAssistant />
+      </div>
     </main>
   )
 }
