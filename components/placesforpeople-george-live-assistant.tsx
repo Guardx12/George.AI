@@ -91,6 +91,38 @@ const quickLinks: QuickLink[] = [
   { label: "Contact us", href: "https://www.placesleisure.org/contact-us/", prompt: "How do I contact the centre?", description: "Centre contact and support options" },
 ]
 
+function getQuickLinkAnchorText(link: QuickLink) {
+  switch (link.label) {
+    case "Join now":
+      return "join here"
+    case "View timetable":
+      return "view the timetable here"
+    case "Sports":
+      return "book here"
+    default:
+      return "find out more here"
+  }
+}
+
+function applyQuickLinkToTranscript(text: string, link: QuickLink | null) {
+  if (!link) return text
+  const anchorText = getQuickLinkAnchorText(link)
+  const escapedAnchor = anchorText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const patterns = [
+    new RegExp(`\\b${escapedAnchor}\\b`, "i"),
+    /\bclick here\b/i,
+    /\bhere\b/i,
+  ]
+
+  for (const pattern of patterns) {
+    if (pattern.test(text)) {
+      return text.replace(pattern, `[${anchorText}](${link.href})`)
+    }
+  }
+
+  return `${text} [${anchorText}](${link.href})`
+}
+
 
 function splitTextWithUrls(text: string) {
   const parts: Array<{ value: string; href?: string; isLink: boolean }> = []
@@ -142,6 +174,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const pendingQuickLinkRef = useRef<QuickLink | null>(null)
+  const activeQuickLinkRef = useRef<QuickLink | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
@@ -219,25 +252,34 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
 
+    const applyFinalFormatting = (text: string) =>
+      isFinal ? applyQuickLinkToTranscript(text, activeQuickLinkRef.current) : text
+
     if (!currentAssistantMessageIdRef.current) {
-      const message = makeMessage("assistant", delta)
+      const finalContent = applyFinalFormatting(delta)
+      const message = makeMessage("assistant", finalContent)
       currentAssistantMessageIdRef.current = message.id
-      currentAssistantTextRef.current = delta
+      currentAssistantTextRef.current = finalContent
       setMessages((prev) => [...prev, message])
       if (isFinal) {
         currentAssistantMessageIdRef.current = null
         currentAssistantTextRef.current = ""
+        activeQuickLinkRef.current = null
       }
       return
     }
 
     currentAssistantTextRef.current += delta
+    if (isFinal) {
+      currentAssistantTextRef.current = applyQuickLinkToTranscript(currentAssistantTextRef.current, activeQuickLinkRef.current)
+    }
     const targetId = currentAssistantMessageIdRef.current
     setMessages((prev) => prev.map((message) => (message.id === targetId ? { ...message, content: currentAssistantTextRef.current } : message)))
 
     if (isFinal) {
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
+      activeQuickLinkRef.current = null
     }
   }
 
@@ -277,7 +319,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     pendingQuickLinkRef.current = link
 
     if (connectionState === "connected") {
-      if (sendQuickLinkPrompt(link)) pendingQuickLinkRef.current = null
+      if (sendQuickLinkPrompt(link)) return
       return
     }
 
