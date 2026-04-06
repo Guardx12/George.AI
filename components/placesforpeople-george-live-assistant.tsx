@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowRight, Loader2, MessageSquareText, Mic } from "lucide-react"
 
 type LiveMessage = {
@@ -10,6 +10,13 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
+
+type QuickLink = {
+  label: string
+  href: string
+  prompt: string
+  description: string
+}
 
 const STORAGE_KEY = "placesforpeople-george-session-v2"
 
@@ -72,7 +79,7 @@ function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: b
   }
 }
 
-const quickLinks = [
+const quickLinks: QuickLink[] = [
   { label: "Join now", href: "https://placesleisure.gladstonego.cloud/memberships?siteId=7", prompt: "Help me join", description: "Direct Steyning memberships" },
   { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable", prompt: "What is on today?", description: "Live classes, sports, swimming and gym times" },
   { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", prompt: "Show me swimming and lessons", description: "Pool, family fun, lessons and Aquafit" },
@@ -83,6 +90,43 @@ const quickLinks = [
   { label: "Centre info", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/", prompt: "Show me centre information", description: "Opening times, facilities and accessibility" },
   { label: "Contact us", href: "https://www.placesleisure.org/contact-us/", prompt: "How do I contact the centre?", description: "Centre contact and support options" },
 ]
+
+
+function splitTextWithUrls(text: string) {
+  const parts: Array<{ value: string; href?: string; isLink: boolean }> = []
+  const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = markdownLinkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ value: text.slice(lastIndex, match.index), isLink: false })
+    }
+    parts.push({ value: match[1], href: match[2], isLink: true })
+    lastIndex = markdownLinkRegex.lastIndex
+  }
+
+  const trailing = text.slice(lastIndex)
+  if (trailing) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    let trailingLastIndex = 0
+    let urlMatch: RegExpExecArray | null
+
+    while ((urlMatch = urlRegex.exec(trailing)) !== null) {
+      if (urlMatch.index > trailingLastIndex) {
+        parts.push({ value: trailing.slice(trailingLastIndex, urlMatch.index), isLink: false })
+      }
+      parts.push({ value: urlMatch[1], href: urlMatch[1], isLink: true })
+      trailingLastIndex = urlRegex.lastIndex
+    }
+
+    if (trailingLastIndex < trailing.length) {
+      parts.push({ value: trailing.slice(trailingLastIndex), isLink: false })
+    }
+  }
+
+  return parts.filter((part) => part.value)
+}
 
 export function PlacesForPeopleGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
@@ -97,6 +141,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   const localStreamRef = useRef<MediaStream | null>(null)
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
+  const pendingQuickLinkRef = useRef<QuickLink | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
@@ -202,6 +247,45 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     setMessages((prev) => [...prev, makeMessage("user", cleaned)])
   }
 
+  function sendQuickLinkPrompt(link: QuickLink) {
+    const channel = dcRef.current
+    if (!channel || channel.readyState !== "open") return false
+
+    const userPrompt = `${link.prompt}. Please naturally offer the next step and embed this exact approved URL as a markdown link with short anchor text such as [join here](${link.href}), [book here](${link.href}), [view it here](${link.href}) or [find out more here](${link.href}). Do not show or read out the raw URL. After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Then end naturally with a short line like "If you need anything else, just ask."`
+    setMessages((prev) => [...prev, makeMessage("user", link.label)])
+
+    channel.send(JSON.stringify({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: userPrompt }],
+      },
+    }))
+
+    channel.send(JSON.stringify({
+      type: "response.create",
+      response: {
+        instructions: `Reply as George for Steyning Leisure Centre. Answer helpfully and naturally. Do not read out or display the raw URL. Instead, embed this exact approved URL as a markdown link with very short anchor text such as [join here](${link.href}), [book here](${link.href}), [view it here](${link.href}) or [find out more here](${link.href}). After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Keep it short, warm and action-focused, and finish with a line like "If you need any more details, just ask."`,
+      },
+    }))
+
+    return true
+  }
+
+  async function handleQuickLink(link: QuickLink) {
+    pendingQuickLinkRef.current = link
+
+    if (connectionState === "connected") {
+      if (sendQuickLinkPrompt(link)) pendingQuickLinkRef.current = null
+      return
+    }
+
+    if (connectionState === "idle" || connectionState === "error") {
+      await startConversation()
+    }
+  }
+
   function handleRealtimeEvent(event: any) {
     const type = event?.type
     if (!type) return
@@ -297,6 +381,13 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
         window.setTimeout(() => {
           dataChannel.send(JSON.stringify(event))
         }, 150)
+
+        window.setTimeout(() => {
+          if (pendingQuickLinkRef.current) {
+            const pending = pendingQuickLinkRef.current
+            if (sendQuickLinkPrompt(pending)) pendingQuickLinkRef.current = null
+          }
+        }, 900)
       })
 
       dataChannel.addEventListener("message", (event) => {
@@ -392,22 +483,38 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#f47c00]">{teaserLabel}</p>
-              <p className="mt-1 text-[14px] leading-6 text-[#394553] sm:text-[15px]">{teaserText}</p>
+              <div className="mt-1 text-[14px] leading-6 text-[#394553] sm:text-[15px]">
+                {splitTextWithUrls(teaserText).map((part, index) => (
+                  <Fragment key={`${part.value}-${index}`}>
+                    {part.isLink && part.href ? (
+                      <a
+                        href={part.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all font-semibold text-[#f47c00] underline underline-offset-2"
+                      >
+                        {part.value}
+                      </a>
+                    ) : (
+                      part.value
+                    )}
+                  </Fragment>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           {quickLinks.map((link) => (
-            <a
+            <button
               key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
+              type="button"
+              onClick={() => void handleQuickLink(link)}
               className="inline-flex items-center rounded-full border border-[#cfd5dc] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:border-[#f47c00] hover:text-[#f47c00]"
             >
               {link.label}
-            </a>
+            </button>
           ))}
         </div>
 
