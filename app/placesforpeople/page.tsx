@@ -17,18 +17,13 @@ export default function PlacesForPeoplePage() {
   return (
     <main className="min-h-screen bg-[#efefef] text-[#394553]">
       <header className="bg-[#394553] text-white">
-        <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8">
-          <a href="https://www.placesleisure.org/" className="inline-flex items-center gap-3" aria-label="Places Leisure homepage">
+        <div className="mx-auto flex max-w-[1240px] items-center px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+          <a href="https://www.placesleisure.org/" className="inline-flex items-center" aria-label="Places Leisure homepage">
             <img
-              src="https://www.placesleisure.org/static/images/logo.svg"
+              src="/places-leisure-logo.jpg"
               alt="Places Leisure"
-              className="h-12 w-auto object-contain"
+              className="block h-[56px] w-auto object-contain sm:h-[72px]"
             />
-            <div className="leading-none sr-only">
-              <div className="text-[28px] font-black tracking-tight sm:text-[32px]">Places</div>
-              <div className="-mt-1 text-[28px] font-black tracking-tight sm:text-[32px]">Leisure</div>
-              <div className="mt-1 text-[11px] text-white/90">Part of Places for People</div>
-            </div>
           </a>
         </div>
       </header>
