@@ -1,20 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import {
-  CalendarDays,
-  ChevronDown,
-  ChevronUp,
-  Dumbbell,
-  Loader2,
-  MapPinned,
-  PhoneOff,
-  RotateCcw,
-  Waves,
-  BadgeHelp,
-  Users,
-  Clock3,
-} from "lucide-react"
+import { ChevronDown, ChevronUp, Loader2, Mic, PhoneOff, RotateCcw } from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -24,26 +11,15 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-const STORAGE_KEY = "placesforpeople-george-session-v3"
+const STORAGE_KEY = "placesforpeople-george-session-v2"
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "system",
     content:
-      "Hi — I'm George for Steyning Leisure Centre. I can help you find the right membership, check the live timetable, answer centre questions, and walk you through the join process step by step. If you want to join, I’ll tell you which button to click next and what you’ll see on the next page.",
+      "Hi — I'm George for Steyning Leisure Centre. I can help you choose the right membership, check the live timetable, answer centre questions, and guide you through joining step by step.",
   },
-]
-
-const QUICK_LINKS = [
-  { label: "Join now", href: "https://www.placesleisure.org/membership/", icon: CalendarDays },
-  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/timetable", icon: CalendarDays },
-  { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/", icon: Dumbbell },
-  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/", icon: Waves },
-  { label: "Centre information", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex", icon: MapPinned },
-  { label: "Contact Steyning", href: "https://www.placesleisure.org/contact-us", icon: Users },
-  { label: "Opening times", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex#centre-info", icon: Clock3 },
-  { label: "FAQs", href: "https://www.placesleisure.org/faqs", icon: BadgeHelp },
 ]
 
 type StoredSession = {
@@ -87,8 +63,8 @@ function detectVisitorName(messages: LiveMessage[]) {
 
 function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
   const instructions = hasStoredSession
-    ? `Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Ask one short helpful question about what they want help with next. If they sound like they want to join, quickly move into membership guidance and the exact join steps.`
-    : "Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. Keep it short, confident, welcoming, and practical. Make it clear you can help with memberships, the live timetable, swimming, classes, opening times, facilities, and the exact join process. Mention that if they want to join, you can recommend the right option and tell them which button to click next. Ask one short question about what they want help with first."
+    ? `Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Keep it short and helpful. Ask one short question about what they want help with next.`
+    : "Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. Keep it short, welcoming and practical. Make it clear you can recommend memberships, check the live timetable, answer centre questions, and guide people through joining step by step. Ask one short question about what they want help with first."
 
   return {
     type: "response.create",
@@ -383,153 +359,91 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-[#d7dde3] bg-white shadow-[0_24px_60px_rgba(57,69,83,0.12)]">
-      <div className="bg-[linear-gradient(180deg,#ffffff_0%,#f6f8fa_100%)] px-4 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-        <div className="mx-auto max-w-[980px] text-center">
-          <div className="text-[14px] font-bold uppercase tracking-[0.18em] text-[#687381] sm:text-[15px]">Speak to George</div>
-          <h2 className="mt-2 text-[34px] font-black tracking-tight text-[#394553] sm:text-[48px] lg:text-[56px]">Tap the button to talk</h2>
-          <p className="mx-auto mt-4 max-w-[780px] text-[17px] leading-[1.8] text-[#4f5d6c] sm:text-[20px] lg:text-[22px]">
-            George can recommend the right membership, check the live timetable, answer centre questions,
-            and guide visitors through joining step by step.
-          </p>
+    <section className="rounded-[18px] border border-[#d9d9d9] bg-white px-4 py-8 shadow-[0_12px_30px_rgba(57,69,83,0.08)] sm:px-8 sm:py-10">
+      <div className="mx-auto max-w-[760px] text-center">
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={connectionState === "connected" ? stopConversation : startConversation}
+            disabled={connectionState === "connecting"}
+            aria-label={connectionState === "connected" ? "End conversation with George" : "Talk to George"}
+            className={`group relative flex h-[126px] w-[126px] items-center justify-center rounded-full transition duration-300 sm:h-[146px] sm:w-[146px] ${
+              connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+            } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
+            style={{
+              background: "radial-gradient(circle at 30% 28%, #7d868f 0%, #616a73 48%, #49515a 100%)",
+              boxShadow:
+                connectionState === "connected" || connectionState === "connecting"
+                  ? "0 0 0 4px rgba(244,124,0,0.20), 0 0 0 10px rgba(244,124,0,0.10), 0 18px 34px rgba(57,69,83,0.20), inset 0 8px 18px rgba(255,255,255,0.18), inset 0 -8px 18px rgba(0,0,0,0.16)"
+                  : "0 0 0 4px rgba(244,124,0,0.85), 0 18px 34px rgba(57,69,83,0.16), inset 0 8px 18px rgba(255,255,255,0.18), inset 0 -8px 18px rgba(0,0,0,0.16)",
+            }}
+          >
+            <span className="absolute inset-[10px] rounded-full border border-white/20" />
+            <span className="absolute inset-x-[24%] top-[14%] h-5 rounded-full bg-white/12 blur-md" />
+            <div className="relative z-10 flex flex-col items-center justify-center text-white">
+              {connectionState === "connecting" ? <Loader2 className="h-8 w-8 animate-spin sm:h-9 sm:w-9" /> : <Mic className="h-8 w-8 sm:h-9 sm:w-9" />}
+            </div>
+          </button>
+        </div>
 
-          <div className="mt-8 flex justify-center sm:mt-10">
+        <h2 className="mt-6 text-[30px] font-black tracking-tight text-[#394553] sm:text-[38px]">Tap to talk to George</h2>
+        <p className="mx-auto mt-4 max-w-[720px] text-[17px] leading-8 text-[#394553] sm:text-[18px]">
+          George can recommend the right membership, check the live timetable, answer any questions, and guide you through joining.
+        </p>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-3 text-left">
+          {[
+            "Recommend the right membership",
+            "Check the live timetable",
+            "Answer centre questions",
+            "Guide you through joining",
+          ].map((item) => (
+            <div key={item} className="rounded-full border border-[#d8dde3] bg-[#f6f7f8] px-4 py-2 text-[14px] font-medium text-[#394553] sm:text-[15px]">
+              {item}
+            </div>
+          ))}
+        </div>
+
+        {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
+
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {connectionState === "connected" ? (
             <button
               type="button"
-              onClick={connectionState === "connected" ? stopConversation : startConversation}
-              disabled={connectionState === "connecting"}
-              className={`group relative flex h-[210px] w-[210px] items-center justify-center rounded-full transition duration-300 sm:h-[236px] sm:w-[236px] lg:h-[260px] lg:w-[260px] ${
-                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.015]"
-              } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
+              onClick={stopConversation}
+              className="inline-flex items-center gap-2 rounded-full bg-[#f47c00] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
             >
-              <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_28%_24%,rgba(255,255,255,0.95),rgba(255,255,255,0.22)_18%,rgba(244,124,0,0.18)_22%,rgba(65,77,91,0.92)_58%,#394553_100%)] shadow-[0_20px_40px_rgba(57,69,83,0.28),inset_0_10px_24px_rgba(255,255,255,0.28),inset_0_-14px_24px_rgba(0,0,0,0.18)]" />
-              <span className="absolute inset-[8px] rounded-full border border-white/35" />
-              <span className="absolute inset-[22px] rounded-full border border-white/15" />
-              <span className="absolute inset-[26px] rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.24),transparent_34%)]" />
-              <div className="relative z-10 flex h-[72%] w-[72%] flex-col items-center justify-center rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.03))] px-5 text-center backdrop-blur-[1px]">
-                <div className="text-[22px] font-black uppercase tracking-[0.22em] text-white sm:text-[26px]">George</div>
-                <div className="mt-3 text-[15px] font-semibold leading-6 text-white/95 sm:text-[17px] sm:leading-7">
-                  {connectionState === "connected" ? "Tap to end" : connectionState === "connecting" ? "Connecting…" : "Tap to speak"}
-                </div>
-                <div className="mt-3 text-[12px] font-medium uppercase tracking-[0.18em] text-white/70 sm:text-[13px]">
-                  Live voice assistant
-                </div>
-              </div>
+              <PhoneOff className="h-4 w-4" /> End conversation
             </button>
-          </div>
+          ) : hasStoredSession ? (
+            <button
+              type="button"
+              onClick={clearSavedSession}
+              className="inline-flex items-center gap-2 rounded-full border border-[#cfd5dc] bg-white px-5 py-3 text-sm font-semibold text-[#394553] transition hover:bg-[#f6f7f8]"
+            >
+              <RotateCcw className="h-4 w-4" /> Start fresh
+            </button>
+          ) : null}
 
-          <div className="mx-auto mt-8 max-w-[860px] rounded-[24px] border border-[#e2e7eb] bg-white px-5 py-5 text-left shadow-[0_10px_28px_rgba(57,69,83,0.06)] sm:px-6">
-            <p className="text-[13px] font-bold uppercase tracking-[0.18em] text-[#687381] sm:text-[14px]">
-              {connectionState === "connected"
-                ? isModelSpeaking
-                  ? "George is talking"
-                  : "George is live"
-                : connectionState === "connecting"
-                  ? "Connecting George"
-                  : hasStoredSession
-                    ? "Ready to carry on"
-                    : "Ready when you are"}
-            </p>
-            <p className="mt-3 text-[16px] leading-7 text-[#394553] sm:text-[18px] sm:leading-8">{latestAssistantMessage}</p>
-            {latestUserMessage ? <p className="mt-2 text-[14px] text-[#5f6770] sm:text-[15px]">You: {latestUserMessage}</p> : null}
-            {error ? <p className="mt-3 text-sm font-medium text-[#b42318]">{error}</p> : null}
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              {connectionState === "connected" ? (
-                <button
-                  type="button"
-                  onClick={stopConversation}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#f47c00] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
-                >
-                  <PhoneOff className="h-4 w-4" /> End conversation
-                </button>
-              ) : hasStoredSession ? (
-                <button
-                  type="button"
-                  onClick={clearSavedSession}
-                  className="inline-flex items-center gap-2 rounded-full border-2 border-[#394553] bg-white px-5 py-3 text-sm font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
-                >
-                  <RotateCcw className="h-4 w-4" /> Start fresh
-                </button>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={() => setShowConversation((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-full border-2 border-[#394553] bg-white px-5 py-3 text-sm font-semibold text-[#394553] transition hover:bg-[#394553] hover:text-white"
-              >
-                {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                {showConversation ? "Hide conversation" : "View conversation"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
-            <div className="rounded-[24px] border border-[#e2e7eb] bg-[#f8fafb] p-5 text-left shadow-[0_10px_24px_rgba(57,69,83,0.05)] sm:p-6">
-              <div className="text-[13px] font-bold uppercase tracking-[0.18em] text-[#687381] sm:text-[14px]">Join process George should guide</div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[
-                  "1. Click Join now below",
-                  "2. Select Steyning Leisure Centre from the drop-down list",
-                  "3. Click Join now on the next page",
-                  "4. Choose adult, concession, young adult or PAYG",
-                  "5. Pick direct debit, recurring card or pay upfront if available",
-                  "6. Continue through the form with the option George recommended",
-                ].map((item) => (
-                  <div key={item} className="rounded-2xl border border-[#dfe5ea] bg-white px-4 py-4 text-sm font-semibold leading-6 text-[#394553]">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-[#e2e7eb] bg-[#394553] p-5 text-left text-white shadow-[0_14px_32px_rgba(57,69,83,0.16)] sm:p-6">
-              <div className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/70 sm:text-[14px]">Try asking George</div>
-              <div className="mt-4 space-y-3">
-                {[
-                  "I’m 22 and just want to use the gym.",
-                  "I only want swimming and I’d rather pay by card.",
-                  "I’m a student — do you have concession options?",
-                  "What happens after I click Join now?",
-                ].map((item) => (
-                  <div key={item} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm leading-6 text-white/95">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {QUICK_LINKS.map((link) => {
-                const Icon = link.icon
-                return (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left text-[15px] font-semibold transition sm:px-5 sm:text-[16px] ${link.label === "Join now" ? "border-[#f47c00]/30 bg-[#fff6ed] text-[#9e5200] hover:bg-[#fef0df]" : "border-[#dfe5ea] bg-white text-[#394553] hover:border-[#394553] hover:bg-[#394553] hover:text-white"}`}
-                  >
-                    <span>{link.label}</span>
-                    <span className={`flex h-9 w-9 items-center justify-center rounded-full ${link.label === "Join now" ? "bg-[#f47c00] text-white" : "bg-[#f47c00] text-white"}`}>
-                      <Icon className="h-4 w-4" />
-                    </span>
-                  </a>
-                )
-              })}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowConversation((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-full border border-[#cfd5dc] bg-white px-5 py-3 text-sm font-semibold text-[#394553] transition hover:bg-[#f6f7f8]"
+          >
+            {showConversation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {showConversation ? "Hide conversation" : "View conversation"}
+          </button>
         </div>
       </div>
 
       {showConversation ? (
-        <div className="border-t border-[#d7d7d7] bg-[#f8f8f8] px-5 py-6 sm:px-8 lg:px-10">
-          <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-4xl overflow-y-auto">
+        <div className="mt-8 border-t border-[#ececec] pt-6">
+          <div ref={scrollRef} className="mx-auto max-h-[420px] w-full max-w-4xl overflow-y-auto px-1">
             <div className="flex flex-col gap-4">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[92%] whitespace-pre-wrap rounded-[24px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[84%] sm:text-[16px] ${
+                    className={`max-w-[92%] whitespace-pre-wrap rounded-[22px] px-5 py-4 text-[15px] leading-7 shadow-sm sm:max-w-[84%] sm:text-[16px] ${
                       message.role === "user"
                         ? "rounded-br-md bg-[#394553] text-white"
                         : message.role === "assistant"
@@ -555,4 +469,3 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
       ) : null}
     </section>
   )
-}
