@@ -408,7 +408,7 @@ export function AlderwoodGeorgeLiveAssistant() {
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{formatMinutesSaved(stats.minutes)}</p>
-                  <p className="mt-1 leading-5">minutes saved answering questions & calls</p>
+                  <p className="mt-1 leading-5">minutes saved from answering questions & calls</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">≈ {formatHours(stats.minutes)}</p>
@@ -417,7 +417,7 @@ export function AlderwoodGeorgeLiveAssistant() {
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{formatRetained(stats.total)}</p>
                   <p className="mt-1 leading-5">
-                    + {formatRetained(stats.total)} extra visitors who would have otherwise left <span className="text-[#bdd1c7]">(estimated)</span>
+                    + extra visitors who would have otherwise left <span className="text-[#bdd1c7]">(estimated)</span>
                   </p>
                 </div>
               </div>
