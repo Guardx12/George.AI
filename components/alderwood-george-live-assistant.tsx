@@ -2,8 +2,9 @@
 
 import Image from "next/image"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ExternalLink, Fish, Loader2, MapPin, Mic, Phone, PhoneOff, Trees, Volume2 } from "lucide-react"
-import { alderwoodSite } from "@/components/alderwood-site-data"
+import { ArrowLeft, Loader2, Mic, PhoneOff } from "lucide-react"
+
+const BACK_TO_SITE_URL = "https://alderwoodponds.fish"
 
 type LiveMessage = {
   id: string
@@ -18,7 +19,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
     id: "intro",
     role: "system",
     content:
-      "Hi — I’m George, the AI fishery assistant for Alderwood Ponds. Ask me about prices, fish sizes, rules, night fishing, cabins, camping, dogs, or directions.",
+      "Hi — I’m George, the AI fishery assistant for Alderwood Ponds. Ask me about prices, rules, cabins, camping, fishing, or anything else on the site.",
   },
 ]
 
@@ -26,7 +27,7 @@ const FIRST_RESPONSE_EVENT = {
   type: "response.create",
   response: {
     instructions:
-      "Briefly introduce yourself as George, the AI fishery assistant for Alderwood Ponds, then ask in a warm natural way: 'What would you like help with today — prices, rules, fish sizes, night fishing, cabins, camping, or directions?'",
+      "Briefly introduce yourself as George for Alderwood Ponds, then warmly invite the visitor to ask about prices, rules, cabins, camping, fishing, or anything else.",
   },
 }
 
@@ -54,16 +55,13 @@ export function AlderwoodGeorgeLiveAssistant() {
   const localStreamRef = useRef<MediaStream | null>(null)
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
-    }
-  }, [messages, statusText])
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" || message.role === "system")?.content ??
+    "Tap the circle and start speaking to George."
 
   useEffect(() => {
     return () => {
@@ -235,185 +233,84 @@ export function AlderwoodGeorgeLiveAssistant() {
 
   return (
     <main className="min-h-screen bg-[#08130f] text-[#f5f8f6]">
-      <section className="relative overflow-hidden border-b border-white/5">
+      <section className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0">
           <Image src="/alderwood/gallery/home-hero.webp" alt="Alderwood Ponds lake view" fill priority className="object-cover" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,15,12,0.24)_0%,rgba(6,15,12,0.72)_52%,rgba(6,15,12,0.94)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,15,12,0.22)_0%,rgba(6,15,12,0.68)_42%,rgba(6,15,12,0.92)_100%)]" />
         </div>
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-20">
-          <div className="max-w-2xl self-center">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-[#c9b58a]">Family-run coarse fishery in Steyning, West Sussex</p>
-            <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">Alderwood Ponds</h1>
-            <p className="mt-5 max-w-xl text-base leading-8 text-[#dbe5df] sm:text-lg">
-              Peaceful fishing lakes, cabins and camping in a beautiful countryside setting. George can help with prices,
-              rules, fish sizes, cabins, camping, dogs, directions and the key things visitors usually ask before they come.
+
+        <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-6 py-14 text-center sm:px-8 lg:px-10">
+          <div className="max-w-4xl">
+            <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
+              Ask George about anything at Alderwood Ponds.
+            </h1>
+            <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-[#e1ebe5] sm:text-lg lg:text-xl">
+              Prices, rules, cabins, camping, fishing, and more.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <a href={`tel:${alderwoodSite.phone}`} className="inline-flex items-center gap-2 rounded-full bg-[#2D7357] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(17,58,42,0.34)] transition hover:bg-[#245c46]">
-                <Phone className="h-4 w-4" />
-                Call booking line
-              </a>
-              <a href={alderwoodSite.facebookUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#c9b58a]/30 bg-black/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/30">
-                <ExternalLink className="h-4 w-4" />
-                Facebook updates
-              </a>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-3 text-sm text-[#dbe5df]">
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Opening times available below</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Cash on the bank</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Three waters on site</span>
-            </div>
           </div>
 
-          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,20,16,0.9)_0%,rgba(11,21,18,0.96)_100%)] shadow-[0_25px_70px_rgba(0,0,0,0.32)] backdrop-blur">
-            <div className="border-b border-white/10 px-5 py-5 sm:px-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c9b58a]">Meet George</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Ask George about anything</h2>
-                  <p className="mt-2 max-w-lg text-sm leading-6 text-[#d6e6df]">Prices, rules, cabins, camping, fishing and more.</p>
-                </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-[#d6e6df]">{statusText}</div>
-              </div>
-            </div>
+          <div className="mt-10 flex w-full max-w-3xl flex-col items-center">
+            <button
+              type="button"
+              onClick={connectionState === "connected" ? stopConversation : startConversation}
+              disabled={connectionState === "connecting"}
+              aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
+              className={`group relative flex h-[220px] w-[220px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[270px] sm:w-[270px] ${
+                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+              } ${
+                connectionState === "connected" || connectionState === "connecting"
+                  ? "animate-[pulse_2s_ease-in-out_infinite]"
+                  : "animate-[pulse_4s_ease-in-out_infinite]"
+              }`}
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 25%, #4f8d73 0%, #2D7357 26%, #16362b 60%, #08130f 100%)",
+                boxShadow:
+                  connectionState === "connected" || connectionState === "connecting"
+                    ? "0 0 0 10px rgba(45,115,87,0.12), 0 28px 60px rgba(0,0,0,0.36), inset 0 3px 18px rgba(255,255,255,0.20), inset 0 -14px 28px rgba(2,8,6,0.55)"
+                    : "0 24px 54px rgba(0,0,0,0.28), inset 0 3px 18px rgba(255,255,255,0.18), inset 0 -14px 28px rgba(2,8,6,0.52)",
+              }}
+            >
+              <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/15" />
+              <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/22 blur-[10px]" />
+              <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.2)_100%)]" />
 
-            <div ref={scrollRef} className="max-h-[420px] space-y-4 overflow-y-auto bg-[linear-gradient(180deg,rgba(11,21,18,0.38)_0%,rgba(8,16,13,0.24)_100%)] px-5 py-5 sm:px-6">
-              {messages.map((message) => {
-                const isAssistant = message.role !== "user"
-                return (
-                  <div
-                    key={message.id}
-                    className={`max-w-[88%] rounded-3xl px-4 py-3 text-sm leading-6 shadow-sm sm:text-[15px] ${
-                      isAssistant
-                        ? "mr-auto border border-white/10 bg-[rgba(236,244,240,0.10)] text-[#F4F8F6]"
-                        : "ml-auto bg-[#2A6A51] text-white"
-                    }`}
-                  >
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">{isAssistant ? "George" : "You"}</p>
-                    <p>{message.content}</p>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="border-t border-white/10 px-5 py-4 sm:px-6">
-              <p className="mb-3 text-sm text-[#d6e6df]">Have a question? Ask George instantly.</p>
-              <div className="flex flex-wrap items-center gap-3">
-                {connectionState !== "connected" ? (
-                  <button
-                    onClick={startConversation}
-                    disabled={!canStart}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#2D7357] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(23,68,52,0.34)] transition hover:bg-[#235844] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {connectionState === "connecting" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Connecting George…
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="h-4 w-4" />
-                        Start talking to George
-                      </>
-                    )}
-                  </button>
+              <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full">
+                {connectionState === "connecting" ? (
+                  <Loader2 className="h-16 w-16 animate-spin text-white sm:h-20 sm:w-20" />
+                ) : connectionState === "connected" ? (
+                  <PhoneOff className="h-16 w-16 text-white sm:h-20 sm:w-20" />
                 ) : (
-                  <button onClick={stopConversation} className="inline-flex items-center gap-2 rounded-full bg-[#101C18] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#0B1512]">
-                    <PhoneOff className="h-4 w-4" />
-                    End conversation
-                  </button>
+                  <Mic className="h-16 w-16 text-white sm:h-20 sm:w-20" />
                 )}
-
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-[#D6E6DF]">
-                  <Volume2 className="h-4 w-4 text-[#8FD2B2]" />
-                  Voice enabled
-                </div>
-
-                {isModelSpeaking ? (
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-[#D6E6DF]">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#8FD2B2]" />
-                    George is speaking
-                  </div>
-                ) : null}
               </div>
+
+              <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
+            </button>
+
+            <div className="mt-8 w-full max-w-2xl rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(11,21,18,0.78)_0%,rgba(8,16,13,0.9)_100%)] px-6 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.24)] backdrop-blur">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#c9b58a]">
+                {connectionState === "connected"
+                  ? isModelSpeaking
+                    ? "George is talking"
+                    : "George is live"
+                  : connectionState === "connecting"
+                    ? "Connecting George"
+                    : "Tap the circle to speak to George"}
+              </p>
+              <p className="mt-3 text-base leading-7 text-[#e1ebe5] sm:text-lg">{latestAssistantMessage}</p>
+              <p className="mt-3 text-sm text-[#bdd1c7]">{statusText}</p>
+              {error ? <p className="mt-3 text-sm font-medium text-[#ffd4c4]">{error}</p> : null}
             </div>
+
+            <a
+              href={BACK_TO_SITE_URL}
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#c9b58a]/35 bg-[rgba(6,15,12,0.45)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[rgba(6,15,12,0.62)]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Alderwood Ponds
+            </a>
           </div>
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-12 lg:grid-cols-4 lg:px-8">
-        <article className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#c9b58a]">Opening times</p>
-          <h3 className="mt-3 text-lg font-semibold text-white">{alderwoodSite.hours}</h3>
-          <p className="mt-2 text-sm leading-6 text-[#c9d6cf]">Please check opening times before travelling.</p>
-        </article>
-        <article className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#c9b58a]">Address</p>
-          <h3 className="mt-3 text-lg font-semibold text-white">{alderwoodSite.address}</h3>
-          <p className="mt-2 text-sm leading-6 text-[#c9d6cf]">Steyning, West Sussex.</p>
-        </article>
-        <article className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#c9b58a]">Booking line</p>
-          <h3 className="mt-3 text-lg font-semibold text-white">{alderwoodSite.phoneDisplay}</h3>
-          <p className="mt-2 text-sm leading-6 text-[#c9d6cf]">Monday to Friday, 9am to 12 midday.</p>
-        </article>
-        <article className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#c9b58a]">Payment</p>
-          <h3 className="mt-3 text-lg font-semibold text-white">{alderwoodSite.payment}</h3>
-          <p className="mt-2 text-sm leading-6 text-[#c9d6cf]">Simple and clear on arrival.</p>
-        </article>
-      </section>
-
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 pb-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
-        <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,29,23,0.86)_0%,rgba(10,19,15,0.94)_100%)] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#c9b58a]">What George knows</p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center gap-3 text-white"><Fish className="h-5 w-5 text-[#8fd2b2]" /><h3 className="font-semibold">Fishing details</h3></div>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-[#d6e6df]">
-                <li>Ticket prices for day fishing and night fishing.</li>
-                <li>Fish sizes, waters on site and disabled access basics.</li>
-                <li>Fishery rules, gear requirements and general angler info.</li>
-              </ul>
-            </div>
-            <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center gap-3 text-white"><Trees className="h-5 w-5 text-[#8fd2b2]" /><h3 className="font-semibold">Stay details</h3></div>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-[#d6e6df]">
-                <li>Cabins, camping, dog rules and key visitor details.</li>
-                <li>Opening hours, payment information and how the fishery works.</li>
-                <li>Recent reports and general site information.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,29,23,0.86)_0%,rgba(10,19,15,0.94)_100%)] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#c9b58a]">Good things to ask</p>
-            <ul className="mt-4 space-y-3 text-sm leading-6 text-[#d6e6df]">
-              <li>What are the day ticket prices?</li>
-              <li>Can I night fish and how much does it cost?</li>
-              <li>What rules do I need to know before I come?</li>
-              <li>Are dogs allowed and what are the dog rules?</li>
-              <li>Tell me about the cabins and camping.</li>
-              <li>What fish are in the lakes and how big do they grow?</li>
-            </ul>
-          </div>
-
-          <div className="rounded-[30px] border border-[#c9b58a]/20 bg-[linear-gradient(180deg,rgba(36,58,46,0.9)_0%,rgba(20,34,27,0.96)_100%)] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
-            <div className="flex items-center gap-3 text-white"><MapPin className="h-5 w-5 text-[#c9b58a]" /><p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#c9b58a]">Need to book or confirm details?</p></div>
-            <p className="mt-3 text-sm leading-6 text-[#d6e6df]">
-              George can explain the website information, but for bookings and direct enquiries the site still points
-              visitors to the booking line on {alderwoodSite.phoneDisplay}, Monday to Friday, 9am to 12 midday.
-            </p>
-          </div>
-
-          {error ? (
-            <div className="rounded-[24px] border border-[#E7C7B6] bg-[#FFF7F2] p-4 text-sm text-[#7A3B1C]">
-              <p className="font-semibold">George couldn’t connect just now.</p>
-              <p className="mt-1">{error}</p>
-            </div>
-          ) : null}
         </div>
       </section>
     </main>
