@@ -359,25 +359,25 @@ export function AlderwoodGeorgeLiveAssistant() {
           </div>
 
           <div className="mt-10 flex w-full max-w-5xl flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-center lg:gap-8">
-            <div className="w-full max-w-[360px] rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,22,18,0.84)_0%,rgba(7,15,12,0.92)_100%)] p-5 text-left shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur lg:self-center">
+            <div className="w-full max-w-[320px] rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,22,18,0.84)_0%,rgba(7,15,12,0.92)_100%)] p-4 text-left shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur lg:self-center">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c9b58a]">George live impact</p>
-              <div className="mt-3 space-y-3 text-sm text-[#e6efea] sm:text-[15px]">
+              <div className="mt-2.5 space-y-2.5 text-[13px] text-[#e6efea] sm:text-sm">
                 <div>
-                  <p className="text-[30px] font-semibold leading-none text-white sm:text-[36px]">{stats.total}</p>
-                  <p className="mt-1 leading-6">visitors helped — instead of leaving</p>
+                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.total}</p>
+                  <p className="mt-1 leading-5">visitors helped — instead of leaving</p>
                 </div>
                 <div>
-                  <p className="text-[26px] font-semibold leading-none text-white sm:text-[30px]">{stats.minutes}</p>
-                  <p className="mt-1 leading-6">minutes of real conversations</p>
+                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.minutes}</p>
+                  <p className="mt-1 leading-5">minutes of real conversations</p>
                 </div>
                 <div>
-                  <p className="text-[26px] font-semibold leading-none text-white sm:text-[30px]">≈ {formatHours(stats.minutes)}</p>
-                  <p className="mt-1 leading-6">hours of support delivered</p>
+                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">≈ {formatHours(stats.minutes)}</p>
+                  <p className="mt-1 leading-5">hours of support delivered</p>
                 </div>
                 <div>
-                  <p className="text-[26px] font-semibold leading-none text-white sm:text-[30px]">≈ {formatRetained(stats.total)}</p>
-                  <p className="mt-1 leading-6">
-                    extra visitors retained <span className="text-[#bdd1c7]">(estimated)</span>
+                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">≈ {formatRetained(stats.total)}</p>
+                  <p className="mt-1 leading-5">
+                    visitors retained <span className="text-[#bdd1c7]">(estimated)</span>
                   </p>
                 </div>
               </div>

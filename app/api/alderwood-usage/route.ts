@@ -4,7 +4,7 @@ const ZAP_WEBHOOK_URL =
   process.env.ALDERWOOD_USAGE_WEBHOOK_URL ||
   'https://hooks.zapier.com/hooks/catch/24591341/u7taw5v/'
 
-const BUSINESS_SLUG = process.env.ALDERWOOD_USAGE_BUSINESS || 'Alderwood Ponds'
+const BUSINESS_SLUG = process.env.ALDERWOOD_USAGE_BUSINESS || 'Alderwood-Ponds'
 
 export async function POST(request: Request) {
   try {

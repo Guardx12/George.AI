@@ -33,7 +33,7 @@ const CSV_URL =
   googleSheetToCsvUrl(HARDCODED_SHEET_URL) ||
   ''
 
-const BUSINESS_SLUG = process.env.ALDERWOOD_USAGE_BUSINESS || 'Alderwood Ponds'
+const BUSINESS_SLUG = process.env.ALDERWOOD_USAGE_BUSINESS || 'Alderwood-Ponds'
 
 type AlderwoodStats = {
   total: number
@@ -75,23 +75,27 @@ function normaliseBusiness(value: unknown) {
   return String(value ?? '')
     .trim()
     .toLowerCase()
+    .replace(/[’']/g, "'")
+    .replace(/'s\b/g, '')
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]+/g, '')
 }
 
+function rowBusiness(row: Record<string, string>) {
+  return normaliseBusiness(row.business ?? row.Business ?? row.page ?? row.Page ?? row.name ?? row.Name)
+}
+
 function findSlugMatch(rows: Record<string, string>[]) {
   const target = normaliseBusiness(BUSINESS_SLUG)
-  const exact = rows.find((row) => {
-    const business = normaliseBusiness(row.business ?? row.Business ?? row.page ?? row.Page ?? row.name ?? row.Name)
-    return business === target
-  })
+  const aliases = new Set([target, 'alderwoodponds', 'alderdaleponds'])
 
+  const exact = rows.find((row) => aliases.has(rowBusiness(row)))
   if (exact) return exact
 
   if (rows.length === 1) return rows[0]
 
   return rows.find((row) => {
-    const business = normaliseBusiness(row.business ?? row.Business ?? row.page ?? row.Page ?? row.name ?? row.Name)
+    const business = rowBusiness(row)
     return business.includes('alderwood') || business.includes('alderdale')
   })
 }
