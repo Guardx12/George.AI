@@ -164,6 +164,8 @@ export function AlderwoodGeorgeLiveAssistant() {
           case "input_audio_buffer.speech_stopped":
             setStatusText("Thinking…")
             break
+          case "response.output_audio_transcript.delta":
+          case "response.output_text.delta":
           case "response.audio_transcript.delta":
           case "response.text.delta":
             if (payload.delta) appendAssistantDelta(payload.delta)
@@ -201,7 +203,7 @@ export function AlderwoodGeorgeLiveAssistant() {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      const sdpResponse = await fetch("https://api.openai.com/v1/realtime?model=gpt-realtime", {
+      const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
         body: offer.sdp,
         headers: {
