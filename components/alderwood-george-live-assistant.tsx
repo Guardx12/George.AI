@@ -5,9 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, Loader2, Mic, PhoneOff } from "lucide-react"
 
 const BACK_TO_SITE_URL = "https://alderwoodponds.fish"
-const BUSINESS_SLUG = "alderwood-ponds"
-const RETAINED_RATIO = 0.4
-const MINIMUM_TRACKED_SECONDS = 15
+const RETAINED_RATE = 0.4
 
 type LiveMessage = {
   id: string
@@ -17,14 +15,9 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-type UsageStats = {
-  visitors: number
+type AlderwoodStats = {
+  total: number
   minutes: number
-}
-
-const INITIAL_STATS: UsageStats = {
-  visitors: 0,
-  minutes: 0,
 }
 
 const INITIAL_MESSAGES: LiveMessage[] = [
@@ -55,13 +48,12 @@ function makeMessage(role: LiveMessage["role"], content: string): LiveMessage {
   }
 }
 
-function formatHours(minutes: number) {
-  const hours = minutes / 60
-  return hours >= 10 ? hours.toFixed(0) : hours.toFixed(1)
+function formatHours(totalMinutes: number) {
+  return (totalMinutes / 60).toFixed(1)
 }
 
-function estimateRetainedVisitors(visitors: number) {
-  return Math.round(visitors * RETAINED_RATIO)
+function formatRetained(totalVisitors: number) {
+  return Math.round(totalVisitors * RETAINED_RATE)
 }
 
 export function AlderwoodGeorgeLiveAssistant() {
@@ -70,8 +62,7 @@ export function AlderwoodGeorgeLiveAssistant() {
   const [statusText, setStatusText] = useState("Ready when you are")
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState<UsageStats>(INITIAL_STATS)
-  const [statsLoaded, setStatsLoaded] = useState(false)
+  const [stats, setStats] = useState<AlderwoodStats>({ total: 0, minutes: 0 })
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -79,8 +70,9 @@ export function AlderwoodGeorgeLiveAssistant() {
   const localStreamRef = useRef<MediaStream | null>(null)
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
-  const conversationStartedAtRef = useRef<number | null>(null)
+  const sessionStartedAtRef = useRef<number | null>(null)
   const usageLoggedRef = useRef(false)
+  const connectionTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
@@ -89,64 +81,68 @@ export function AlderwoodGeorgeLiveAssistant() {
     .find((message) => message.role === "assistant" || message.role === "system")?.content ??
     "Tap the circle and start speaking to George."
 
-  async function loadStats() {
+  useEffect(() => {
+    void refreshStats()
+    const interval = window.setInterval(() => {
+      void refreshStats()
+    }, 10000)
+
+    return () => {
+      window.clearInterval(interval)
+      void cleanupConversation(false)
+    }
+  }, [])
+
+  async function refreshStats() {
     try {
       const response = await fetch("/api/alderwood-stats", { cache: "no-store" })
-      const data = (await response.json().catch(() => null)) as Partial<UsageStats> | null
-      if (response.ok && typeof data?.visitors === "number" && typeof data?.minutes === "number") {
-        setStats({ visitors: data.visitors, minutes: data.minutes })
-      }
-    } catch {
-      // ignore and keep fallback stats
-    } finally {
-      setStatsLoaded(true)
+      if (!response.ok) return
+      const data = (await response.json()) as Partial<AlderwoodStats>
+      setStats({
+        total: Number(data?.total || 0),
+        minutes: Number(data?.minutes || 0),
+      })
+    } catch (err) {
+      console.error("Could not refresh Alderwood stats", err)
     }
   }
 
-  async function trackUsage(forceBeacon = false) {
-    if (usageLoggedRef.current) return
+  async function logUsageIfNeeded() {
+    if (usageLoggedRef.current || sessionStartedAtRef.current === null) return
 
-    const startedAt = conversationStartedAtRef.current
-    if (!startedAt) return
-
-    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000)
-    if (elapsedSeconds < MINIMUM_TRACKED_SECONDS) return
-
-    const roundedMinutes = Math.max(1, Math.ceil(elapsedSeconds / 60))
+    const elapsedMs = Date.now() - sessionStartedAtRef.current
+    const minutes = Math.max(1, Math.round(elapsedMs / 60000))
     usageLoggedRef.current = true
 
-    const optimisticVisitors = stats.visitors + 1
-    const optimisticMinutes = stats.minutes + roundedMinutes
-    setStats({ visitors: optimisticVisitors, minutes: optimisticMinutes })
-
-    const payload = JSON.stringify({
-      business: BUSINESS_SLUG,
-      minutes: roundedMinutes,
-      timestamp: Date.now(),
-    })
-
     try {
-      if (forceBeacon && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-        const blob = new Blob([payload], { type: "application/json" })
-        navigator.sendBeacon("/api/alderwood-usage", blob)
-      } else {
-        await fetch("/api/alderwood-usage", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-          cache: "no-store",
-        })
-      }
+      await fetch("/api/alderwood-usage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+        body: JSON.stringify({ minutes }),
+        cache: "no-store",
+        keepalive: true,
+      })
 
-      void loadStats()
-    } catch {
-      // keep optimistic stats if reporting fails
+      setStats((existing) => ({
+        total: existing.total + 1,
+        minutes: existing.minutes + minutes,
+      }))
+
+      window.setTimeout(() => {
+        void refreshStats()
+      }, 1500)
+    } catch (err) {
+      console.error("Could not log Alderwood usage", err)
+      usageLoggedRef.current = false
     }
   }
 
-  async function cleanupConversation(options?: { reportUsage?: boolean; beacon?: boolean }) {
-    if (options?.reportUsage) {
-      await trackUsage(Boolean(options.beacon))
+  async function cleanupConversation(logUsage = true) {
+    if (logUsage) {
+      await logUsageIfNeeded()
     }
 
     dcRef.current?.close()
@@ -170,28 +166,16 @@ export function AlderwoodGeorgeLiveAssistant() {
       audioRef.current = null
     }
 
+    if (connectionTimeoutRef.current) {
+      window.clearTimeout(connectionTimeoutRef.current)
+      connectionTimeoutRef.current = null
+    }
+
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
-    conversationStartedAtRef.current = null
     setIsModelSpeaking(false)
+    sessionStartedAtRef.current = null
   }
-
-  useEffect(() => {
-    void loadStats()
-
-    const handleBeforeUnload = () => {
-      if (connectionState === "connected") {
-        void trackUsage(true)
-      }
-    }
-
-    window.addEventListener("beforeunload", handleBeforeUnload)
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload)
-      void cleanupConversation({ reportUsage: connectionState === "connected", beacon: true })
-    }
-  }, [connectionState, stats.minutes, stats.visitors])
 
   function appendAssistantDelta(delta: string) {
     currentAssistantTextRef.current += delta
@@ -213,11 +197,21 @@ export function AlderwoodGeorgeLiveAssistant() {
   async function startConversation() {
     if (!canStart) return
 
-    usageLoggedRef.current = false
-    conversationStartedAtRef.current = Date.now()
     setError(null)
     setConnectionState("connecting")
     setStatusText("Connecting to George…")
+    usageLoggedRef.current = false
+    sessionStartedAtRef.current = null
+
+    if (connectionTimeoutRef.current) window.clearTimeout(connectionTimeoutRef.current)
+    connectionTimeoutRef.current = window.setTimeout(async () => {
+      if (dcRef.current?.readyState !== "open") {
+        await cleanupConversation(false)
+        setConnectionState("error")
+        setStatusText("Couldn’t connect")
+        setError("George took too long to connect. Please tap again.")
+      }
+    }, 20000)
 
     try {
       const tokenResponse = await fetch("/api/alderwood-session", { cache: "no-store" })
@@ -236,11 +230,20 @@ export function AlderwoodGeorgeLiveAssistant() {
 
       const audioEl = document.createElement("audio")
       audioEl.autoplay = true
+      audioEl.playsInline = true
+      audioEl.style.display = "none"
+      document.body.appendChild(audioEl)
       audioRef.current = audioEl
-      pc.ontrack = (event) => {
+
+      pc.ontrack = async (event) => {
         const [remoteStream] = event.streams
         if (remoteStream && audioRef.current) {
           audioRef.current.srcObject = remoteStream
+          try {
+            await audioRef.current.play()
+          } catch (playError) {
+            console.error("Could not autoplay Alderwood audio", playError)
+          }
         }
       }
 
@@ -248,8 +251,13 @@ export function AlderwoodGeorgeLiveAssistant() {
       dcRef.current = dc
 
       dc.addEventListener("open", () => {
+        if (connectionTimeoutRef.current) {
+          window.clearTimeout(connectionTimeoutRef.current)
+          connectionTimeoutRef.current = null
+        }
         setConnectionState("connected")
         setStatusText("George is listening")
+        sessionStartedAtRef.current = Date.now()
         dc.send(JSON.stringify(FIRST_RESPONSE_EVENT))
       })
 
@@ -292,7 +300,7 @@ export function AlderwoodGeorgeLiveAssistant() {
             setError(payload.error?.message ?? "Something went wrong with the live connection.")
             setConnectionState("error")
             setStatusText("Connection problem")
-            await cleanupConversation({ reportUsage: true })
+            await cleanupConversation(true)
             break
           default:
             break
@@ -319,7 +327,7 @@ export function AlderwoodGeorgeLiveAssistant() {
       await pc.setRemoteDescription({ type: "answer", sdp: await sdpResponse.text() })
     } catch (err) {
       console.error(err)
-      await cleanupConversation()
+      await cleanupConversation(false)
       setConnectionState("error")
       setStatusText("Couldn’t connect")
       setError(err instanceof Error ? err.message : "Could not start George right now.")
@@ -327,12 +335,10 @@ export function AlderwoodGeorgeLiveAssistant() {
   }
 
   async function stopConversation() {
-    await cleanupConversation({ reportUsage: connectionState === "connected" })
+    await cleanupConversation(true)
     setConnectionState("idle")
     setStatusText("Ready when you are")
   }
-
-  const retainedVisitors = estimateRetainedVisitors(stats.visitors)
 
   return (
     <main className="min-h-screen bg-[#08130f] text-[#f5f8f6]">
@@ -343,28 +349,7 @@ export function AlderwoodGeorgeLiveAssistant() {
         </div>
 
         <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-6 py-14 text-center sm:px-8 lg:px-10">
-          <div className="absolute left-6 top-6 z-20 w-full max-w-[320px] text-left sm:left-8 sm:top-8 lg:left-10 lg:top-10">
-            <div className="rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(12,23,19,0.82)_0%,rgba(8,16,13,0.92)_100%)] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c9b58a]">Live George activity</p>
-              <div className="mt-3 space-y-2 text-sm leading-6 text-[#eef4f0] sm:text-[15px]">
-                <p>
-                  <span className="font-semibold text-white">{stats.visitors}</span> visitors helped — instead of leaving
-                </p>
-                <p>
-                  <span className="font-semibold text-white">{stats.minutes}</span> minutes of real conversations
-                </p>
-                <p>
-                  ≈ <span className="font-semibold text-white">{formatHours(stats.minutes)}</span> hours of support delivered
-                </p>
-                <p>
-                  ≈ <span className="font-semibold text-white">{retainedVisitors}</span> visitors retained (estimated)
-                </p>
-              </div>
-              {!statsLoaded ? <p className="mt-3 text-xs text-[#bdd1c7]">Loading live figures…</p> : null}
-            </div>
-          </div>
-
-          <div className="max-w-4xl pt-28 sm:pt-32 lg:pt-0">
+          <div className="max-w-4xl">
             <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
               Ask George about anything at Alderwood Ponds.
             </h1>
@@ -373,67 +358,93 @@ export function AlderwoodGeorgeLiveAssistant() {
             </p>
           </div>
 
-          <div className="mt-10 flex w-full max-w-3xl flex-col items-center">
-            <button
-              type="button"
-              onClick={connectionState === "connected" ? stopConversation : startConversation}
-              disabled={connectionState === "connecting"}
-              aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
-              className={`group relative flex h-[220px] w-[220px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[270px] sm:w-[270px] ${
-                connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-              } ${
-                connectionState === "connected" || connectionState === "connecting"
-                  ? "animate-[pulse_2s_ease-in-out_infinite]"
-                  : "animate-[pulse_4s_ease-in-out_infinite]"
-              }`}
-              style={{
-                background:
-                  "radial-gradient(circle at 30% 25%, #4f8d73 0%, #2D7357 26%, #16362b 60%, #08130f 100%)",
-                boxShadow:
-                  connectionState === "connected" || connectionState === "connecting"
-                    ? "0 0 0 10px rgba(45,115,87,0.12), 0 28px 60px rgba(0,0,0,0.36), inset 0 3px 18px rgba(255,255,255,0.20), inset 0 -14px 28px rgba(2,8,6,0.55)"
-                    : "0 24px 54px rgba(0,0,0,0.28), inset 0 3px 18px rgba(255,255,255,0.18), inset 0 -14px 28px rgba(2,8,6,0.52)",
-              }}
-            >
-              <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/15" />
-              <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/22 blur-[10px]" />
-              <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.2)_100%)]" />
-
-              <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full">
-                {connectionState === "connecting" ? (
-                  <Loader2 className="h-16 w-16 animate-spin text-white sm:h-20 sm:w-20" />
-                ) : connectionState === "connected" ? (
-                  <PhoneOff className="h-16 w-16 text-white sm:h-20 sm:w-20" />
-                ) : (
-                  <Mic className="h-16 w-16 text-white sm:h-20 sm:w-20" />
-                )}
+          <div className="mt-10 flex w-full max-w-5xl flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-center lg:gap-8">
+            <div className="w-full max-w-[360px] rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,22,18,0.84)_0%,rgba(7,15,12,0.92)_100%)] p-5 text-left shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur lg:self-center">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c9b58a]">George live impact</p>
+              <div className="mt-3 space-y-3 text-sm text-[#e6efea] sm:text-[15px]">
+                <div>
+                  <p className="text-[30px] font-semibold leading-none text-white sm:text-[36px]">{stats.total}</p>
+                  <p className="mt-1 leading-6">visitors helped — instead of leaving</p>
+                </div>
+                <div>
+                  <p className="text-[26px] font-semibold leading-none text-white sm:text-[30px]">{stats.minutes}</p>
+                  <p className="mt-1 leading-6">minutes of real conversations</p>
+                </div>
+                <div>
+                  <p className="text-[26px] font-semibold leading-none text-white sm:text-[30px]">≈ {formatHours(stats.minutes)}</p>
+                  <p className="mt-1 leading-6">hours of support delivered</p>
+                </div>
+                <div>
+                  <p className="text-[26px] font-semibold leading-none text-white sm:text-[30px]">≈ {formatRetained(stats.total)}</p>
+                  <p className="mt-1 leading-6">
+                    extra visitors retained <span className="text-[#bdd1c7]">(estimated)</span>
+                  </p>
+                </div>
               </div>
-
-              <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
-            </button>
-
-            <div className="mt-8 w-full max-w-2xl rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(11,21,18,0.78)_0%,rgba(8,16,13,0.9)_100%)] px-6 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.24)] backdrop-blur">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#c9b58a]">
-                {connectionState === "connected"
-                  ? isModelSpeaking
-                    ? "George is talking"
-                    : "George is live"
-                  : connectionState === "connecting"
-                    ? "Connecting George"
-                    : "Tap the circle to speak to George"}
-              </p>
-              <p className="mt-3 text-base leading-7 text-[#e1ebe5] sm:text-lg">{latestAssistantMessage}</p>
-              <p className="mt-3 text-sm text-[#bdd1c7]">{statusText}</p>
-              {error ? <p className="mt-3 text-sm font-medium text-[#ffd4c4]">{error}</p> : null}
             </div>
 
-            <a
-              href={BACK_TO_SITE_URL}
-              className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#c9b58a]/35 bg-[rgba(6,15,12,0.45)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[rgba(6,15,12,0.62)]"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Alderwood Ponds
-            </a>
+            <div className="flex w-full max-w-3xl flex-col items-center">
+              <button
+                type="button"
+                onClick={connectionState === "connected" ? stopConversation : startConversation}
+                disabled={connectionState === "connecting"}
+                aria-label={connectionState === "connected" ? "Stop talking to George" : "Start talking to George"}
+                className={`group relative flex h-[220px] w-[220px] items-center justify-center rounded-full transition duration-300 ease-out sm:h-[270px] sm:w-[270px] ${
+                  connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+                } ${
+                  connectionState === "connected" || connectionState === "connecting"
+                    ? "animate-[pulse_2s_ease-in-out_infinite]"
+                    : "animate-[pulse_4s_ease-in-out_infinite]"
+                }`}
+                style={{
+                  background:
+                    "radial-gradient(circle at 30% 25%, #4f8d73 0%, #2D7357 26%, #16362b 60%, #08130f 100%)",
+                  boxShadow:
+                    connectionState === "connected" || connectionState === "connecting"
+                      ? "0 0 0 10px rgba(45,115,87,0.12), 0 28px 60px rgba(0,0,0,0.36), inset 0 3px 18px rgba(255,255,255,0.20), inset 0 -14px 28px rgba(2,8,6,0.55)"
+                      : "0 24px 54px rgba(0,0,0,0.28), inset 0 3px 18px rgba(255,255,255,0.18), inset 0 -14px 28px rgba(2,8,6,0.52)",
+                }}
+              >
+                <span className="pointer-events-none absolute inset-[8px] rounded-full border border-white/15" />
+                <span className="pointer-events-none absolute left-[12%] top-[10%] h-[22%] w-[52%] rounded-full bg-white/22 blur-[10px]" />
+                <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.13)_75%,rgba(255,255,255,0.2)_100%)]" />
+
+                <div className="relative z-10 flex h-[80%] w-[80%] items-center justify-center rounded-full">
+                  {connectionState === "connecting" ? (
+                    <Loader2 className="h-16 w-16 animate-spin text-white sm:h-20 sm:w-20" />
+                  ) : connectionState === "connected" ? (
+                    <PhoneOff className="h-16 w-16 text-white sm:h-20 sm:w-20" />
+                  ) : (
+                    <Mic className="h-16 w-16 text-white sm:h-20 sm:w-20" />
+                  )}
+                </div>
+
+                <span className="sr-only">{connectionState === "connected" ? "George is live" : "Start talking to George"}</span>
+              </button>
+
+              <div className="mt-8 w-full max-w-2xl rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(11,21,18,0.78)_0%,rgba(8,16,13,0.9)_100%)] px-6 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.24)] backdrop-blur">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#c9b58a]">
+                  {connectionState === "connected"
+                    ? isModelSpeaking
+                      ? "George is talking"
+                      : "George is live"
+                    : connectionState === "connecting"
+                      ? "Connecting George"
+                      : "Tap the circle to speak to George"}
+                </p>
+                <p className="mt-3 text-base leading-7 text-[#e1ebe5] sm:text-lg">{latestAssistantMessage}</p>
+                <p className="mt-3 text-sm text-[#bdd1c7]">{statusText}</p>
+                {error ? <p className="mt-3 text-sm font-medium text-[#ffd4c4]">{error}</p> : null}
+              </div>
+
+              <a
+                href={BACK_TO_SITE_URL}
+                className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#c9b58a]/35 bg-[rgba(6,15,12,0.45)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[rgba(6,15,12,0.62)]"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Alderwood Ponds
+              </a>
+            </div>
           </div>
         </div>
       </section>
