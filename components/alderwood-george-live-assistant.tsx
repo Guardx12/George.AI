@@ -5,6 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, Loader2, Mic, PhoneOff } from "lucide-react"
 
 const BACK_TO_SITE_URL = "https://alderwoodponds.fish"
+const BUSINESS_SLUG = "alderwood-ponds"
+const RETAINED_RATIO = 0.4
+const MINIMUM_TRACKED_SECONDS = 15
 
 type LiveMessage = {
   id: string
@@ -13,6 +16,16 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
+
+type UsageStats = {
+  visitors: number
+  minutes: number
+}
+
+const INITIAL_STATS: UsageStats = {
+  visitors: 0,
+  minutes: 0,
+}
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
@@ -42,12 +55,23 @@ function makeMessage(role: LiveMessage["role"], content: string): LiveMessage {
   }
 }
 
+function formatHours(minutes: number) {
+  const hours = minutes / 60
+  return hours >= 10 ? hours.toFixed(0) : hours.toFixed(1)
+}
+
+function estimateRetainedVisitors(visitors: number) {
+  return Math.round(visitors * RETAINED_RATIO)
+}
+
 export function AlderwoodGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [statusText, setStatusText] = useState("Ready when you are")
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<UsageStats>(INITIAL_STATS)
+  const [statsLoaded, setStatsLoaded] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -55,6 +79,8 @@ export function AlderwoodGeorgeLiveAssistant() {
   const localStreamRef = useRef<MediaStream | null>(null)
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
+  const conversationStartedAtRef = useRef<number | null>(null)
+  const usageLoggedRef = useRef(false)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
@@ -63,13 +89,66 @@ export function AlderwoodGeorgeLiveAssistant() {
     .find((message) => message.role === "assistant" || message.role === "system")?.content ??
     "Tap the circle and start speaking to George."
 
-  useEffect(() => {
-    return () => {
-      void cleanupConversation()
+  async function loadStats() {
+    try {
+      const response = await fetch("/api/alderwood-stats", { cache: "no-store" })
+      const data = (await response.json().catch(() => null)) as Partial<UsageStats> | null
+      if (response.ok && typeof data?.visitors === "number" && typeof data?.minutes === "number") {
+        setStats({ visitors: data.visitors, minutes: data.minutes })
+      }
+    } catch {
+      // ignore and keep fallback stats
+    } finally {
+      setStatsLoaded(true)
     }
-  }, [])
+  }
 
-  async function cleanupConversation() {
+  async function trackUsage(forceBeacon = false) {
+    if (usageLoggedRef.current) return
+
+    const startedAt = conversationStartedAtRef.current
+    if (!startedAt) return
+
+    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000)
+    if (elapsedSeconds < MINIMUM_TRACKED_SECONDS) return
+
+    const roundedMinutes = Math.max(1, Math.ceil(elapsedSeconds / 60))
+    usageLoggedRef.current = true
+
+    const optimisticVisitors = stats.visitors + 1
+    const optimisticMinutes = stats.minutes + roundedMinutes
+    setStats({ visitors: optimisticVisitors, minutes: optimisticMinutes })
+
+    const payload = JSON.stringify({
+      business: BUSINESS_SLUG,
+      minutes: roundedMinutes,
+      timestamp: Date.now(),
+    })
+
+    try {
+      if (forceBeacon && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+        const blob = new Blob([payload], { type: "application/json" })
+        navigator.sendBeacon("/api/alderwood-usage", blob)
+      } else {
+        await fetch("/api/alderwood-usage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          cache: "no-store",
+        })
+      }
+
+      void loadStats()
+    } catch {
+      // keep optimistic stats if reporting fails
+    }
+  }
+
+  async function cleanupConversation(options?: { reportUsage?: boolean; beacon?: boolean }) {
+    if (options?.reportUsage) {
+      await trackUsage(Boolean(options.beacon))
+    }
+
     dcRef.current?.close()
     dcRef.current = null
 
@@ -93,8 +172,26 @@ export function AlderwoodGeorgeLiveAssistant() {
 
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
+    conversationStartedAtRef.current = null
     setIsModelSpeaking(false)
   }
+
+  useEffect(() => {
+    void loadStats()
+
+    const handleBeforeUnload = () => {
+      if (connectionState === "connected") {
+        void trackUsage(true)
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      void cleanupConversation({ reportUsage: connectionState === "connected", beacon: true })
+    }
+  }, [connectionState, stats.minutes, stats.visitors])
 
   function appendAssistantDelta(delta: string) {
     currentAssistantTextRef.current += delta
@@ -116,6 +213,8 @@ export function AlderwoodGeorgeLiveAssistant() {
   async function startConversation() {
     if (!canStart) return
 
+    usageLoggedRef.current = false
+    conversationStartedAtRef.current = Date.now()
     setError(null)
     setConnectionState("connecting")
     setStatusText("Connecting to George…")
@@ -193,7 +292,7 @@ export function AlderwoodGeorgeLiveAssistant() {
             setError(payload.error?.message ?? "Something went wrong with the live connection.")
             setConnectionState("error")
             setStatusText("Connection problem")
-            await cleanupConversation()
+            await cleanupConversation({ reportUsage: true })
             break
           default:
             break
@@ -228,10 +327,12 @@ export function AlderwoodGeorgeLiveAssistant() {
   }
 
   async function stopConversation() {
-    await cleanupConversation()
+    await cleanupConversation({ reportUsage: connectionState === "connected" })
     setConnectionState("idle")
     setStatusText("Ready when you are")
   }
+
+  const retainedVisitors = estimateRetainedVisitors(stats.visitors)
 
   return (
     <main className="min-h-screen bg-[#08130f] text-[#f5f8f6]">
@@ -242,7 +343,28 @@ export function AlderwoodGeorgeLiveAssistant() {
         </div>
 
         <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-6 py-14 text-center sm:px-8 lg:px-10">
-          <div className="max-w-4xl">
+          <div className="absolute left-6 top-6 z-20 w-full max-w-[320px] text-left sm:left-8 sm:top-8 lg:left-10 lg:top-10">
+            <div className="rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(12,23,19,0.82)_0%,rgba(8,16,13,0.92)_100%)] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c9b58a]">Live George activity</p>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-[#eef4f0] sm:text-[15px]">
+                <p>
+                  <span className="font-semibold text-white">{stats.visitors}</span> visitors helped — instead of leaving
+                </p>
+                <p>
+                  <span className="font-semibold text-white">{stats.minutes}</span> minutes of real conversations
+                </p>
+                <p>
+                  ≈ <span className="font-semibold text-white">{formatHours(stats.minutes)}</span> hours of support delivered
+                </p>
+                <p>
+                  ≈ <span className="font-semibold text-white">{retainedVisitors}</span> visitors retained (estimated)
+                </p>
+              </div>
+              {!statsLoaded ? <p className="mt-3 text-xs text-[#bdd1c7]">Loading live figures…</p> : null}
+            </div>
+          </div>
+
+          <div className="max-w-4xl pt-28 sm:pt-32 lg:pt-0">
             <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
               Ask George about anything at Alderwood Ponds.
             </h1>
