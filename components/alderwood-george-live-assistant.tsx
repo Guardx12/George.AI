@@ -364,15 +364,15 @@ export function AlderwoodGeorgeLiveAssistant() {
               <div className="mt-2.5 space-y-2.5 text-[13px] text-[#e6efea] sm:text-sm">
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.total}</p>
-                  <p className="mt-1 leading-5">visitors helped — instead of leaving</p>
+                  <p className="mt-1 leading-5">Visitors helped — instead of leaving</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.minutes}</p>
-                  <p className="mt-1 leading-5">minutes saved from answering questions and calls</p>
+                  <p className="mt-1 leading-5">Minutes saved from answering questions and calls</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">≈ {formatHours(stats.minutes)}</p>
-                  <p className="mt-1 leading-5">hours of support delivered</p>
+                  <p className="mt-1 leading-5">Hours of support delivered</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">+ {formatRetained(stats.total)}</p>
