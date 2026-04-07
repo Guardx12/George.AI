@@ -7,6 +7,15 @@ import { ArrowLeft, Loader2, Mic, PhoneOff } from "lucide-react"
 const BACK_TO_SITE_URL = "https://alderwoodponds.fish"
 const RETAINED_RATE = 0.4
 
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  channelCount: 1,
+  noiseSuppression: true,
+  echoCancellation: true,
+  autoGainControl: true,
+  sampleRate: 48000,
+  sampleSize: 16,
+} as MediaTrackConstraints
+
 type LiveMessage = {
   id: string
   role: "assistant" | "user" | "system"
@@ -221,7 +230,25 @@ export function AlderwoodGeorgeLiveAssistant() {
         throw new Error(tokenData?.error || "Could not start George right now.")
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...AUDIO_CONSTRAINTS,
+          ...(typeof window !== "undefined" ? ({ voiceIsolation: true } as Record<string, unknown>) : {}),
+        } as MediaTrackConstraints,
+      })
+
+      const audioTrack = stream.getAudioTracks()[0]
+      if (audioTrack) {
+        try {
+          await audioTrack.applyConstraints({
+            ...AUDIO_CONSTRAINTS,
+            ...(typeof window !== "undefined" ? ({ voiceIsolation: true } as Record<string, unknown>) : {}),
+          } as MediaTrackConstraints)
+        } catch (constraintError) {
+          console.warn("Could not apply all Alderwood mic constraints", constraintError)
+        }
+      }
+
       localStreamRef.current = stream
 
       const pc = new RTCPeerConnection()
@@ -364,15 +391,15 @@ export function AlderwoodGeorgeLiveAssistant() {
               <div className="mt-2.5 space-y-2.5 text-[13px] text-[#e6efea] sm:text-sm">
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.total}</p>
-                  <p className="mt-1 leading-5">Visitors helped — instead of leaving</p>
+                  <p className="mt-1 leading-5">visitors helped — instead of leaving</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.minutes}</p>
-                  <p className="mt-1 leading-5">Minutes saved from answering questions and calls</p>
+                  <p className="mt-1 leading-5">minutes saved answering questions & calls</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">≈ {formatHours(stats.minutes)}</p>
-                  <p className="mt-1 leading-5">Hours of support delivered</p>
+                  <p className="mt-1 leading-5">hours of support delivered</p>
                 </div>
                 <div>
                   <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">+ {formatRetained(stats.total)}</p>
