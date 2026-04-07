@@ -9,7 +9,7 @@ const BUSINESS_SLUG = process.env.ALDERWOOD_USAGE_BUSINESS || 'Alderwood-Ponds'
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null)
-    const minutes = Math.max(1, Math.round(Number(body?.minutes || 0)))
+    const minutes = Math.max(0.1, Math.round(Number(body?.minutes || 0) * 10) / 10)
 
     if (!Number.isFinite(minutes) || minutes <= 0) {
       return Response.json({ error: 'Minutes must be a positive number.' }, { status: 400 })

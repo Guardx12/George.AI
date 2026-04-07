@@ -65,6 +65,19 @@ function formatRetained(totalVisitors: number) {
   return Math.round(totalVisitors * RETAINED_RATE)
 }
 
+function formatMinutesSaved(totalMinutes: number) {
+  if (totalMinutes < 1) {
+    const seconds = Math.max(1, Math.round(totalMinutes * 60))
+    return `${seconds}s`
+  }
+
+  if (totalMinutes < 10) {
+    return totalMinutes.toFixed(1)
+  }
+
+  return Math.round(totalMinutes).toString()
+}
+
 export function AlderwoodGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
@@ -120,7 +133,7 @@ export function AlderwoodGeorgeLiveAssistant() {
     if (usageLoggedRef.current || sessionStartedAtRef.current === null) return
 
     const elapsedMs = Date.now() - sessionStartedAtRef.current
-    const minutes = Math.max(1, Math.round(elapsedMs / 60000))
+    const minutes = Math.max(0.1, Math.round((elapsedMs / 60000) * 10) / 10)
     usageLoggedRef.current = true
 
     try {
@@ -394,7 +407,7 @@ export function AlderwoodGeorgeLiveAssistant() {
                   <p className="mt-1 leading-5">visitors helped — instead of leaving</p>
                 </div>
                 <div>
-                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{stats.minutes}</p>
+                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{formatMinutesSaved(stats.minutes)}</p>
                   <p className="mt-1 leading-5">minutes saved answering questions & calls</p>
                 </div>
                 <div>
@@ -402,9 +415,9 @@ export function AlderwoodGeorgeLiveAssistant() {
                   <p className="mt-1 leading-5">hours of support delivered</p>
                 </div>
                 <div>
-                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">+ {formatRetained(stats.total)}</p>
+                  <p className="text-[22px] font-semibold leading-none text-white sm:text-[26px]">{formatRetained(stats.total)}</p>
                   <p className="mt-1 leading-5">
-                    extra visitors who would have otherwise left <span className="text-[#bdd1c7]">(estimated)</span>
+                    + {formatRetained(stats.total)} extra visitors who would have otherwise left <span className="text-[#bdd1c7]">(estimated)</span>
                   </p>
                 </div>
               </div>
