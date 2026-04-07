@@ -106,9 +106,9 @@ const SESSION_CONFIG = {
         },
         turn_detection: {
           type: "semantic_vad",
-          eagerness: "high",
+          eagerness: "medium",
           create_response: true,
-          interrupt_response: true,
+          interrupt_response: false,
         },
       },
       output: {

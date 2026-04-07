@@ -7,6 +7,15 @@ import { ArrowLeft, Loader2, Mic, PhoneOff } from "lucide-react"
 const BACK_TO_SITE_URL = "https://alderwoodponds.fish"
 const RETAINED_RATE = 0.4
 
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  channelCount: 1,
+  noiseSuppression: true,
+  echoCancellation: true,
+  autoGainControl: true,
+  sampleRate: 48000,
+  sampleSize: 16,
+} as MediaTrackConstraints
+
 type LiveMessage = {
   id: string
   role: "assistant" | "user" | "system"
@@ -221,7 +230,25 @@ export function AlderwoodGeorgeLiveAssistant() {
         throw new Error(tokenData?.error || "Could not start George right now.")
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...AUDIO_CONSTRAINTS,
+          ...(typeof window !== "undefined" ? ({ voiceIsolation: true } as Record<string, unknown>) : {}),
+        } as MediaTrackConstraints,
+      })
+
+      const audioTrack = stream.getAudioTracks()[0]
+      if (audioTrack) {
+        try {
+          await audioTrack.applyConstraints({
+            ...AUDIO_CONSTRAINTS,
+            ...(typeof window !== "undefined" ? ({ voiceIsolation: true } as Record<string, unknown>) : {}),
+          } as MediaTrackConstraints)
+        } catch (constraintError) {
+          console.warn("Could not apply all Alderwood mic constraints", constraintError)
+        }
+      }
+
       localStreamRef.current = stream
 
       const pc = new RTCPeerConnection()
