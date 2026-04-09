@@ -19,6 +19,7 @@ type QuickLink = {
 }
 
 const STORAGE_KEY = "placesforpeople-george-session-v2"
+const RETAINED_RATE = 0.4
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
@@ -28,6 +29,11 @@ const INITIAL_MESSAGES: LiveMessage[] = [
       "Hi — I'm George for Steyning Leisure Centre. I can help you choose the right membership, check the live timetable, answer centre questions, and guide you through joining step by step.",
   },
 ]
+
+type PlacesForPeopleStats = {
+  total: number
+  minutes: number
+}
 
 type StoredSession = {
   messages: LiveMessage[]
@@ -44,6 +50,27 @@ function makeMessage(role: LiveMessage["role"], content: string) {
     role,
     content,
   }
+}
+
+function formatHours(totalMinutes: number) {
+  return (totalMinutes / 60).toFixed(1)
+}
+
+function formatRetained(totalVisitors: number) {
+  return Math.round(totalVisitors * RETAINED_RATE)
+}
+
+function formatMinutesSaved(totalMinutes: number) {
+  if (totalMinutes < 1) {
+    const seconds = Math.max(1, Math.round(totalMinutes * 60))
+    return `${seconds}s`
+  }
+
+  if (totalMinutes < 10) {
+    return totalMinutes.toFixed(1)
+  }
+
+  return Math.round(totalMinutes).toString()
 }
 
 function trimMessagesForStorage(messages: LiveMessage[]) {
@@ -181,6 +208,10 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null)
   const [hasStoredSession, setHasStoredSession] = useState(false)
   const [visitorName, setVisitorName] = useState<string | null>(null)
+  const [stats, setStats] = useState<PlacesForPeopleStats>({ total: 0, minutes: 0 })
+
+  const sessionStartedAtRef = useRef<number | null>(null)
+  const usageLoggedRef = useRef(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -207,6 +238,18 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }, [])
 
   useEffect(() => {
+    void refreshStats()
+    const interval = window.setInterval(() => {
+      void refreshStats()
+    }, 10000)
+
+    return () => {
+      window.clearInterval(interval)
+      void cleanupConversation(false)
+    }
+  }, [])
+
+  useEffect(() => {
     try {
       const trimmed = trimMessagesForStorage(messages)
       const detectedName = visitorName || detectVisitorName(trimmed)
@@ -226,7 +269,58 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     } catch {}
   }, [messages, visitorName])
 
-  async function cleanupConversation() {
+  async function refreshStats() {
+    try {
+      const response = await fetch("/api/placesforpeople-stats", { cache: "no-store" })
+      if (!response.ok) return
+      const data = (await response.json()) as Partial<PlacesForPeopleStats>
+      setStats({
+        total: Number(data?.total || 0),
+        minutes: Number(data?.minutes || 0),
+      })
+    } catch (err) {
+      console.error("Could not refresh Places for People stats", err)
+    }
+  }
+
+  async function logUsageIfNeeded() {
+    if (usageLoggedRef.current || sessionStartedAtRef.current === null) return
+
+    const elapsedMs = Date.now() - sessionStartedAtRef.current
+    const minutes = Math.max(0.1, Math.round((elapsedMs / 60000) * 10) / 10)
+    usageLoggedRef.current = true
+
+    try {
+      await fetch("/api/placesforpeople-usage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+        body: JSON.stringify({ minutes }),
+        cache: "no-store",
+        keepalive: true,
+      })
+
+      setStats((existing) => ({
+        total: existing.total + 1,
+        minutes: existing.minutes + minutes,
+      }))
+
+      window.setTimeout(() => {
+        void refreshStats()
+      }, 1500)
+    } catch (err) {
+      console.error("Could not log Places for People usage", err)
+      usageLoggedRef.current = false
+    }
+  }
+
+  async function cleanupConversation(logUsage = true) {
+    if (logUsage) {
+      await logUsageIfNeeded()
+    }
+
     dcRef.current?.close()
     dcRef.current = null
 
@@ -250,6 +344,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
+    sessionStartedAtRef.current = null
   }
 
   function clearSavedSession() {
@@ -389,9 +484,11 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   async function startConversation() {
     if (!canStart) return
 
-    await cleanupConversation()
+    await cleanupConversation(false)
     setConnectionState("connecting")
     setError(null)
+    usageLoggedRef.current = false
+    sessionStartedAtRef.current = null
     setMessages((prev) => (hasStoredSession && prev.length > 1 ? prev : INITIAL_MESSAGES))
 
     try {
@@ -433,6 +530,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
+        sessionStartedAtRef.current = Date.now()
         const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? null
         const event = buildFirstResponseEvent(visitorName, hasStoredSession && messages.length > 1, lastUserMessage)
         window.setTimeout(() => {
@@ -491,7 +589,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   async function stopConversation() {
-    await cleanupConversation()
+    await cleanupConversation(true)
     setError(null)
     setConnectionState("idle")
   }
@@ -504,7 +602,30 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
   return (
     <section className="py-8 text-center sm:py-10">
-      <div className="mx-auto max-w-[760px]">
+      <div className="mx-auto grid max-w-[980px] gap-5 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start">
+        <aside className="order-2 mx-auto w-full max-w-[180px] rounded-[18px] border border-[#d8dde3] bg-white/95 px-3 py-4 text-left shadow-[0_10px_24px_rgba(57,69,83,0.08)] lg:order-1 lg:sticky lg:top-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#f47c00]">George Live Impact</p>
+          <div className="mt-3 space-y-3 text-[#394553]">
+            <div>
+              <div className="text-2xl font-black leading-none">{stats.total}</div>
+              <p className="mt-1 text-[12px] leading-4">visitors helped — instead of leaving</p>
+            </div>
+            <div>
+              <div className="text-2xl font-black leading-none">{formatMinutesSaved(stats.minutes)}</div>
+              <p className="mt-1 text-[12px] leading-4">minutes saved from answering questions &amp; calls</p>
+            </div>
+            <div>
+              <div className="text-2xl font-black leading-none">≈ {formatHours(stats.minutes)}</div>
+              <p className="mt-1 text-[12px] leading-4">hours of support delivered</p>
+            </div>
+            <div>
+              <div className="text-2xl font-black leading-none">{formatRetained(stats.total)}</div>
+              <p className="mt-1 text-[12px] leading-4">extra visitors still engaged</p>
+            </div>
+          </div>
+        </aside>
+
+        <div className="order-1 mx-auto w-full max-w-[760px] lg:order-2">
         <button
           type="button"
           onClick={connectionState === "connected" ? stopConversation : startConversation}
@@ -578,6 +699,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
 
         {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
+        </div>
       </div>
     </section>
   )

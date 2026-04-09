@@ -1,14 +1,21 @@
 export const runtime = 'nodejs'
 
 const HARDCODED_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1OGdvSXrnrFeN9TPiMQKAOsmZh06DYK8yudCmG_-AfGY/edit?usp=sharing'
+const HARDCODED_CSV_URL = ''
+const HARDCODED_JSON_URL = ''
+
+const JSON_URL =
+  process.env.PLACESFORPEOPLE_STATS_JSON_URL ||
+  process.env.PLACESFORPEOPLE_STATS_URL ||
+  process.env.NEXT_PUBLIC_PLACESFORPEOPLE_STATS_JSON_URL ||
+  HARDCODED_JSON_URL ||
+  ''
 
 function googleSheetToCsvUrl(value: string) {
   if (!value) return ''
   if (value.includes('/export?format=csv')) return value
-
   const match = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
   if (!match) return value
-
   const gidMatch = value.match(/[?&#]gid=(\d+)/)
   const gid = gidMatch?.[1] || '0'
   return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=${gid}`
@@ -17,20 +24,13 @@ function googleSheetToCsvUrl(value: string) {
 const CSV_URL =
   process.env.PLACESFORPEOPLE_STATS_CSV_URL ||
   process.env.NEXT_PUBLIC_PLACESFORPEOPLE_STATS_CSV_URL ||
-  googleSheetToCsvUrl(HARDCODED_SHEET_URL)
+  HARDCODED_CSV_URL ||
+  googleSheetToCsvUrl(HARDCODED_SHEET_URL) ||
+  ''
 
-const BUSINESS_ALIASES = (
-  process.env.PLACESFORPEOPLE_USAGE_ALIASES ||
-  'placesforpeople,PlacesForPeople,Places For People,Places-For-People,Steyning Leisure Centre,Places Leisure Steyning'
-)
-  .split(',')
-  .map((item) => item.trim())
-  .filter(Boolean)
+const BUSINESS_SLUG = process.env.PLACESFORPEOPLE_USAGE_BUSINESS || 'placesforpeople'
 
-type Stats = {
-  total: number
-  minutes: number
-}
+type Stats = { total: number; minutes: number }
 
 function toNumber(value: unknown) {
   const parsed = Number(String(value ?? '').trim())
@@ -41,7 +41,6 @@ function parseCsvLine(line: string) {
   const result: string[] = []
   let current = ''
   let inQuotes = false
-
   for (let i = 0; i < line.length; i += 1) {
     const char = line[i]
     if (char === '"') {
@@ -58,83 +57,82 @@ function parseCsvLine(line: string) {
       current += char
     }
   }
-
   result.push(current)
   return result.map((item) => item.trim())
 }
 
-function normalise(value: unknown) {
+function normaliseBusiness(value: unknown) {
   return String(value ?? '')
     .trim()
     .toLowerCase()
     .replace(/[’']/g, "'")
     .replace(/'s\b/g, '')
     .replace(/&/g, 'and')
+    .replace(/\s+/g, '')
     .replace(/[^a-z0-9]+/g, '')
 }
 
-function rowKey(row: Record<string, string>) {
-  return [
-    row.business,
-    row.Business,
-    row.page,
-    row.Page,
-    row.name,
-    row.Name,
-  ]
-    .map((value) => normalise(value))
-    .find(Boolean) || ''
+function rowBusiness(row: Record<string, string>) {
+  return normaliseBusiness(row.business ?? row.Business ?? row.page ?? row.Page ?? row.name ?? row.Name)
 }
 
-async function fetchCsv(url: string) {
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: { Accept: 'text/csv,text/plain,*/*' },
+function findSlugMatch(rows: Record<string, string>[]) {
+  const target = normaliseBusiness(BUSINESS_SLUG)
+  const aliases = new Set([target, 'placesforpeople', 'placesforpeoplesteyning', 'steyningleisurecentre'])
+  const exact = rows.find((row) => aliases.has(rowBusiness(row)))
+  if (exact) return exact
+  if (rows.length === 1) return rows[0]
+  return rows.find((row) => {
+    const business = rowBusiness(row)
+    return business.includes('placesforpeople') || business.includes('steyning')
   })
+}
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `Request failed with status ${response.status}`)
+async function getStatsFromJson(): Promise<Stats | null> {
+  if (!JSON_URL) return null
+  const response = await fetch(JSON_URL, { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } })
+  if (!response.ok) throw new Error('Could not fetch Places for People stats JSON.')
+  const data = await response.json().catch(() => null)
+  const row = Array.isArray(data)
+    ? data.find((item) => normaliseBusiness(item?.business ?? item?.page ?? item?.name) === normaliseBusiness(BUSINESS_SLUG))
+    : data && typeof data === 'object' && 'business' in data
+      ? data
+      : data?.[BUSINESS_SLUG] ?? null
+  if (!row) return null
+  return {
+    total: toNumber((row as any).total ?? (row as any).Total),
+    minutes: toNumber((row as any).minutes ?? (row as any).Minutes),
   }
-
-  return response.text()
 }
 
-function parseRows(csv: string) {
-  const lines = csv
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  if (!lines.length) return []
-
+async function getStatsFromCsv(): Promise<Stats | null> {
+  if (!CSV_URL) return null
+  const response = await fetch(CSV_URL, { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } })
+  if (!response.ok) throw new Error('Could not fetch Places for People stats CSV.')
+  const csv = await response.text()
+  const lines = csv.split(/\r?\n/).filter(Boolean)
+  if (lines.length < 2) return null
   const headers = parseCsvLine(lines[0])
-
-  return lines.slice(1).map((line) => {
-    const values = parseCsvLine(line)
-    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']))
+  const rows = lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line)
+    return headers.reduce<Record<string, string>>((acc, header, index) => {
+      acc[header] = cells[index] ?? ''
+      return acc
+    }, {})
   })
+  const row = findSlugMatch(rows)
+  if (!row) return null
+  return { total: toNumber(row.total ?? row.Total), minutes: toNumber(row.minutes ?? row.Minutes) }
 }
 
 export async function GET() {
   try {
-    const csv = await fetchCsv(CSV_URL)
-    const rows = parseRows(csv)
-    const aliases = new Set(BUSINESS_ALIASES.map((item) => normalise(item)))
-
-    const matchingRows = rows.filter((row) => aliases.has(rowKey(row)))
-
-    const totals = matchingRows.reduce<Stats>(
-      (acc, row) => ({
-        total: acc.total + toNumber(row.total ?? row.Total ?? row.visitors ?? row.Visitors ?? row.count ?? row.Count),
-        minutes: acc.minutes + toNumber(row.minutes ?? row.Minutes),
-      }),
-      { total: 0, minutes: 0 },
-    )
-
-    return Response.json(totals, { headers: { 'Cache-Control': 'no-store' } })
+    let stats: Stats | null = null
+    if (JSON_URL) stats = await getStatsFromJson()
+    if (!stats && CSV_URL) stats = await getStatsFromCsv()
+    return Response.json(stats ?? { total: 0, minutes: 0 }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   } catch (error) {
     console.error('Places for People stats route error', error)
-    return Response.json({ total: 0, minutes: 0 }, { headers: { 'Cache-Control': 'no-store' } })
+    return Response.json({ total: 0, minutes: 0 }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   }
 }

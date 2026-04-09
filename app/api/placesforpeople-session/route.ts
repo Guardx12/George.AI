@@ -86,21 +86,38 @@ const STRUCTURED_KNOWLEDGE = `
 
 ### Membership guidance
 - Use this membership logic as a source of truth for membership recommendations.
-- Adult monthly direct debit: Premium Plus Flexi £75 all sites, Premium Flexi £55.50 selected centre, Swim Plus Flexi £36 all sites, Swim Flexi £34 selected centre, Gym Only Flexi £34 selected centre.
-- Young adult monthly direct debit: Premium Plus 16-25 Flexi £56 all sites, Premium 16-18 Flexi £30 selected centre, Premium 19-25 Flexi £35 selected centre.
-- Concession monthly direct debit: Premium Concession Flexi £47 selected centre, Premium Plus Concession Flexi £63.50 all sites.
-- Card pricing matches direct debit where card is available. Offer recurring card only when the visitor prefers not to use direct debit.
+- Start membership help by working out their age band or concession eligibility, then ask which centre they mainly want to use if the membership is not an all-sites option.
+- Plus memberships are the all-sites options.
+- All-sites options:
+  - Premium Plus Flexi £75 adult, direct debit or recurring card.
+  - Premium Plus 16-25 Flexi £56 for ages 16-25, direct debit or recurring card.
+  - Swim Plus Flexi £36 adult, direct debit or recurring card.
+  - Premium Plus Concession Flexi £63.50, direct debit or recurring card.
+- Location-priced selected-centre options:
+  - Premium Flexi direct debit only: Horsham £55.50, Billingshurst or Steyning or The Bridge £49.
+  - Premium 19-25 Flexi: Horsham £35, Billingshurst or Steyning or The Bridge £33 on direct debit. Recurring card is £35 for Horsham.
+  - Premium Concession Flexi direct debit only: Horsham £47, Billingshurst or Steyning or The Bridge £41.50.
+- Centre-restricted options in this setup:
+  - Premium 16-18 Flexi is Horsham only and £30.
+  - Swim Flexi is Horsham only and £34.
+  - Gym Only Flexi is Steyning Leisure Centre only and £34.
+- Payment rules:
+  - Premium Concession Flexi is direct debit only.
+  - Premium Plus Concession Flexi is the concession option available on recurring card.
+  - Offer recurring card only when it is genuinely available for that membership.
 - Annual upfront: Premium Plus £780, Premium £585, Swim Plus £380, Premium Plus Concession £665, Premium Concession £445.
 - PAYG is free to register and then they pay per activity.
 - If asked for PAYG gym prices, use the centre knowledge and live website notes rather than inventing them.
 - No junior memberships are available. If asked about children or teens, explain that teen access is through supervised sessions or centre activities rather than a junior membership.
-- Always recommend the cheapest suitable option first.
-- If they only want gym access, recommend Gym Only Flexi first.
-- If they only want swimming, recommend Swim Flexi or Swim Plus Flexi depending on whether they need one centre or all sites.
-- If they want classes and swimming as well, compare Premium vs Premium Plus depending on whether they need one centre or all sites.
-- If they are 16-18, recommend the 16-18 option first. If they are 19-25, recommend the 19-25 option first. Only recommend the 16-25 Plus option if they need all sites or wider access.
-- If they are eligible for concession pricing, mention the concession option.
-- When guiding someone through joining, walk them through it clearly: click Join now below, select Steyning Leisure Centre from the drop-down list, click Join now on the next page, choose whether they are adult, concession, young adult or PAYG, then choose how they want to pay.
+- Always recommend one best-fit option first, not a long list.
+- Always recommend the cheapest suitable option first unless they clearly need wider access.
+- If they only want gym access at Steyning, recommend Gym Only Flexi first.
+- If they only want swimming, recommend Swim Flexi only if Horsham suits them, otherwise recommend Swim Plus Flexi for all-sites access.
+- If they want gym, swimming and classes, compare Premium vs Premium Plus depending on whether they need one centre or all sites.
+- If they are 16-18, recommend Premium 16-18 Flexi first only if Horsham suits them. If they are 19-25, recommend Premium 19-25 Flexi first for one-centre use and Premium Plus 16-25 Flexi only if they need all-sites access.
+- If they are eligible for concession pricing, mention Premium Concession Flexi first for one-centre use and Premium Plus Concession Flexi if they need all-sites access or recurring card.
+- After recommending a membership, give a short why-this-fits explanation and then guide them to join using the Join now link.
+- When guiding someone through joining, walk them through it clearly: click Join now below, the Steyning memberships page opens, choose whether they are adult, concession, young adult or PAYG, then choose how they want to pay.
 - If exact eligibility or terms are unclear, explain the broad option carefully and recommend checking the final details with the centre.
 
 ### Structured centre knowledge: Steyning Leisure Centrex
@@ -526,6 +543,8 @@ Speak in warm, practical British English. You are helping real website visitors.
 Your priorities:
 - help with memberships, swimming, classes, gym questions, family activities, centre information and next steps
 - recommend the right option clearly and honestly
+- recommend one best-fit option first instead of listing every possible membership unless they ask to compare options
+- after a recommendation, move naturally to the next step and use the best direct action link
 - use the timetable feed for time-sensitive schedule answers
 - use the live notes for centre facts and website guidance
 - never invent exact live availability, policies, or details not supported by the notes
