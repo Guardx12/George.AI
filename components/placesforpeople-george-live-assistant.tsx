@@ -11,11 +11,6 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-type PlacesStats = {
-  total: number
-  minutes: number
-}
-
 type QuickLink = {
   label: string
   href: string
@@ -180,37 +175,12 @@ function splitTextWithUrls(text: string) {
   return parts.filter((part) => part.value)
 }
 
-
-const RETAINED_RATE = 0.4
-
-function formatHours(totalMinutes: number) {
-  return (totalMinutes / 60).toFixed(1)
-}
-
-function formatRetained(totalVisitors: number) {
-  return Math.round(totalVisitors * RETAINED_RATE)
-}
-
-function formatMinutesSaved(totalMinutes: number) {
-  if (totalMinutes < 1) {
-    const seconds = Math.max(1, Math.round(totalMinutes * 60))
-    return `${seconds}s`
-  }
-
-  if (totalMinutes < 10) {
-    return totalMinutes.toFixed(1)
-  }
-
-  return Math.round(totalMinutes).toString()
-}
-
 export function PlacesForPeopleGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [error, setError] = useState<string | null>(null)
   const [hasStoredSession, setHasStoredSession] = useState(false)
   const [visitorName, setVisitorName] = useState<string | null>(null)
-  const [stats, setStats] = useState<PlacesStats>({ total: 0, minutes: 0 })
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -220,8 +190,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const pendingQuickLinkRef = useRef<QuickLink | null>(null)
   const activeQuickLinkRef = useRef<QuickLink | null>(null)
-  const sessionStartedAtRef = useRef<number | null>(null)
-  const usageLoggedRef = useRef(false)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
@@ -236,10 +204,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
         setVisitorName(stored.visitorName || detectVisitorName(stored.messages))
       }
     } catch {}
-  }, [])
-
-  useEffect(() => {
-    void refreshStats()
   }, [])
 
   useEffect(() => {
@@ -261,44 +225,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
       setHasStoredSession(true)
     } catch {}
   }, [messages, visitorName])
-
-  async function refreshStats() {
-    try {
-      const response = await fetch("/api/placesforpeople-stats", { cache: "no-store" })
-      if (!response.ok) return
-      const data = (await response.json()) as Partial<PlacesStats>
-      setStats({
-        total: Number(data?.total || 0),
-        minutes: Number(data?.minutes || 0),
-      })
-    } catch (err) {
-      console.error("Could not refresh Places for People stats", err)
-    }
-  }
-
-  async function logUsageIfNeeded() {
-    if (usageLoggedRef.current || sessionStartedAtRef.current === null) return
-
-    const elapsedMs = Date.now() - sessionStartedAtRef.current
-    const minutes = Math.max(0.1, Math.round((elapsedMs / 60000) * 10) / 10)
-
-    try {
-      const response = await fetch("/api/placesforpeople-usage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minutes }),
-      })
-      if (!response.ok) {
-        const details = await response.text().catch(() => "")
-        console.error("Could not log Places for People usage", details)
-      } else {
-        usageLoggedRef.current = true
-        await refreshStats()
-      }
-    } catch (err) {
-      console.error("Could not log Places for People usage", err)
-    }
-  }
 
   async function cleanupConversation() {
     dcRef.current?.close()
@@ -324,7 +250,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
-    sessionStartedAtRef.current = null
   }
 
   function clearSavedSession() {
@@ -334,8 +259,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     setHasStoredSession(false)
     setError(null)
     setConnectionState("idle")
-    sessionStartedAtRef.current = null
-    usageLoggedRef.current = false
     try {
       window.localStorage.removeItem(STORAGE_KEY)
     } catch {}
@@ -510,8 +433,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
-        sessionStartedAtRef.current = Date.now()
-        usageLoggedRef.current = false
         const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? null
         const event = buildFirstResponseEvent(visitorName, hasStoredSession && messages.length > 1, lastUserMessage)
         window.setTimeout(() => {
@@ -570,7 +491,6 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   }
 
   async function stopConversation() {
-    await logUsageIfNeeded()
     await cleanupConversation()
     setError(null)
     setConnectionState("idle")
@@ -584,105 +504,80 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
 
   return (
     <section className="py-8 text-center sm:py-10">
-      <div className="mx-auto flex max-w-[1080px] flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-8">
-        <div className="w-full max-w-[300px] rounded-[24px] border border-[#d8dde3] bg-white p-4 text-left shadow-[0_12px_28px_rgba(57,69,83,0.08)] lg:sticky lg:top-6 lg:self-start">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#f47c00]">George live impact</p>
-          <div className="mt-3 space-y-3 text-[13px] text-[#394553] sm:text-sm">
-            <div>
-              <p className="text-[22px] font-semibold leading-none text-[#394553] sm:text-[26px]">{stats.total}</p>
-              <p className="mt-1 leading-5">visitors helped — instead of leaving</p>
+      <div className="mx-auto max-w-[760px]">
+        <button
+          type="button"
+          onClick={connectionState === "connected" ? stopConversation : startConversation}
+          disabled={connectionState === "connecting"}
+          aria-label={connectionState === "connected" ? "End conversation with George" : "Talk to George"}
+          className={`group relative mx-auto flex h-[112px] w-[112px] items-center justify-center rounded-full transition duration-300 sm:h-[128px] sm:w-[128px] ${
+            connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
+          } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
+          style={{
+            background: "radial-gradient(circle at 30% 28%, #6c7580 0%, #59616b 48%, #414951 100%)",
+            boxShadow:
+              connectionState === "connected" || connectionState === "connecting"
+                ? "0 0 0 4px rgba(244,124,0,0.22), 0 0 0 10px rgba(244,124,0,0.09), 0 16px 28px rgba(57,69,83,0.20), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)"
+                : "0 0 0 4px rgba(244,124,0,0.82), 0 14px 24px rgba(57,69,83,0.14), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)",
+          }}
+        >
+          <span className="absolute inset-[10px] rounded-full border border-white/15" />
+          <span className="absolute inset-x-[24%] top-[14%] h-5 rounded-full bg-white/10 blur-md" />
+          <div className="relative z-10 flex items-center justify-center text-white">
+            {connectionState === "connecting" ? <Loader2 className="h-8 w-8 animate-spin sm:h-9 sm:w-9" /> : <Mic className="h-8 w-8 sm:h-9 sm:w-9" />}
+          </div>
+        </button>
+
+        <h2 className="mt-6 text-[28px] font-black tracking-tight text-[#394553] sm:text-[34px]">Talk to George</h2>
+        <p className="mx-auto mt-3 max-w-[680px] text-[16px] leading-8 text-[#394553] sm:text-[18px]">
+          George can recommend the right membership, check the live timetable, answer any questions, and help you get signed up.
+        </p>
+
+        <div className="mx-auto mt-5 max-w-[560px] rounded-[20px] border border-[#d8dde3] bg-white px-4 py-3 text-left shadow-[0_12px_28px_rgba(57,69,83,0.08)] sm:px-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#f47c00]/10 text-[#f47c00]">
+              <MessageSquareText className="h-4 w-4" />
             </div>
-            <div>
-              <p className="text-[22px] font-semibold leading-none text-[#394553] sm:text-[26px]">{formatMinutesSaved(stats.minutes)}</p>
-              <p className="mt-1 leading-5">minutes saved from answering questions & calls</p>
-            </div>
-            <div>
-              <p className="text-[22px] font-semibold leading-none text-[#394553] sm:text-[26px]">≈ {formatHours(stats.minutes)}</p>
-              <p className="mt-1 leading-5">hours of support delivered</p>
-            </div>
-            <div>
-              <p className="text-[22px] font-semibold leading-none text-[#394553] sm:text-[26px]">{formatRetained(stats.total)}</p>
-              <p className="mt-1 leading-5">
-                + extra visitors who would have otherwise left <span className="text-[#667085]">(estimated)</span>
-              </p>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#f47c00]">{teaserLabel}</p>
+              <div className="mt-1 text-[14px] leading-6 text-[#394553] sm:text-[15px]">
+                {splitTextWithUrls(teaserText).map((part, index) => (
+                  <Fragment key={`${part.value}-${index}`}>
+                    {part.isLink && part.href ? (
+                      <a
+                        href={part.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all font-semibold text-[#f47c00] underline underline-offset-2"
+                      >
+                        {part.value}
+                      </a>
+                    ) : (
+                      part.value
+                    )}
+                  </Fragment>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="w-full max-w-[760px]">
-          <button
-            type="button"
-            onClick={connectionState === "connected" ? stopConversation : startConversation}
-            disabled={connectionState === "connecting"}
-            aria-label={connectionState === "connected" ? "End conversation with George" : "Talk to George"}
-            className={`group relative mx-auto flex h-[112px] w-[112px] items-center justify-center rounded-full transition duration-300 sm:h-[128px] sm:w-[128px] ${
-              connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-            } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
-            style={{
-              background: "radial-gradient(circle at 30% 28%, #6c7580 0%, #59616b 48%, #414951 100%)",
-              boxShadow:
-                connectionState === "connected" || connectionState === "connecting"
-                  ? "0 0 0 4px rgba(244,124,0,0.22), 0 0 0 10px rgba(244,124,0,0.09), 0 16px 28px rgba(57,69,83,0.20), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)"
-                  : "0 0 0 4px rgba(244,124,0,0.82), 0 14px 24px rgba(57,69,83,0.14), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)",
-            }}
-          >
-            <span className="absolute inset-[10px] rounded-full border border-white/15" />
-            <span className="absolute inset-x-[24%] top-[14%] h-5 rounded-full bg-white/10 blur-md" />
-            <div className="relative z-10 flex items-center justify-center text-white">
-              {connectionState === "connecting" ? <Loader2 className="h-8 w-8 animate-spin sm:h-9 sm:w-9" /> : <Mic className="h-8 w-8 sm:h-9 sm:w-9" />}
-            </div>
-          </button>
-
-          <h2 className="mt-6 text-[28px] font-black tracking-tight text-[#394553] sm:text-[34px]">Talk to George</h2>
-          <p className="mx-auto mt-3 max-w-[680px] text-[16px] leading-8 text-[#394553] sm:text-[18px]">
-            George can recommend the right membership, ask which centre you mainly want to use, check the live timetable, answer any questions, and help you get signed up.
-          </p>
-
-          <div className="mx-auto mt-5 max-w-[560px] rounded-[20px] border border-[#d8dde3] bg-white px-4 py-3 text-left shadow-[0_12px_28px_rgba(57,69,83,0.08)] sm:px-5">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#f47c00]/10 text-[#f47c00]">
-                <MessageSquareText className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#f47c00]">{teaserLabel}</p>
-                <div className="mt-1 text-[14px] leading-6 text-[#394553] sm:text-[15px]">
-                  {splitTextWithUrls(teaserText).map((part, index) => (
-                    <Fragment key={`${part.value}-${index}`}>
-                      {part.isLink && part.href ? (
-                        <a
-                          href={part.href}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="break-all font-semibold text-[#f47c00] underline underline-offset-2"
-                        >
-                          {part.value}
-                        </a>
-                      ) : (
-                        part.value
-                      )}
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            {quickLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center rounded-full border border-[#cfd5dc] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:border-[#f47c00] hover:text-[#f47c00]"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-
-          {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          {quickLinks.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full border border-[#cfd5dc] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:border-[#f47c00] hover:text-[#f47c00]"
+            >
+              {link.label}
+            </a>
+          ))}
         </div>
+
+
+        {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
       </div>
     </section>
   )
