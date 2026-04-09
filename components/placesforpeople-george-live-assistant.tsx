@@ -620,7 +620,9 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
             </div>
             <div>
               <div className="text-2xl font-black leading-none">{formatRetained(stats.total)}</div>
-              <p className="mt-1 text-[12px] leading-4">extra visitors still engaged</p>
+              <p className="mt-1 text-[12px] leading-4">
+                + extra visitors who would have otherwise left <span className="text-[#6b7480]">(estimated)</span>
+              </p>
             </div>
           </div>
         </aside>
