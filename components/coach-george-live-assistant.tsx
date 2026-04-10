@@ -488,6 +488,22 @@ function estimateFromText(input: string): MacroEstimate | null {
   }
 }
 
+
+function parseTargetsFromAssistantText(input: string) {
+  const t = input.toLowerCase()
+  const cal = t.match(/([\d,]{3,5})\s*(?:kcal|calories?)/)
+  const protein = t.match(/([\d,]{2,4})\s*g\s*protein/)
+  const carbs = t.match(/([\d,]{2,4})\s*g\s*carbs?/)
+  const fat = t.match(/([\d,]{2,4})\s*g\s*(?:fat|fats)/)
+  const toNum = (v?: string | null) => (v ? Number(v.replace(/,/g, "")) : null)
+  return {
+    caloriesTarget: toNum(cal?.[1]),
+    proteinTarget: toNum(protein?.[1]),
+    carbsTarget: toNum(carbs?.[1]),
+    fatTarget: toNum(fat?.[1]),
+  }
+}
+
 function pieSegments(stats: CoachStats) {
   const total = stats.proteinUsed + stats.carbsUsed + stats.fatUsed
   if (!total) return [] as Array<{color:string; dash:number; offset:number}>
@@ -595,6 +611,14 @@ export function CoachGeorgeLiveAssistant() {
   useEffect(() => { try { window.localStorage.setItem(STATS_KEY, JSON.stringify(stats)) } catch {} }, [stats])
 
   useEffect(() => {
+    if (!profile) return
+    if (!(profile.goal && profile.sex && profile.age && profile.heightCm && profile.weightKg && profile.activityLevel)) return
+    if (stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0) return
+    const targets = calculateTargets(profile)
+    setStats(prev => ({ ...normalizeStatsForToday(prev), ...targets }))
+  }, [profile, stats.caloriesTarget, stats.proteinTarget, stats.carbsTarget, stats.fatTarget])
+
+  useEffect(() => {
     if (!profileRef.current) {
       const inferred = inferCountryFromBrowser()
       if (inferred) {
@@ -626,6 +650,18 @@ export function CoachGeorgeLiveAssistant() {
     currentAssistantMessageIdRef.current = null
   }
 
+  function hydrateTargetsFromAssistant(text: string) {
+    const parsed = parseTargetsFromAssistantText(text)
+    if (!(parsed.caloriesTarget && parsed.proteinTarget && parsed.carbsTarget && parsed.fatTarget)) return
+    setStats(prev => ({
+      ...normalizeStatsForToday({ ...prev, timezone: prev.timezone || getBrowserTimeZone() }),
+      caloriesTarget: parsed.caloriesTarget || prev.caloriesTarget,
+      proteinTarget: parsed.proteinTarget || prev.proteinTarget,
+      carbsTarget: parsed.carbsTarget || prev.carbsTarget,
+      fatTarget: parsed.fatTarget || prev.fatTarget,
+    }))
+  }
+
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
     if (!currentAssistantMessageIdRef.current) {
@@ -639,6 +675,11 @@ export function CoachGeorgeLiveAssistant() {
       setMessages(prev => prev.map(m => m.id === targetId ? { ...m, content: currentAssistantTextRef.current } : m))
     }
     if (isFinal) {
+      const finalText = currentAssistantTextRef.current
+      hydrateTargetsFromAssistant(finalText)
+      if (pendingEstimateRef.current && /\blogg(?:ed|ing)\b|\bsaved\b/i.test(finalText)) {
+        applyMealLog(pendingEstimateRef.current, pendingMealTextRef.current || "your meal")
+      }
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
     }
@@ -650,6 +691,10 @@ export function CoachGeorgeLiveAssistant() {
     setProfile(nextProfile)
     setStats(nextStats)
     onboardingProfileRef.current = nextProfile
+    try {
+      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile))
+      window.localStorage.setItem(STATS_KEY, JSON.stringify(nextStats))
+    } catch {}
     const dc = dcRef.current
     if (dc?.readyState === "open") {
       dc.send(JSON.stringify({ type: "response.create", response: { instructions: `${profileContext(nextProfile, nextStats)}\nSetup is complete. Briefly confirm their calories, protein, carbs and fats are set, then ask what they want help with right now.` } }))
@@ -678,6 +723,7 @@ export function CoachGeorgeLiveAssistant() {
     }
 
     setStats(updated)
+    try { window.localStorage.setItem(STATS_KEY, JSON.stringify(updated)) } catch {}
     pushAssistantMessage(
       `Logged ${mealText}. That adds roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. ` +
       `You’ve got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`
@@ -820,7 +866,6 @@ export function CoachGeorgeLiveAssistant() {
       dc.addEventListener("open", () => {
         setConnectionState("connected")
         setStatusText("Listening…")
-        setStats(prev => markUsage(prev))
         window.setTimeout(() => {
           dc.send(JSON.stringify(buildFirstResponseEvent(profileRef.current, statsRef.current)))
           if (queuedPromptRef.current) {
