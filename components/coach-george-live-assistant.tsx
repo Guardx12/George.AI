@@ -28,17 +28,6 @@ type CoachProfile = {
   dislikes?: string[]
 }
 
-type LoggedMeal = {
-  id: string
-  name: string
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
-  countedAsMeal: boolean
-  createdAt: string
-}
-
 type CoachStats = {
   caloriesTarget: number
   proteinTarget: number
@@ -62,8 +51,6 @@ type StoredAppState = {
   pendingEstimate: MacroEstimate | null
   pendingMealText: string | null
   pendingTargets: CoachStats | null
-  loggedMeals: LoggedMeal[]
-  pendingDeleteMeal: LoggedMeal | null
 }
 
 type MacroEstimate = {
@@ -104,8 +91,6 @@ function buildStoredAppState(args: Partial<StoredAppState>): StoredAppState {
     pendingEstimate: args.pendingEstimate ?? null,
     pendingMealText: args.pendingMealText ?? null,
     pendingTargets: args.pendingTargets ? { ...DEFAULT_STATS, ...args.pendingTargets } : null,
-    loggedMeals: Array.isArray(args.loggedMeals) ? args.loggedMeals : [],
-    pendingDeleteMeal: args.pendingDeleteMeal ?? null,
   }
 }
 
@@ -167,17 +152,7 @@ const FOOD_LIBRARY: Array<{ keywords: string[]; calories: number; protein: numbe
   { keywords: ["steak"], calories: 400, protein: 50, carbs: 0, fat: 22, meal: true },
   { keywords: ["bread", "toast"], calories: 180, protein: 6, carbs: 34, fat: 2 },
   { keywords: ["bagel"], calories: 250, protein: 9, carbs: 49, fat: 1 },
-  { keywords: ["banana"], calories: 105, protein: 1, carbs: 27, fat: 0 },
-  { keywords: ["apple"], calories: 95, protein: 0, carbs: 25, fat: 0 },
-  { keywords: ["orange"], calories: 62, protein: 1, carbs: 15, fat: 0 },
-  { keywords: ["big mac"], calories: 550, protein: 26, carbs: 45, fat: 30, meal: true },
-  { keywords: ["fries", "chips"], calories: 365, protein: 4, carbs: 48, fat: 17, meal: true },
-  { keywords: ["pasta"], calories: 420, protein: 15, carbs: 70, fat: 8, meal: true },
-  { keywords: ["spaghetti bolognese", "bolognese"], calories: 620, protein: 32, carbs: 68, fat: 24, meal: true },
-  { keywords: ["curry"], calories: 680, protein: 28, carbs: 62, fat: 32, meal: true },
-  { keywords: ["tuna sandwich", "tuna mayo sandwich"], calories: 410, protein: 25, carbs: 38, fat: 16, meal: true },
 ]
-
 
 function uid() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
@@ -565,64 +540,6 @@ function estimateFromText(input: string): MacroEstimate | null {
 }
 
 
-
-function looksLikeFoodInput(input: string) {
-  const t = input.toLowerCase().trim()
-  if (!t) return false
-  if (/\b(delete|remove|take off|undo|cancel|keep)\b/.test(t)) return false
-  if (/\b(i had|i ate|i had a|i ate a|for breakfast|for lunch|for dinner|snack|meal|ate|had|drank|drink|had some|just had|just ate|i've had|ive had)\b/.test(t)) return true
-  if (/\b(big mac|burger|pizza|banana|apple|orange|sandwich|wrap|bagel|shake|protein|chicken|rice|salmon|steak|eggs|toast|oats|porridge|yogurt|yoghurt|pasta|curry|fries|chips|crisps|chocolate|biscuit|cookies?)\b/.test(t)) return true
-  return false
-}
-
-function cleanedMealLabel(input: string) {
-  return input
-    .replace(/^(?:please\s+)?(?:can you\s+)?(?:log|add|save)\s+/i, '')
-    .replace(/^(?:i\s*(?:have|had|ate|drank|'ve had|ve had)\s+)/i, '')
-    .replace(/^(?:for\s+(?:breakfast|lunch|dinner)\s+(?:i\s+had\s+)?)?/i, '')
-    .trim() || input.trim()
-}
-
-function fallbackEstimateFromText(input: string): MacroEstimate | null {
-  if (!looksLikeFoodInput(input)) return null
-  const t = input.toLowerCase()
-  const portionMultiplier = t.includes('large') || t.includes('big') ? 1.25 : t.includes('small') ? 0.8 : 1
-  const mealish = /\b(breakfast|lunch|dinner|meal|burger|pizza|pasta|curry|sandwich|wrap|bagel|big mac|takeaway)\b/.test(t)
-  const base = mealish
-    ? { calories: 520, protein: 28, carbs: 48, fat: 18, countedAsMeal: true }
-    : { calories: 180, protein: 6, carbs: 24, fat: 6, countedAsMeal: false }
-  return {
-    calories: Math.round(base.calories * portionMultiplier),
-    protein: Math.round(base.protein * portionMultiplier),
-    carbs: Math.round(base.carbs * portionMultiplier),
-    fat: Math.round(base.fat * portionMultiplier),
-    countedAsMeal: base.countedAsMeal,
-  }
-}
-
-function isDeleteIntent(input: string) {
-  return /\b(delete|remove|take off|take that off|undo)\b/i.test(input)
-}
-
-function normalizeMealName(input: string) {
-  return input.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-function resolveMealToDelete(input: string, loggedMeals: LoggedMeal[]) {
-  if (!loggedMeals.length) return null
-  const wanted = normalizeMealName(input)
-    .replace(/\b(delete|remove|take off|take that off|undo|please|can you|that|the|a|an)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!wanted) return loggedMeals[loggedMeals.length - 1]
-  for (let i = loggedMeals.length - 1; i >= 0; i -= 1) {
-    const meal = loggedMeals[i]
-    const mealName = normalizeMealName(meal.name)
-    if (mealName.includes(wanted) || wanted.includes(mealName)) return meal
-  }
-  return loggedMeals[loggedMeals.length - 1]
-}
-
 function parseTargetsFromAssistantText(input: string) {
   const t = input.toLowerCase()
   const cal = t.match(/([\d,]{3,5})\s*(?:kcal|calories?)/)
@@ -684,8 +601,6 @@ export function CoachGeorgeLiveAssistant() {
   const [pendingEstimate, setPendingEstimate] = useState<MacroEstimate | null>(null)
   const [pendingMealText, setPendingMealText] = useState<string | null>(null)
   const [pendingTargets, setPendingTargets] = useState<CoachStats | null>(null)
-  const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>([])
-  const [pendingDeleteMeal, setPendingDeleteMeal] = useState<LoggedMeal | null>(null)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -700,14 +615,10 @@ export function CoachGeorgeLiveAssistant() {
   const pendingEstimateRef = useRef<MacroEstimate | null>(null)
   const pendingMealTextRef = useRef<string | null>(null)
   const pendingTargetsRef = useRef<CoachStats | null>(null)
-  const loggedMealsRef = useRef<LoggedMeal[]>([])
-  const pendingDeleteMealRef = useRef<LoggedMeal | null>(null)
   const onboardingStepRef = useRef<string>("goal")
 
   useEffect(() => { statsRef.current = stats }, [stats])
   useEffect(() => { profileRef.current = profile }, [profile])
-  useEffect(() => { loggedMealsRef.current = loggedMeals }, [loggedMeals])
-  useEffect(() => { pendingDeleteMealRef.current = pendingDeleteMeal }, [pendingDeleteMeal])
   useEffect(() => { onboardingStepRef.current = getOnboardingStep(profile ?? EMPTY_PROFILE, stats) }, [profile, stats])
 
   const effectiveStats = useMemo(() => {
@@ -751,14 +662,6 @@ export function CoachGeorgeLiveAssistant() {
         setPendingTargets(stored.pendingTargets)
         pendingTargetsRef.current = stored.pendingTargets
       }
-      if (stored.loggedMeals?.length) {
-        setLoggedMeals(stored.loggedMeals)
-        loggedMealsRef.current = stored.loggedMeals
-      }
-      if (stored.pendingDeleteMeal) {
-        setPendingDeleteMeal(stored.pendingDeleteMeal)
-        pendingDeleteMealRef.current = stored.pendingDeleteMeal
-      }
       return
     }
     try {
@@ -796,10 +699,8 @@ export function CoachGeorgeLiveAssistant() {
       pendingEstimate,
       pendingMealText,
       pendingTargets,
-      loggedMeals,
-      pendingDeleteMeal,
     })
-  }, [messages, profile, stats, pendingEstimate, pendingMealText, pendingTargets, loggedMeals, pendingDeleteMeal])
+  }, [messages, profile, stats, pendingEstimate, pendingMealText, pendingTargets])
 
   useEffect(() => {
     if (!profile) return
@@ -937,24 +838,11 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
       pendingEstimate: null,
       pendingMealText: null,
       pendingTargets: pendingTargetsRef.current,
-      loggedMeals: loggedMealsRef.current,
-      pendingDeleteMeal: pendingDeleteMealRef.current,
     })
   }
 
   function applyMealLog(estimate: MacroEstimate, mealText: string) {
     clearPendingEstimate()
-
-    const entry: LoggedMeal = {
-      id: uid(),
-      name: mealText,
-      calories: estimate.calories,
-      protein: estimate.protein,
-      carbs: estimate.carbs,
-      fat: estimate.fat,
-      countedAsMeal: estimate.countedAsMeal,
-      createdAt: new Date().toISOString(),
-    }
 
     const base = markUsage(normalizeStatsForToday(statsRef.current))
     const updated: CoachStats = {
@@ -965,39 +853,13 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
       fatUsed: base.fatUsed + estimate.fat,
       mealsToday: base.mealsToday + (estimate.countedAsMeal ? 1 : 0),
     }
-    const nextLoggedMeals = [...loggedMealsRef.current, entry]
 
     setStats(updated)
-    setLoggedMeals(nextLoggedMeals)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: null, pendingMealText: null, pendingTargets: pendingTargetsRef.current, loggedMeals: nextLoggedMeals, pendingDeleteMeal: pendingDeleteMealRef.current })
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: null, pendingMealText: null, pendingTargets: pendingTargetsRef.current })
     pushAssistantMessage(
       `Logged ${mealText}. That adds roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. ` +
       `You’ve got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`
     )
-  }
-
-  function clearPendingDeleteMeal() {
-    pendingDeleteMealRef.current = null
-    setPendingDeleteMeal(null)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: statsRef.current, pendingEstimate: pendingEstimateRef.current, pendingMealText: pendingMealTextRef.current, pendingTargets: pendingTargetsRef.current, loggedMeals: loggedMealsRef.current, pendingDeleteMeal: null })
-  }
-
-  function confirmDeleteMeal(meal: LoggedMeal) {
-    const nextLoggedMeals = loggedMealsRef.current.filter(item => item.id !== meal.id)
-    const base = markUsage(normalizeStatsForToday(statsRef.current))
-    const updated: CoachStats = {
-      ...base,
-      caloriesUsed: Math.max(0, base.caloriesUsed - meal.calories),
-      proteinUsed: Math.max(0, base.proteinUsed - meal.protein),
-      carbsUsed: Math.max(0, base.carbsUsed - meal.carbs),
-      fatUsed: Math.max(0, base.fatUsed - meal.fat),
-      mealsToday: Math.max(0, base.mealsToday - (meal.countedAsMeal ? 1 : 0)),
-    }
-    setLoggedMeals(nextLoggedMeals)
-    setStats(updated)
-    clearPendingDeleteMeal()
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: pendingEstimateRef.current, pendingMealText: pendingMealTextRef.current, pendingTargets: pendingTargetsRef.current, loggedMeals: nextLoggedMeals, pendingDeleteMeal: null })
-    pushAssistantMessage(`Deleted ${meal.name}. You’ve now got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`)
   }
 
   function addUserTranscript(text: string) {
@@ -1032,24 +894,12 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
     const explicitLog = isLogIntent(cleaned)
     const pending = pendingEstimateRef.current
 
-    if (isDeleteIntent(cleaned)) {
-      const mealToDelete = resolveMealToDelete(cleaned, loggedMealsRef.current)
-      if (mealToDelete) {
-        pendingDeleteMealRef.current = mealToDelete
-        setPendingDeleteMeal(mealToDelete)
-        pushAssistantMessage(`I found ${mealToDelete.name}. Tap Delete to remove it, or Keep to leave it as it is.`)
-      } else {
-        pushAssistantMessage(`I can’t see a logged meal to remove yet.`)
-      }
-      return
-    }
-
     if (pending && isConfirmIntent(cleaned) && !estimateFromText(cleaned)) {
       applyMealLog(pending, pendingMealTextRef.current || "their last meal")
       return
     }
 
-    const estimate = estimateFromText(cleaned) || fallbackEstimateFromText(cleaned)
+    const estimate = estimateFromText(cleaned)
     if (estimate) {
       if (explicitLog) {
         applyMealLog(estimate, cleaned)
@@ -1264,21 +1114,6 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
           </div>
         ) : null}
 
-
-        {pendingDeleteMeal ? (
-          <div className="mt-4 rounded-[1.4rem] border border-rose-300/20 bg-[linear-gradient(180deg,rgba(38,10,16,.96),rgba(20,6,10,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-rose-300/70">Remove logged food</div>
-              <div className="mt-2 text-base font-medium text-white">{pendingDeleteMeal.name}</div>
-              <div className="mt-2 text-sm text-slate-300">{pendingDeleteMeal.calories} kcal • {pendingDeleteMeal.protein}g protein • {pendingDeleteMeal.carbs}g carbs • {pendingDeleteMeal.fat}g fat</div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <button type="button" onClick={() => confirmDeleteMeal(pendingDeleteMeal)} className="rounded-full border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-rose-100 transition hover:bg-rose-400/15">Delete</button>
-                <button type="button" onClick={clearPendingDeleteMeal} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep</button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {pendingEstimate ? (
           <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
             <div className="text-center">
@@ -1287,7 +1122,7 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
               <div className="mt-2 text-sm text-slate-300">{pendingEstimate.calories} kcal • {pendingEstimate.protein}g protein • {pendingEstimate.carbs}g carbs • {pendingEstimate.fat}g fat</div>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button type="button" onClick={() => applyMealLog(pendingEstimate, pendingMealText || "your meal")} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Log meal</button>
-                <button type="button" onClick={() => handleQuickAction("log_meal")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 transition hover:bg-white/10">Edit</button>
+                <button type="button" onClick={() => handleQuickAction("log_meal")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 transition hover:bg-white/10">Edit / recalc</button>
                 <button type="button" onClick={clearPendingEstimate} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Cancel</button>
               </div>
             </div>
