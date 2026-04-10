@@ -50,6 +50,7 @@ type StoredAppState = {
   stats: CoachStats
   pendingEstimate: MacroEstimate | null
   pendingMealText: string | null
+  pendingTargets: CoachStats | null
 }
 
 type MacroEstimate = {
@@ -89,6 +90,7 @@ function buildStoredAppState(args: Partial<StoredAppState>): StoredAppState {
     stats: { ...DEFAULT_STATS, ...(args.stats || {}) },
     pendingEstimate: args.pendingEstimate ?? null,
     pendingMealText: args.pendingMealText ?? null,
+    pendingTargets: args.pendingTargets ? { ...DEFAULT_STATS, ...args.pendingTargets } : null,
   }
 }
 
@@ -123,7 +125,7 @@ function saveStoredAppState(args: Partial<StoredAppState>) {
 }
 
 const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; accent: string; icon: any }> = [
-  { key: "log_meal", label: "Log meal", accent: "from-sky-400/30 to-sky-600/5", icon: UtensilsCrossed },
+  { key: "log_meal", label: "Build me a plan", accent: "from-sky-400/30 to-sky-600/5", icon: UtensilsCrossed },
   { key: "off_track", label: "Went off track", accent: "from-amber-300/30 to-orange-500/5", icon: Flame },
   { key: "what_eat", label: "What should I eat?", accent: "from-emerald-300/30 to-emerald-500/5", icon: Salad },
   { key: "workout", label: "Give me a workout", accent: "from-cyan-300/30 to-blue-500/5", icon: Dumbbell },
@@ -598,6 +600,7 @@ export function CoachGeorgeLiveAssistant() {
   const [profile, setProfile] = useState<CoachProfile | null>(null)
   const [pendingEstimate, setPendingEstimate] = useState<MacroEstimate | null>(null)
   const [pendingMealText, setPendingMealText] = useState<string | null>(null)
+  const [pendingTargets, setPendingTargets] = useState<CoachStats | null>(null)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -611,6 +614,7 @@ export function CoachGeorgeLiveAssistant() {
   const profileRef = useRef<CoachProfile | null>(null)
   const pendingEstimateRef = useRef<MacroEstimate | null>(null)
   const pendingMealTextRef = useRef<string | null>(null)
+  const pendingTargetsRef = useRef<CoachStats | null>(null)
   const onboardingStepRef = useRef<string>("goal")
 
   useEffect(() => { statsRef.current = stats }, [stats])
@@ -654,6 +658,10 @@ export function CoachGeorgeLiveAssistant() {
         setPendingMealText(stored.pendingMealText)
         pendingMealTextRef.current = stored.pendingMealText
       }
+      if (stored.pendingTargets) {
+        setPendingTargets(stored.pendingTargets)
+        pendingTargetsRef.current = stored.pendingTargets
+      }
       return
     }
     try {
@@ -690,17 +698,18 @@ export function CoachGeorgeLiveAssistant() {
       stats,
       pendingEstimate,
       pendingMealText,
+      pendingTargets,
     })
-  }, [messages, profile, stats, pendingEstimate, pendingMealText])
+  }, [messages, profile, stats, pendingEstimate, pendingMealText, pendingTargets])
 
   useEffect(() => {
     if (!profile) return
     if (!(profile.goal && profile.sex && profile.age && profile.heightCm && profile.weightKg && profile.activityLevel)) return
     if (stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0) return
+    if (pendingTargetsRef.current) return
     const targets = calculateTargets(profile)
-    const updated = { ...normalizeStatsForToday(stats), ...targets }
-    setStats(updated)
-    saveStoredAppState({ profile: profile ?? EMPTY_PROFILE, stats: updated })
+    const draft = { ...normalizeStatsForToday(stats), ...targets }
+    showPendingTargets(draft)
   }, [profile, stats.caloriesTarget, stats.proteinTarget, stats.carbsTarget, stats.fatTarget])
 
   useEffect(() => {
@@ -735,18 +744,43 @@ export function CoachGeorgeLiveAssistant() {
     currentAssistantMessageIdRef.current = null
   }
 
+  function showPendingTargets(targets: CoachStats) {
+    pendingTargetsRef.current = targets
+    setPendingTargets(targets)
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: statsRef.current, pendingTargets: targets })
+  }
+
+  function clearPendingTargets() {
+    pendingTargetsRef.current = null
+    setPendingTargets(null)
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: statsRef.current, pendingTargets: null })
+  }
+
+  function applyTargets(nextTargets: CoachStats) {
+    const updated = markUsage(normalizeStatsForToday({
+      ...statsRef.current,
+      caloriesTarget: nextTargets.caloriesTarget,
+      proteinTarget: nextTargets.proteinTarget,
+      carbsTarget: nextTargets.carbsTarget,
+      fatTarget: nextTargets.fatTarget,
+    }))
+    setStats(updated)
+    clearPendingTargets()
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingTargets: null })
+    pushAssistantMessage(`Targets saved. You’re set for ${updated.caloriesTarget} calories, ${updated.proteinTarget}g protein, ${updated.carbsTarget}g carbs and ${updated.fatTarget}g fat today.`)
+  }
+
   function hydrateTargetsFromAssistant(text: string) {
     const parsed = parseTargetsFromAssistantText(text)
     if (!(parsed.caloriesTarget && parsed.proteinTarget && parsed.carbsTarget && parsed.fatTarget)) return
-    const updated = {
+    const nextTargets = {
       ...normalizeStatsForToday({ ...statsRef.current, timezone: statsRef.current.timezone || getBrowserTimeZone() }),
       caloriesTarget: parsed.caloriesTarget || statsRef.current.caloriesTarget,
       proteinTarget: parsed.proteinTarget || statsRef.current.proteinTarget,
       carbsTarget: parsed.carbsTarget || statsRef.current.carbsTarget,
       fatTarget: parsed.fatTarget || statsRef.current.fatTarget,
     }
-    setStats(updated)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated })
+    showPendingTargets(nextTargets)
   }
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
@@ -764,6 +798,9 @@ export function CoachGeorgeLiveAssistant() {
     if (isFinal) {
       const finalText = currentAssistantTextRef.current
       hydrateTargetsFromAssistant(finalText)
+      if (pendingEstimateRef.current && /\blogg(?:ed|ing)\b|\bsaved\b/i.test(finalText)) {
+        applyMealLog(pendingEstimateRef.current, pendingMealTextRef.current || "your meal")
+      }
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
     }
@@ -771,14 +808,17 @@ export function CoachGeorgeLiveAssistant() {
 
   function persistCompletedProfile(nextProfile: CoachProfile) {
     const targets = calculateTargets(nextProfile)
-    const nextStats = markUsage({ ...normalizeStatsForToday(statsRef.current), ...targets, caloriesUsed: 0, proteinUsed: 0, carbsUsed: 0, fatUsed: 0, mealsToday: 0 })
+    const targetDraft = markUsage({ ...normalizeStatsForToday(statsRef.current), ...targets, caloriesUsed: 0, proteinUsed: 0, carbsUsed: 0, fatUsed: 0, mealsToday: 0 })
     setProfile(nextProfile)
-    setStats(nextStats)
     onboardingProfileRef.current = nextProfile
-    saveStoredAppState({ profile: nextProfile, stats: nextStats, messages: messages.slice(-20) })
+    showPendingTargets(targetDraft)
+    saveStoredAppState({ profile: nextProfile, stats: statsRef.current, messages: messages.slice(-20), pendingTargets: targetDraft })
     const dc = dcRef.current
     if (dc?.readyState === "open") {
-      dc.send(JSON.stringify({ type: "response.create", response: { instructions: `${profileContext(nextProfile, nextStats)}\nSetup is complete. Briefly confirm their calories, protein, carbs and fats are set, then ask what they want help with right now.` } }))
+      dc.send(JSON.stringify({ type: "response.create", response: { instructions: `${profileContext(nextProfile, statsRef.current)}
+Setup is complete. Briefly confirm their daily calories, protein, carbs and fats, tell them to tap Save targets below to lock them in, then ask what they want help with right now.` } }))
+    } else {
+      pushAssistantMessage(`I’ve worked your targets out. Tap Save targets below to lock in ${targetDraft.caloriesTarget} calories, ${targetDraft.proteinTarget}g protein, ${targetDraft.carbsTarget}g carbs and ${targetDraft.fatTarget}g fat for today.`)
     }
   }
 
@@ -787,11 +827,22 @@ export function CoachGeorgeLiveAssistant() {
     setMessages(prev => [...prev, makeMessage("assistant", content)])
   }
 
-  function applyMealLog(estimate: MacroEstimate, mealText: string) {
+  function clearPendingEstimate() {
     pendingEstimateRef.current = null
     pendingMealTextRef.current = null
     setPendingEstimate(null)
     setPendingMealText(null)
+    saveStoredAppState({
+      profile: profileRef.current ?? EMPTY_PROFILE,
+      stats: statsRef.current,
+      pendingEstimate: null,
+      pendingMealText: null,
+      pendingTargets: pendingTargetsRef.current,
+    })
+  }
+
+  function applyMealLog(estimate: MacroEstimate, mealText: string) {
+    clearPendingEstimate()
 
     const base = markUsage(normalizeStatsForToday(statsRef.current))
     const updated: CoachStats = {
@@ -804,7 +855,7 @@ export function CoachGeorgeLiveAssistant() {
     }
 
     setStats(updated)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: null, pendingMealText: null })
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: null, pendingMealText: null, pendingTargets: pendingTargetsRef.current })
     pushAssistantMessage(
       `Logged ${mealText}. That adds roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. ` +
       `You’ve got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`
@@ -850,7 +901,16 @@ export function CoachGeorgeLiveAssistant() {
 
     const estimate = estimateFromText(cleaned)
     if (estimate) {
-      applyMealLog(estimate, cleaned)
+      if (explicitLog) {
+        applyMealLog(estimate, cleaned)
+        return
+      }
+
+      pendingEstimateRef.current = estimate
+      pendingMealTextRef.current = cleaned
+      setPendingEstimate(estimate)
+      setPendingMealText(cleaned)
+      pushAssistantMessage(`That comes out to roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Would you like me to log that? You can say yes or tap Log meal below.`)
       return
     }
 
@@ -1040,6 +1100,35 @@ export function CoachGeorgeLiveAssistant() {
 
         <p className="mt-3 text-center text-sm leading-6 text-slate-300">{latestAssistantMessage}</p>
 
+        {pendingTargets ? (
+          <div className="mt-4 rounded-[1.4rem] border border-emerald-300/20 bg-[linear-gradient(180deg,rgba(7,22,20,.96),rgba(3,10,12,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-emerald-300/70">Targets ready</div>
+              <div className="mt-2 text-base font-medium text-white">Your daily plan</div>
+              <div className="mt-2 text-sm text-slate-300">{pendingTargets.caloriesTarget} kcal • {pendingTargets.proteinTarget}g protein • {pendingTargets.carbsTarget}g carbs • {pendingTargets.fatTarget}g fat</div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button type="button" onClick={() => applyTargets(pendingTargets)} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100 transition hover:bg-emerald-400/15">Save targets</button>
+                <button type="button" onClick={clearPendingTargets} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Cancel</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingEstimate ? (
+          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Meal ready to log</div>
+              <div className="mt-2 text-base font-medium text-white">{pendingMealText || "Meal estimate"}</div>
+              <div className="mt-2 text-sm text-slate-300">{pendingEstimate.calories} kcal • {pendingEstimate.protein}g protein • {pendingEstimate.carbs}g carbs • {pendingEstimate.fat}g fat</div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button type="button" onClick={() => applyMealLog(pendingEstimate, pendingMealText || "your meal")} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Log meal</button>
+                <button type="button" onClick={() => handleQuickAction("log_meal")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 transition hover:bg-white/10">Edit / recalc</button>
+                <button type="button" onClick={clearPendingEstimate} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Cancel</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 grid grid-cols-2 gap-3">
           {[
             { label: "Calories left", value: effectiveStats.caloriesTarget > 0 ? caloriesLeft(effectiveStats) : "--" },
@@ -1095,19 +1184,6 @@ export function CoachGeorgeLiveAssistant() {
           </div>
         </div>
 
-
-        {pendingEstimate ? (
-          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Ready to log</div>
-                <div className="mt-2 text-base font-medium text-white">{pendingMealText || "Meal estimate"}</div>
-                <div className="mt-2 text-sm text-slate-300">{pendingEstimate.calories} kcal • {pendingEstimate.protein}g protein • {pendingEstimate.carbs}g carbs • {pendingEstimate.fat}g fat</div>
-              </div>
-              <button type="button" onClick={() => applyMealLog(pendingEstimate, pendingMealText || "your meal")} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Log meal</button>
-            </div>
-          </div>
-        ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           {QUICK_ACTIONS.map((action) => {
