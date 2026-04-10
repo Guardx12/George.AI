@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  Activity,
   BarChart3,
   ChevronRight,
   Dumbbell,
@@ -10,6 +9,7 @@ import {
   Loader2,
   PhoneOff,
   Salad,
+  Sparkles,
   UtensilsCrossed,
 } from "lucide-react"
 
@@ -20,11 +20,12 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
-
 type ActivityLevel = "sedentary" | "lightly active" | "moderately active" | "very active"
 type Goal = "lose fat" | "maintain" | "gain muscle"
 type Sex = "male" | "female"
 type Country = "UK" | "US"
+type QuickActionKey = "log_meal" | "off_track" | "what_eat" | "workout"
+type OnboardingStep = "goal" | "sex" | "age" | "height" | "weight" | "activity" | "country" | "done"
 
 type CoachProfile = {
   country: Country
@@ -46,15 +47,23 @@ type CoachStats = {
   lastActiveDate: string | null
 }
 
-type QuickActionKey = "log_meal" | "off_track" | "what_eat" | "workout"
-
 const STORAGE_KEY = "coach-george-v3-messages"
-const PROFILE_KEY = "coach-george-profile-v1"
+const PROFILE_KEY = "coach-george-profile-v2"
 const STATS_KEY = "coach-george-stats-v5"
 
+const DEFAULT_PROFILE: CoachProfile = {
+  country: "UK",
+  sex: "male",
+  age: 30,
+  heightCm: 180,
+  weightKg: 90,
+  activityLevel: "moderately active",
+  goal: "lose fat",
+}
+
 const DEFAULT_STATS: CoachStats = {
-  caloriesTarget: 2200,
-  proteinTarget: 180,
+  caloriesTarget: 0,
+  proteinTarget: 0,
   caloriesUsed: 0,
   proteinUsed: 0,
   mealsToday: 0,
@@ -62,30 +71,19 @@ const DEFAULT_STATS: CoachStats = {
   lastActiveDate: null,
 }
 
-const INITIAL_MESSAGES: LiveMessage[] = [
-  { id: "intro", role: "system", content: "Tap and talk. I’ll guide you from there." },
+const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; icon: any; accent: string }> = [
+  { key: "log_meal", label: "Log meal", icon: UtensilsCrossed, accent: "from-sky-400/25 to-sky-500/5" },
+  { key: "off_track", label: "Went off track", icon: Flame, accent: "from-amber-400/25 to-amber-500/5" },
+  { key: "what_eat", label: "What should I eat?", icon: Salad, accent: "from-emerald-400/25 to-emerald-500/5" },
+  { key: "workout", label: "Give me a workout", icon: Dumbbell, accent: "from-cyan-400/25 to-cyan-500/5" },
 ]
 
-const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; icon: any }> = [
-  { key: "log_meal", label: "Log meal", icon: UtensilsCrossed },
-  { key: "off_track", label: "Went off track", icon: Flame },
-  { key: "what_eat", label: "What should I eat?", icon: Salad },
-  { key: "workout", label: "Give me a workout", icon: Dumbbell },
-]
-
-function makeMessage(role: LiveMessage["role"], content: string) {
+function makeMessage(role: LiveMessage["role"], content: string): LiveMessage {
   return {
-    id:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${role}-${Date.now()}-${Math.random()}`,
+    id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${role}-${Date.now()}-${Math.random()}`,
     role,
     content,
   }
-}
-
-function trimMessagesForStorage(messages: LiveMessage[]) {
-  return messages.slice(-24)
 }
 
 function todayIso() {
@@ -101,10 +99,29 @@ function yesterdayIso() {
 function markUsage(stats: CoachStats): CoachStats {
   const today = todayIso()
   if (stats.lastActiveDate === today) return stats
-  if (stats.lastActiveDate === yesterdayIso()) {
-    return { ...stats, streak: stats.streak + 1, lastActiveDate: today }
-  }
+  if (stats.lastActiveDate === yesterdayIso()) return { ...stats, streak: stats.streak + 1, lastActiveDate: today }
   return { ...stats, streak: 1, lastActiveDate: today }
+}
+
+function calculateTargets(profile: CoachProfile) {
+  const baseBmr =
+    10 * profile.weightKg + 6.25 * profile.heightCm - 5 * profile.age + (profile.sex === "male" ? 5 : -161)
+
+  const multiplierMap: Record<ActivityLevel, number> = {
+    sedentary: 1.2,
+    "lightly active": 1.375,
+    "moderately active": 1.55,
+    "very active": 1.725,
+  }
+
+  const maintenance = baseBmr * multiplierMap[profile.activityLevel]
+  const calories = profile.goal === "lose fat" ? maintenance - 400 : profile.goal === "gain muscle" ? maintenance + 200 : maintenance
+  const proteinMultiplier = profile.goal === "maintain" ? 1.8 : 2
+
+  return {
+    caloriesTarget: Math.round(calories / 50) * 50,
+    proteinTarget: Math.round((profile.weightKg * proteinMultiplier) / 5) * 5,
+  }
 }
 
 function caloriesLeft(stats: CoachStats) {
@@ -115,34 +132,175 @@ function proteinLeft(stats: CoachStats) {
   return Math.max(0, stats.proteinTarget - stats.proteinUsed)
 }
 
+function isProfileComplete(profile: CoachProfile | null, stats: CoachStats) {
+  return Boolean(
+    profile &&
+      profile.age > 0 &&
+      profile.heightCm > 0 &&
+      profile.weightKg > 0 &&
+      profile.goal &&
+      profile.sex &&
+      profile.activityLevel &&
+      profile.country &&
+      stats.caloriesTarget > 0 &&
+      stats.proteinTarget > 0,
+  )
+}
+
 function profileContext(profile: CoachProfile | null, stats: CoachStats) {
-  if (!profile) {
-    return `This is a first-time user with no saved profile yet. Start by onboarding them conversationally. Ask for goal, sex, age, height, weight, activity level, and country. Do it naturally, one step at a time. Once collected, explain that you will set calories and protein targets. Do not act like a website assistant.`
+  if (!isProfileComplete(profile, stats)) {
+    return `This user is not set up yet. You must onboard them first. Ask one question at a time and collect: goal, sex, age, height, weight, activity level, then country. Once complete, explain that their calories and protein are set and you’ll guide the rest. Do not skip setup.`
   }
 
   return `Saved profile:
-- country: ${profile.country}
-- sex: ${profile.sex}
-- age: ${profile.age}
-- height: ${profile.heightCm} cm
-- weight: ${profile.weightKg} kg
-- activity: ${profile.activityLevel}
-- goal: ${profile.goal}
+- country: ${profile!.country}
+- sex: ${profile!.sex}
+- age: ${profile!.age}
+- height: ${profile!.heightCm} cm
+- weight: ${profile!.weightKg} kg
+- activity: ${profile!.activityLevel}
+- goal: ${profile!.goal}
 - calorie target: ${stats.caloriesTarget}
 - protein target: ${stats.proteinTarget}
 - calories left right now: ${caloriesLeft(stats)}
 - protein left right now: ${proteinLeft(stats)}
 - meals logged today: ${stats.mealsToday}
 - streak: ${stats.streak}
-Use this context automatically. Do not ask for it again unless the user says it changed.`
+Use this automatically. Do not ask for stats again unless the user says they’ve changed.`
+}
+
+function parseSex(input: string): Sex | null {
+  const t = input.toLowerCase()
+  if (/(^|\b)(male|man|guy|bloke)(\b|$)/.test(t)) return "male"
+  if (/(^|\b)(female|woman|girl|lady)(\b|$)/.test(t)) return "female"
+  return null
+}
+
+function parseGoal(input: string): Goal | null {
+  const t = input.toLowerCase()
+  if (t.includes("lose") || t.includes("fat loss") || t.includes("cut") || t.includes("lean down")) return "lose fat"
+  if (t.includes("gain") || t.includes("muscle") || t.includes("bulk")) return "gain muscle"
+  if (t.includes("maintain") || t.includes("maintenance")) return "maintain"
+  return null
+}
+
+function parseAge(input: string) {
+  const m = input.match(/\b(1[6-9]|[2-8][0-9]|9[0-9])\b/)
+  return m ? Number(m[1]) : null
+}
+
+function parseHeightCm(input: string) {
+  const t = input.toLowerCase()
+  const cm = t.match(/(\d{3})\s*cm/)
+  if (cm) return Number(cm[1])
+  const plain = t.match(/\b(1[4-9]\d|2[0-2]\d)\b/)
+  if (plain) return Number(plain[1])
+  const ftIn = t.match(/(\d)\s*(?:ft|foot|feet|')\s*(\d{1,2})?/) || t.match(/(\d)\s*(?:foot|feet)\s*(\d{1,2})/)
+  if (ftIn) {
+    const feet = Number(ftIn[1])
+    const inches = Number(ftIn[2] || 0)
+    return Math.round(feet * 30.48 + inches * 2.54)
+  }
+  return null
+}
+
+function parseWeightKg(input: string) {
+  const t = input.toLowerCase()
+  const kg = t.match(/(\d{2,3}(?:\.\d+)?)\s*kg/)
+  if (kg) return Math.round(Number(kg[1]))
+  const lbs = t.match(/(\d{2,3})\s*(?:lb|lbs|pounds?)/)
+  if (lbs) return Math.round(Number(lbs[1]) * 0.453592)
+  const stone = t.match(/(\d{1,2})\s*(?:st|stone)\s*(\d{1,2})?/) 
+  if (stone) return Math.round(Number(stone[1]) * 6.35029 + Number(stone[2] || 0) * 0.453592)
+  const plain = t.match(/\b(4\d|5\d|6\d|7\d|8\d|9\d|1\d\d|2[0-2]\d)\b/)
+  return plain ? Number(plain[1]) : null
+}
+
+function parseActivity(input: string): ActivityLevel | null {
+  const t = input.toLowerCase()
+  if (t.includes("sedentary") || t.includes("desk") || t.includes("not very active")) return "sedentary"
+  if (t.includes("light") || t.includes("few walks") || t.includes("lightly active")) return "lightly active"
+  if (t.includes("moderate") || t.includes("moderately active") || t.includes("3 times") || t.includes("4 times")) return "moderately active"
+  if (t.includes("very active") || t.includes("active") || t.includes("train a lot") || t.includes("5 times") || t.includes("6 times")) return "very active"
+  return null
+}
+
+function parseCountry(input: string): Country | null {
+  const t = input.toLowerCase()
+  if (t.includes("uk") || t.includes("united kingdom") || t.includes("england") || t.includes("britain")) return "UK"
+  if (t.includes("us") || t.includes("usa") || t.includes("america") || t.includes("united states")) return "US"
+  return null
+}
+
+function getOnboardingStep(profile: CoachProfile | null, stats: CoachStats): OnboardingStep {
+  if (!profile?.goal) return "goal"
+  if (!profile?.sex) return "sex"
+  if (!profile?.age) return "age"
+  if (!profile?.heightCm) return "height"
+  if (!profile?.weightKg) return "weight"
+  if (!profile?.activityLevel) return "activity"
+  if (!profile?.country) return "country"
+  if (!(stats.caloriesTarget > 0 && stats.proteinTarget > 0)) return "country"
+  return "done"
+}
+
+function applyOnboardingAnswer(step: OnboardingStep, input: string, prevProfile: CoachProfile): { profile: CoachProfile; complete: boolean } {
+  const next = { ...prevProfile }
+  if (step === "goal") {
+    const value = parseGoal(input)
+    if (value) next.goal = value
+  } else if (step === "sex") {
+    const value = parseSex(input)
+    if (value) next.sex = value
+  } else if (step === "age") {
+    const value = parseAge(input)
+    if (value) next.age = value
+  } else if (step === "height") {
+    const value = parseHeightCm(input)
+    if (value) next.heightCm = value
+  } else if (step === "weight") {
+    const value = parseWeightKg(input)
+    if (value) next.weightKg = value
+  } else if (step === "activity") {
+    const value = parseActivity(input)
+    if (value) next.activityLevel = value
+  } else if (step === "country") {
+    const value = parseCountry(input)
+    if (value) next.country = value
+  }
+  const complete = Boolean(next.goal && next.sex && next.age && next.heightCm && next.weightKg && next.activityLevel && next.country)
+  return { profile: next, complete }
+}
+
+function nextOnboardingInstruction(step: OnboardingStep) {
+  switch (step) {
+    case "goal":
+      return "Start setup. Ask only this: what’s your main goal right now — lose fat, maintain, or gain muscle?"
+    case "sex":
+      return "Good. Now ask only this: are you male or female?"
+    case "age":
+      return "Now ask only this: how old are you?"
+    case "height":
+      return "Now ask only this: what’s your height? Accept cm or feet and inches."
+    case "weight":
+      return "Now ask only this: what’s your current weight? Accept kg, lb, or stone."
+    case "activity":
+      return "Now ask only this: how active are you day to day — sedentary, lightly active, moderately active, or very active?"
+    case "country":
+      return "Now ask only this: are you in the UK or the US?"
+    case "done":
+      return "Setup is complete. Briefly confirm that their calories and protein are set, then ask what they want help with right now."
+  }
 }
 
 function buildFirstResponseEvent(profile: CoachProfile | null, stats: CoachStats) {
+  const complete = isProfileComplete(profile, stats)
+  const instructions = complete
+    ? `${profileContext(profile, stats)}\n\nGreet them like a returning user in one short line. Then ask what they want help with right now.`
+    : `${profileContext(profile, stats)}\n\n${nextOnboardingInstruction(getOnboardingStep(profile ?? DEFAULT_PROFILE, stats))}`
   return {
     type: "response.create",
-    response: {
-      instructions: `${profileContext(profile, stats)}\n\nIntroduce yourself as Coach George in warm, direct, natural English. Keep it short. If this is a first-time user, say you'll get them set up properly first and begin the conversational onboarding flow. If they already have a saved profile, greet them like a returning user and ask what they want help with right now. Do not mention websites, businesses, customers, visitors, or being a digital member of staff.`,
-    },
+    response: { instructions },
   }
 }
 
@@ -150,29 +308,29 @@ function buildQuickPrompt(actionKey: QuickActionKey, profile: CoachProfile | nul
   const context = profileContext(profile, stats)
   switch (actionKey) {
     case "log_meal":
-      return `${context}\nThe user tapped Log meal. Start meal logging mode. Ask what they had before estimating anything. If details are vague, ask one short follow-up for portion or size. Then estimate calories and protein consistently and say what is left.`
+      return `${context}\nThe user tapped Log meal. Ask what they had before estimating anything. Ask one short follow-up if portion is unclear. Then estimate calories and protein consistently, update what is left, and tell them the next best move.`
     case "off_track":
-      return `${context}\nThe user tapped Went off track. Reset them calmly but firmly. Ask what actually happened. Do not shame them. Once you know enough, tell them the next best move for today.`
+      return `${context}\nThe user tapped Went off track. Reset them calmly but firmly. Ask what actually happened. Do not shame them. Then tell them the next best move for today.`
     case "what_eat":
-      return `${context}\nThe user tapped What should I eat. You must manage the day intelligently. Consider how many meals are likely left. Never use all remaining calories in one meal unless it is clearly the last meal of the day. Give specific portion sizes, approximate calories, and protein for the next meal.`
+      return `${context}\nThe user tapped What should I eat. Consider how many meals are likely left today before recommending anything. Give specific portion sizes, rough calories, and rough protein for the next meal. Do not be vague.`
     case "workout":
-      return `${context}\nThe user tapped Give me a workout. Ask only what you need, like home or gym and time available, then give a simple structured workout.`
+      return `${context}\nThe user tapped Give me a workout. Ask only what you need, then give a simple structured workout they can do now.`
   }
 }
 
 function buildCoachGuidance(profile: CoachProfile | null, stats: CoachStats) {
-  if (!profile) return "First time here? Tap to talk and George will set everything up with you."
+  if (!isProfileComplete(profile, stats)) return "First time here? Tap to talk and George will get you set up properly."
   const cals = caloriesLeft(stats)
   const protein = proteinLeft(stats)
-  if (stats.mealsToday === 0) return `You’re set for ${stats.caloriesTarget} kcal and ${stats.proteinTarget}g protein today. Start by logging your first meal.`
-  if (stats.mealsToday === 1) return `Good start. You’ve got ${cals} kcal and ${protein}g protein left. Keep the next meal controlled.`
-  return `You’ve got ${cals} kcal and ${protein}g protein left. Keep the rest of the day tight.`
+  if (stats.mealsToday === 0) return `You’re set for ${stats.caloriesTarget} kcal and ${stats.proteinTarget}g protein today.`
+  if (stats.mealsToday === 1) return `You’ve got ${cals} kcal and ${protein}g protein left. Keep the next meal controlled.`
+  return `${cals} kcal and ${protein}g protein left. Keep the rest of the day tight.`
 }
 
 export function CoachGeorgeLiveAssistant() {
-  const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
+  const [messages, setMessages] = useState<LiveMessage[]>([])
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
-  const [statusText, setStatusText] = useState("Tap to talk")
+  const [statusText, setStatusText] = useState("Ready when you are")
   const [isModelSpeaking, setIsModelSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<CoachStats>(DEFAULT_STATS)
@@ -185,23 +343,20 @@ export function CoachGeorgeLiveAssistant() {
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const queuedPromptRef = useRef<string | null>(null)
+  const onboardingProfileRef = useRef<CoachProfile>(DEFAULT_PROFILE)
 
+  const profileReady = isProfileComplete(profile, stats)
   const latestAssistantMessage = useMemo(() => {
     const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant")
-    if (latestAssistant) return latestAssistant.content
-    return buildCoachGuidance(profile, stats)
+    return latestAssistant?.content || buildCoachGuidance(profile, stats)
   }, [messages, profile, stats])
-
-  const canStart = connectionState !== "connecting"
 
   useEffect(() => {
     try {
       const rawMessages = window.localStorage.getItem(STORAGE_KEY)
       if (rawMessages) {
         const parsed = JSON.parse(rawMessages)
-        if (Array.isArray(parsed?.messages) && parsed.messages.length > 0) {
-          setMessages(parsed.messages)
-        }
+        if (Array.isArray(parsed?.messages)) setMessages(parsed.messages)
       }
     } catch {}
 
@@ -209,9 +364,7 @@ export function CoachGeorgeLiveAssistant() {
       const rawStats = window.localStorage.getItem(STATS_KEY)
       if (rawStats) {
         const parsed = JSON.parse(rawStats)
-        if (parsed && typeof parsed === "object") {
-          setStats({ ...DEFAULT_STATS, ...parsed })
-        }
+        if (parsed && typeof parsed === "object") setStats({ ...DEFAULT_STATS, ...parsed })
       }
     } catch {}
 
@@ -219,22 +372,17 @@ export function CoachGeorgeLiveAssistant() {
       const rawProfile = window.localStorage.getItem(PROFILE_KEY)
       if (rawProfile) {
         const parsed = JSON.parse(rawProfile)
-        if (parsed && typeof parsed === "object") setProfile(parsed)
+        if (parsed && typeof parsed === "object") {
+          setProfile(parsed)
+          onboardingProfileRef.current = { ...DEFAULT_PROFILE, ...parsed }
+        }
       }
     } catch {}
   }, [])
 
   useEffect(() => {
-    return () => {
-      void cleanupConversation()
-    }
-  }, [])
-
-  useEffect(() => {
     try {
-      const trimmed = trimMessagesForStorage(messages)
-      if (trimmed.length <= 1) window.localStorage.removeItem(STORAGE_KEY)
-      else window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: trimmed }))
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: messages.slice(-24) }))
     } catch {}
   }, [messages])
 
@@ -288,7 +436,7 @@ export function CoachGeorgeLiveAssistant() {
     }
     currentAssistantTextRef.current += delta
     const targetId = currentAssistantMessageIdRef.current
-    setMessages((prev) => prev.map((message) => (message.id === targetId ? { ...message, content: currentAssistantTextRef.current } : message)))
+    setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, content: currentAssistantTextRef.current } : m)))
     if (isFinal) {
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
@@ -299,22 +447,46 @@ export function CoachGeorgeLiveAssistant() {
     const cleaned = text.trim()
     if (!cleaned) return
     setMessages((prev) => [...prev, makeMessage("user", cleaned)])
+
+    if (!profileReady) {
+      const currentProfile = onboardingProfileRef.current
+      const step = getOnboardingStep(currentProfile, stats)
+      if (step !== "done") {
+        const applied = applyOnboardingAnswer(step, cleaned, currentProfile)
+        onboardingProfileRef.current = applied.profile
+
+        if (applied.complete) {
+          const targets = calculateTargets(applied.profile)
+          const nextStats = {
+            ...stats,
+            ...targets,
+            caloriesUsed: 0,
+            proteinUsed: 0,
+            mealsToday: 0,
+          }
+          setProfile(applied.profile)
+          setStats((prev) => ({ ...prev, ...nextStats }))
+          const dc = dcRef.current
+          if (dc?.readyState === "open") {
+            dc.send(JSON.stringify({ type: "response.create", response: { instructions: `${profileContext(applied.profile, nextStats)}\nSetup is complete. Briefly confirm their calorie and protein targets, then ask what they want help with right now.` } }))
+          }
+          return
+        }
+
+        const nextStep = getOnboardingStep(onboardingProfileRef.current, stats)
+        const dc = dcRef.current
+        if (dc?.readyState === "open") {
+          dc.send(JSON.stringify({ type: "response.create", response: { instructions: nextOnboardingInstruction(nextStep) } }))
+        }
+      }
+    }
   }
 
   function sendTextPrompt(prompt: string) {
     const dc = dcRef.current
     if (!dc || dc.readyState !== "open") return
-    addUserTranscript(prompt)
-    dc.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: prompt }],
-        },
-      }),
-    )
+    setMessages((prev) => [...prev, makeMessage("user", prompt)])
+    dc.send(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: prompt }] } }))
     dc.send(JSON.stringify({ type: "response.create" }))
   }
 
@@ -327,22 +499,22 @@ export function CoachGeorgeLiveAssistant() {
         setStatusText("George is live")
         break
       case "input_audio_buffer.speech_started":
-        setStatusText("Listening")
+        setStatusText("Listening…")
         break
       case "input_audio_buffer.speech_stopped":
-        setStatusText("Thinking")
+        setStatusText("Thinking…")
         break
       case "response.created":
         setIsModelSpeaking(true)
-        setStatusText("George is replying")
+        setStatusText("George is replying…")
         break
       case "response.output_audio.delta":
         setIsModelSpeaking(true)
-        setStatusText("George is replying")
+        setStatusText("George is replying…")
         break
       case "response.output_audio.done":
         setIsModelSpeaking(false)
-        setStatusText("Listening")
+        setStatusText("Listening…")
         break
       case "response.output_audio_transcript.delta":
         appendOrUpdateAssistantPartial(typeof event.delta === "string" ? event.delta : "")
@@ -354,28 +526,25 @@ export function CoachGeorgeLiveAssistant() {
         addUserTranscript(typeof event.transcript === "string" ? event.transcript : "")
         setStats((prev) => markUsage(prev))
         break
-      case "error": {
-        const message = event?.error?.message || "George hit a voice error."
-        setError(message)
-        setStatusText("Connection problem")
+      case "error":
+        setError(event?.error?.message || "George hit a voice error.")
+        setStatusText("There was a connection problem")
         break
-      }
       default:
         break
     }
   }
 
   async function startConversation() {
-    if (!canStart) return
     await cleanupConversation()
     setConnectionState("connecting")
     setError(null)
-    setStatusText("Connecting")
+    setStatusText("Connecting George…")
     try {
       const tokenResponse = await fetch("/api/george-session", { method: "GET", cache: "no-store" })
       const tokenData = await tokenResponse.json().catch(() => null)
       if (!tokenResponse.ok) throw new Error(typeof tokenData?.error === "string" ? tokenData.error : "Could not create a secure live session.")
-      const ephemeralKey = tokenData?.value ?? tokenData?.client_secret?.value
+      const ephemeralKey = tokenData?.client_secret?.value || tokenData?.value
       if (typeof ephemeralKey !== "string" || !ephemeralKey) throw new Error("Live voice token was missing.")
 
       const pc = new RTCPeerConnection()
@@ -389,7 +558,14 @@ export function CoachGeorgeLiveAssistant() {
         void audio.play().catch(() => {})
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      })
       localStreamRef.current = stream
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
@@ -397,16 +573,16 @@ export function CoachGeorgeLiveAssistant() {
       dcRef.current = dc
       dc.addEventListener("open", () => {
         setConnectionState("connected")
-        setStatusText("Listening")
+        setStatusText("Listening…")
         setStats((prev) => markUsage(prev))
         window.setTimeout(() => {
           dc.send(JSON.stringify(buildFirstResponseEvent(profile, stats)))
           if (queuedPromptRef.current) {
             const prompt = queuedPromptRef.current
             queuedPromptRef.current = null
-            window.setTimeout(() => sendTextPrompt(prompt), 300)
+            window.setTimeout(() => sendTextPrompt(prompt), 350)
           }
-        }, 120)
+        }, 150)
       })
       dc.addEventListener("message", (event) => {
         try {
@@ -433,7 +609,7 @@ export function CoachGeorgeLiveAssistant() {
     } catch (err) {
       await cleanupConversation()
       setConnectionState("error")
-      setStatusText("Could not connect")
+      setStatusText("Could not connect George")
       setError(err instanceof Error ? err.message : "Could not connect George right now.")
     }
   }
@@ -441,7 +617,7 @@ export function CoachGeorgeLiveAssistant() {
   async function stopConversation() {
     await cleanupConversation()
     setConnectionState("idle")
-    setStatusText("Tap to talk")
+    setStatusText("Ready when you are")
     setError(null)
   }
 
@@ -460,140 +636,115 @@ export function CoachGeorgeLiveAssistant() {
     void startConversation()
   }
 
-  const statusTone =
-    connectionState === "connected"
-      ? "text-emerald-300"
-      : connectionState === "connecting"
-      ? "text-cyan-200"
-      : connectionState === "error"
-      ? "text-rose-300"
-      : "text-slate-400"
-
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#020305] text-white">
-      <div className="pointer-events-none absolute inset-0 opacity-80">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(18,206,191,0.12),transparent_28%),radial-gradient(circle_at_50%_38%,rgba(14,165,233,0.10),transparent_32%),linear-gradient(180deg,#020305_0%,#04070d_38%,#020305_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(transparent_0%,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.012)_1px,transparent_1px)] bg-[size:100%_18px,18px_100%] opacity-[0.06]" />
-        <div className="absolute left-1/2 top-24 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden bg-[#030507] text-white">
+      <style jsx>{`
+        @keyframes ringPulse {
+          0%, 100% { transform: scale(1); opacity: 0.82; }
+          50% { transform: scale(1.02); opacity: 1; }
+        }
+        @keyframes coreGlow {
+          0%, 100% { box-shadow: 0 0 40px rgba(34,211,238,.14), inset 0 0 40px rgba(34,211,238,.08); }
+          50% { box-shadow: 0 0 70px rgba(34,211,238,.23), inset 0 0 58px rgba(251,146,60,.10); }
+        }
+        @keyframes shimmer {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(18,214,214,0.17),transparent_24%),radial-gradient(circle_at_50%_32%,rgba(59,130,246,0.10),transparent_40%),linear-gradient(180deg,#010305_0%,#07101a_48%,#010305_100%)]" />
+        <div className="absolute inset-0 opacity-[0.06] [background-image:radial-gradient(circle_at_center,white_1px,transparent_1px)] [background-size:10px_10px]" />
+        <div className="absolute left-1/2 top-28 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full bg-cyan-400/12 blur-[110px]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 pb-10 pt-8 sm:px-8">
-        <div className="mb-5 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-3xl font-semibold tracking-[0.22em] text-white sm:text-4xl">GEORGE</div>
-            <div className={`mt-2 text-[11px] uppercase tracking-[0.34em] ${statusTone}`}>{statusText}</div>
-          </div>
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pb-10 pt-10">
+        <div className="text-center">
+          <div className="text-[42px] font-semibold tracking-[0.28em] text-white sm:text-[52px]">GEORGE</div>
+          <div className="mt-2 text-[12px] uppercase tracking-[0.5em] text-slate-400">Tap to talk</div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="mt-8 flex justify-center">
           <button
             type="button"
-            onClick={connectionState === "connected" ? stopConversation : startConversation}
             disabled={connectionState === "connecting"}
-            className={`group relative mx-auto flex h-[17rem] w-[17rem] items-center justify-center rounded-full transition duration-300 sm:h-[20rem] sm:w-[20rem] ${
-              connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.01]"
-            }`}
-            aria-label={connectionState === "connected" ? "Stop talking to George" : "Tap to talk to George"}
+            onClick={connectionState === "connected" ? stopConversation : startConversation}
+            className="group relative flex h-[350px] w-[350px] items-center justify-center rounded-full focus:outline-none disabled:cursor-not-allowed"
           >
-            <span className={`absolute inset-[-5%] rounded-full border border-cyan-300/18 ${connectionState === "connected" ? "animate-[pulse_3s_ease-in-out_infinite]" : ""}`} />
-            <span className={`absolute inset-[-1%] rounded-full border border-amber-300/12 ${connectionState === "connected" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`} />
-            <span className="absolute inset-[3%] rounded-full border border-white/8 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_0_120px_rgba(34,211,238,0.10)]" />
-            <span className="absolute inset-[10%] rounded-full bg-[conic-gradient(from_180deg,rgba(6,182,212,0.05),rgba(34,211,238,0.20),rgba(251,191,36,0.16),rgba(34,211,238,0.12),rgba(6,182,212,0.05))]" />
-            <span className="absolute inset-[14%] rounded-full bg-[repeating-conic-gradient(from_0deg,rgba(255,255,255,0.08)_0deg,rgba(255,255,255,0.08)_2deg,transparent_2deg,transparent_18deg)] opacity-20" />
-            <span className="absolute inset-[18%] rounded-full bg-[radial-gradient(circle_at_50%_28%,rgba(255,255,255,0.15),rgba(255,255,255,0.02)_18%,rgba(34,211,238,0.22)_45%,rgba(2,6,23,0.98)_75%)] shadow-[0_0_120px_rgba(34,211,238,0.16)]" />
-
-            <span className="relative z-10 flex h-[58%] w-[58%] flex-col items-center justify-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.16),rgba(255,255,255,0.03)_20%,rgba(56,189,248,0.12)_42%,rgba(2,6,23,0.98)_78%)] shadow-[0_0_0_8px_rgba(255,255,255,0.02),0_0_80px_rgba(16,185,129,0.10)]">
-              <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-white/10 backdrop-blur">
-                {connectionState === "connecting" ? (
-                  <Loader2 className="h-7 w-7 animate-spin text-white" />
-                ) : connectionState === "connected" ? (
-                  <Activity className="h-7 w-7 text-emerald-200" />
-                ) : (
-                  <BarChart3 className="h-7 w-7 text-white" />
-                )}
-              </span>
-              <span className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">George</span>
-              <span className="mt-1 text-sm text-slate-300">Tap to talk</span>
-            </span>
+            <div className="absolute inset-0 rounded-full border border-cyan-300/15 opacity-80" style={{ animation: "ringPulse 3.4s ease-in-out infinite" }} />
+            <div className="absolute inset-[14px] rounded-full border border-cyan-400/18" />
+            <div className="absolute inset-[28px] rounded-full border border-cyan-400/20" style={{ animation: "ringPulse 2.8s ease-in-out infinite" }} />
+            <div className="absolute inset-[40px] rounded-full border border-amber-300/10" />
+            <div className="absolute inset-[18px] rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,rgba(34,211,238,.0),rgba(34,211,238,.28),rgba(251,146,60,.14),rgba(34,211,238,.0))] opacity-90 blur-[1px]" style={{ animation: "shimmer 12s linear infinite" }} />
+            <div className="absolute inset-[62px] rounded-full border border-cyan-200/8 bg-[radial-gradient(circle_at_50%_45%,rgba(22,163,184,.32),rgba(3,7,18,.95)_70%)]" style={{ animation: "coreGlow 4.3s ease-in-out infinite" }} />
+            <div className="absolute inset-[82px] rounded-full bg-[radial-gradient(circle_at_50%_36%,rgba(148,163,184,.46),rgba(15,23,42,.12)_18%,rgba(2,6,23,.92)_58%)]" />
+            <div className="absolute inset-[98px] rounded-full bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,.18),transparent_18%),radial-gradient(circle_at_50%_62%,rgba(34,211,238,.08),transparent_50%)]" />
+            <div className="absolute left-1/2 top-[102px] flex h-20 w-20 -translate-x-1/2 items-center justify-center rounded-full border border-white/18 bg-white/12 shadow-[0_12px_40px_rgba(0,0,0,.35)] backdrop-blur">
+              <BarChart3 className="h-9 w-9 text-white/90" />
+            </div>
+            <div className="relative z-10 mt-16 text-center">
+              <div className="text-[52px] font-semibold tracking-tight text-white">George</div>
+              <div className="mt-2 text-2xl text-white/85">{connectionState === "connecting" ? "Connecting…" : connectionState === "connected" ? "Live now" : "Tap to talk"}</div>
+            </div>
           </button>
-
-          {error ? <p className="mt-4 text-sm font-medium text-rose-300">{error}</p> : null}
-
-          <div className="mt-8 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { label: "Calories left", value: String(caloriesLeft(stats)) },
-              { label: "Protein left", value: `${proteinLeft(stats)}g` },
-              { label: "Meals today", value: String(stats.mealsToday) },
-              { label: "Day streak", value: `${stats.streak}` },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-[1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(4,8,14,0.94))] px-4 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">{stat.label}</div>
-                <div className="mt-2 text-3xl font-semibold tracking-tight text-white">{stat.value}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 grid w-full max-w-4xl gap-3 sm:grid-cols-2">
-            {QUICK_ACTIONS.map((action) => {
-              const Icon = action.icon
-              return (
-                <button
-                  key={action.key}
-                  type="button"
-                  onClick={() => handleQuickAction(action.key)}
-                  className="group flex items-center gap-3 rounded-[1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(3,7,12,0.96))] px-4 py-4 text-left text-white transition hover:border-cyan-300/25 hover:shadow-[0_0_40px_rgba(34,211,238,0.06)]"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-cyan-200">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="flex flex-1 items-center justify-between gap-2">
-                    <span className="text-lg font-medium tracking-tight">{action.label}</span>
-                    <ChevronRight className="h-4 w-4 text-slate-500 transition group-hover:text-white" />
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="mt-4 w-full max-w-4xl rounded-[1.2rem] border border-cyan-300/14 bg-[linear-gradient(180deg,rgba(8,145,178,0.12),rgba(3,9,16,0.88))] px-5 py-5 text-left backdrop-blur">
-            <div className="text-[10px] uppercase tracking-[0.26em] text-cyan-100/75">Latest from George</div>
-            <p className="mt-2 text-xl leading-8 text-white">{latestAssistantMessage}</p>
-          </div>
-
-          {messages.length > 1 ? (
-            <div className="mt-4 w-full max-w-4xl rounded-[1.2rem] border border-white/10 bg-white/[0.03] p-4 text-left backdrop-blur">
-              <div className="mb-3 text-[10px] uppercase tracking-[0.24em] text-slate-500">Conversation</div>
-              <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
-                {messages.slice(-8).map((message) => (
-                  <div
-                    key={message.id}
-                    className={`rounded-[1rem] px-4 py-3 text-sm leading-7 sm:text-[15px] ${
-                      message.role === "user"
-                        ? "ml-auto max-w-[88%] bg-[linear-gradient(135deg,#7dd3fc,#2dd4bf)] text-slate-950"
-                        : message.role === "assistant"
-                        ? "mr-auto max-w-[88%] border border-white/10 bg-[#081220] text-white"
-                        : "mr-auto max-w-[88%] border border-cyan-300/15 bg-cyan-300/10 text-cyan-50"
-                    }`}
-                  >
-                    {message.content}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {connectionState === "connected" ? (
-            <div className="mt-5 flex justify-center">
-              <button
-                type="button"
-                onClick={stopConversation}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:opacity-95"
-              >
-                <PhoneOff className="h-4 w-4" /> End conversation
-              </button>
-            </div>
-          ) : null}
         </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-4">
+          {[
+            { label: "Calories left", value: stats.caloriesTarget > 0 ? caloriesLeft(stats) : "--" },
+            { label: "Protein left", value: stats.proteinTarget > 0 ? `${proteinLeft(stats)}g` : "--" },
+            { label: "Meals today", value: stats.mealsToday },
+            { label: "Day streak", value: stats.streak },
+          ].map((item, index) => (
+            <div
+              key={item.label}
+              className="rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(2,8,20,.94))] px-6 py-5 shadow-[0_18px_55px_rgba(0,0,0,.28)]"
+            >
+              <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">{item.label}</div>
+              <div className={`mt-4 text-[54px] font-semibold leading-none text-white ${index === 1 ? "text-[52px]" : ""}`}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {QUICK_ACTIONS.map((action) => {
+            const Icon = action.icon
+            return (
+              <button
+                key={action.key}
+                type="button"
+                onClick={() => handleQuickAction(action.key)}
+                className={`group relative flex w-full items-center gap-5 overflow-hidden rounded-[1.7rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.95),rgba(3,7,18,.96))] px-5 py-5 text-left shadow-[0_18px_55px_rgba(0,0,0,.24)] transition duration-200 hover:-translate-y-[1px] hover:border-white/20`}
+              >
+                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${action.accent} opacity-70`} />
+                <span className="relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-cyan-200">
+                  <Icon className="h-6 w-6" />
+                </span>
+                <span className="relative z-10 flex flex-1 items-center justify-between gap-3">
+                  <span className="text-[21px] font-medium tracking-tight text-white">{action.label}</span>
+                  <ChevronRight className="h-5 w-5 text-slate-500 transition group-hover:text-white" />
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="mt-6 rounded-[1.8rem] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(6,33,44,.74),rgba(2,8,20,.92))] px-6 py-6 shadow-[0_20px_60px_rgba(0,0,0,.28)]">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-cyan-200/80">
+            <Sparkles className="h-3.5 w-3.5" /> George status
+          </div>
+          <p className="mt-3 text-[19px] leading-9 text-white">{latestAssistantMessage}</p>
+        </div>
+
+        {error ? <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm leading-6 text-rose-200">{error}</div> : null}
+        {connectionState === "connected" ? (
+          <div className="mt-5 flex justify-center">
+            <button type="button" onClick={stopConversation} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:opacity-95">
+              <PhoneOff className="h-4 w-4" /> End conversation
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   )
