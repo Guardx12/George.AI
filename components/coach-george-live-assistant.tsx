@@ -44,6 +44,14 @@ type CoachStats = {
   timezone?: string | null
 }
 
+type StoredAppState = {
+  messages: LiveMessage[]
+  profile: CoachProfile
+  stats: CoachStats
+  pendingEstimate: MacroEstimate | null
+  pendingMealText: string | null
+}
+
 type MacroEstimate = {
   calories: number
   protein: number
@@ -55,6 +63,7 @@ type MacroEstimate = {
 const STORAGE_KEY = "coach-george-v4-messages"
 const PROFILE_KEY = "coach-george-profile-v3"
 const STATS_KEY = "coach-george-stats-v8"
+const APP_STATE_KEY = "coach-george-app-state-v1"
 
 const EMPTY_PROFILE: CoachProfile = {}
 const DEFAULT_STATS: CoachStats = {
@@ -71,6 +80,46 @@ const DEFAULT_STATS: CoachStats = {
   lastActiveDate: null,
   currentDayDate: null,
   timezone: null,
+}
+
+function buildStoredAppState(args: Partial<StoredAppState>): StoredAppState {
+  return {
+    messages: Array.isArray(args.messages) ? args.messages : [],
+    profile: { ...EMPTY_PROFILE, ...(args.profile || {}) },
+    stats: { ...DEFAULT_STATS, ...(args.stats || {}) },
+    pendingEstimate: args.pendingEstimate ?? null,
+    pendingMealText: args.pendingMealText ?? null,
+  }
+}
+
+function loadStoredAppState(): StoredAppState | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(APP_STATE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object") return null
+    return buildStoredAppState(parsed)
+  } catch {
+    return null
+  }
+}
+
+function saveStoredAppState(args: Partial<StoredAppState>) {
+  if (typeof window === "undefined") return
+  try {
+    const current = loadStoredAppState() || buildStoredAppState({})
+    const next = buildStoredAppState({
+      ...current,
+      ...args,
+      profile: { ...current.profile, ...(args.profile || {}) },
+      stats: { ...current.stats, ...(args.stats || {}) },
+    })
+    window.localStorage.setItem(APP_STATE_KEY, JSON.stringify(next))
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: next.messages.slice(-20) }))
+    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(next.profile || {}))
+    window.localStorage.setItem(STATS_KEY, JSON.stringify(next.stats || DEFAULT_STATS))
+  } catch {}
 }
 
 const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; accent: string; icon: any }> = [
@@ -492,9 +541,9 @@ function estimateFromText(input: string): MacroEstimate | null {
 function parseTargetsFromAssistantText(input: string) {
   const t = input.toLowerCase()
   const cal = t.match(/([\d,]{3,5})\s*(?:kcal|calories?)/)
-  const protein = t.match(/([\d,]{2,4})\s*g\s*protein/)
-  const carbs = t.match(/([\d,]{2,4})\s*g\s*carbs?/)
-  const fat = t.match(/([\d,]{2,4})\s*g\s*(?:fat|fats)/)
+  const protein = t.match(/([\d,]{2,4})\s*(?:g|grams?)\s*(?:of\s*)?protein/)
+  const carbs = t.match(/([\d,]{2,4})\s*(?:g|grams?)\s*(?:of\s*)?carbs?/)
+  const fat = t.match(/([\d,]{2,4})\s*(?:g|grams?)\s*(?:of\s*)?(?:fat|fats)/)
   const toNum = (v?: string | null) => (v ? Number(v.replace(/,/g, "")) : null)
   return {
     caloriesTarget: toNum(cal?.[1]),
@@ -568,17 +617,45 @@ export function CoachGeorgeLiveAssistant() {
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { onboardingStepRef.current = getOnboardingStep(profile ?? EMPTY_PROFILE, stats) }, [profile, stats])
 
-  const profileReady = isProfileComplete(profile, stats)
-  const pie = pieSegments(stats)
-  const macroPct = macroPercentages(stats)
-  const latestAssistantMessage = useMemo(() => [...messages].reverse().find(m => m.role === "assistant")?.content || buildCoachGuidance(profile, stats), [messages, profile, stats])
+  const effectiveStats = useMemo(() => {
+    if (stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0) return stats
+    if (profile?.goal && profile?.sex && profile?.age && profile?.heightCm && profile?.weightKg && profile?.activityLevel) {
+      return { ...stats, ...calculateTargets(profile) }
+    }
+    return stats
+  }, [profile, stats])
+  const profileReady = isProfileComplete(profile, effectiveStats)
+  const pie = pieSegments(effectiveStats)
+  const macroPct = macroPercentages(effectiveStats)
+  const latestAssistantMessage = useMemo(() => [...messages].reverse().find(m => m.role === "assistant")?.content || buildCoachGuidance(profile, effectiveStats), [messages, profile, effectiveStats])
   const macroBars = [
-    { label: "Protein", used: stats.proteinUsed, target: stats.proteinTarget, color: "from-cyan-300 to-cyan-500" },
-    { label: "Carbs", used: stats.carbsUsed, target: stats.carbsTarget, color: "from-blue-400 to-blue-600" },
-    { label: "Fats", used: stats.fatUsed, target: stats.fatTarget, color: "from-amber-300 to-orange-500" },
+    { label: "Protein", used: effectiveStats.proteinUsed, target: effectiveStats.proteinTarget, color: "from-cyan-300 to-cyan-500" },
+    { label: "Carbs", used: effectiveStats.carbsUsed, target: effectiveStats.carbsTarget, color: "from-blue-400 to-blue-600" },
+    { label: "Fats", used: effectiveStats.fatUsed, target: effectiveStats.fatTarget, color: "from-amber-300 to-orange-500" },
   ]
 
   useEffect(() => {
+    const stored = loadStoredAppState()
+    if (stored) {
+      if (stored.messages?.length) setMessages(stored.messages)
+      const nextProfile = { ...EMPTY_PROFILE, ...(stored.profile || {}) }
+      if (Object.keys(nextProfile).length) {
+        const withCountry = { ...nextProfile, country: nextProfile.country || inferCountryFromBrowser() || undefined }
+        setProfile(withCountry)
+        onboardingProfileRef.current = withCountry
+      }
+      const normalizedStats = normalizeStatsForToday({ ...DEFAULT_STATS, ...(stored.stats || {}), timezone: stored.stats?.timezone || getBrowserTimeZone() })
+      setStats(normalizedStats)
+      if (stored.pendingEstimate) {
+        setPendingEstimate(stored.pendingEstimate)
+        pendingEstimateRef.current = stored.pendingEstimate
+      }
+      if (stored.pendingMealText) {
+        setPendingMealText(stored.pendingMealText)
+        pendingMealTextRef.current = stored.pendingMealText
+      }
+      return
+    }
     try {
       const rawMessages = window.localStorage.getItem(STORAGE_KEY)
       if (rawMessages) {
@@ -606,16 +683,24 @@ export function CoachGeorgeLiveAssistant() {
     } catch {}
   }, [])
 
-  useEffect(() => { try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: messages.slice(-20) })) } catch {} }, [messages])
-  useEffect(() => { try { window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile ?? {})) } catch {} }, [profile])
-  useEffect(() => { try { window.localStorage.setItem(STATS_KEY, JSON.stringify(stats)) } catch {} }, [stats])
+  useEffect(() => {
+    saveStoredAppState({
+      messages: messages.slice(-20),
+      profile: profile ?? EMPTY_PROFILE,
+      stats,
+      pendingEstimate,
+      pendingMealText,
+    })
+  }, [messages, profile, stats, pendingEstimate, pendingMealText])
 
   useEffect(() => {
     if (!profile) return
     if (!(profile.goal && profile.sex && profile.age && profile.heightCm && profile.weightKg && profile.activityLevel)) return
     if (stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0) return
     const targets = calculateTargets(profile)
-    setStats(prev => ({ ...normalizeStatsForToday(prev), ...targets }))
+    const updated = { ...normalizeStatsForToday(stats), ...targets }
+    setStats(updated)
+    saveStoredAppState({ profile: profile ?? EMPTY_PROFILE, stats: updated })
   }, [profile, stats.caloriesTarget, stats.proteinTarget, stats.carbsTarget, stats.fatTarget])
 
   useEffect(() => {
@@ -653,13 +738,15 @@ export function CoachGeorgeLiveAssistant() {
   function hydrateTargetsFromAssistant(text: string) {
     const parsed = parseTargetsFromAssistantText(text)
     if (!(parsed.caloriesTarget && parsed.proteinTarget && parsed.carbsTarget && parsed.fatTarget)) return
-    setStats(prev => ({
-      ...normalizeStatsForToday({ ...prev, timezone: prev.timezone || getBrowserTimeZone() }),
-      caloriesTarget: parsed.caloriesTarget || prev.caloriesTarget,
-      proteinTarget: parsed.proteinTarget || prev.proteinTarget,
-      carbsTarget: parsed.carbsTarget || prev.carbsTarget,
-      fatTarget: parsed.fatTarget || prev.fatTarget,
-    }))
+    const updated = {
+      ...normalizeStatsForToday({ ...statsRef.current, timezone: statsRef.current.timezone || getBrowserTimeZone() }),
+      caloriesTarget: parsed.caloriesTarget || statsRef.current.caloriesTarget,
+      proteinTarget: parsed.proteinTarget || statsRef.current.proteinTarget,
+      carbsTarget: parsed.carbsTarget || statsRef.current.carbsTarget,
+      fatTarget: parsed.fatTarget || statsRef.current.fatTarget,
+    }
+    setStats(updated)
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated })
   }
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
@@ -691,10 +778,7 @@ export function CoachGeorgeLiveAssistant() {
     setProfile(nextProfile)
     setStats(nextStats)
     onboardingProfileRef.current = nextProfile
-    try {
-      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile))
-      window.localStorage.setItem(STATS_KEY, JSON.stringify(nextStats))
-    } catch {}
+    saveStoredAppState({ profile: nextProfile, stats: nextStats, messages: messages.slice(-20) })
     const dc = dcRef.current
     if (dc?.readyState === "open") {
       dc.send(JSON.stringify({ type: "response.create", response: { instructions: `${profileContext(nextProfile, nextStats)}\nSetup is complete. Briefly confirm their calories, protein, carbs and fats are set, then ask what they want help with right now.` } }))
@@ -723,7 +807,7 @@ export function CoachGeorgeLiveAssistant() {
     }
 
     setStats(updated)
-    try { window.localStorage.setItem(STATS_KEY, JSON.stringify(updated)) } catch {}
+    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: null, pendingMealText: null })
     pushAssistantMessage(
       `Logged ${mealText}. That adds roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. ` +
       `You’ve got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`
@@ -970,10 +1054,10 @@ export function CoachGeorgeLiveAssistant() {
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           {[
-            { label: "Calories left", value: stats.caloriesTarget > 0 ? caloriesLeft(stats) : "--" },
-            { label: "Protein left", value: stats.proteinTarget > 0 ? `${proteinLeft(stats)}g` : "--" },
-            { label: "Meals today", value: stats.mealsToday },
-            { label: "Day streak", value: stats.streak },
+            { label: "Calories left", value: effectiveStats.caloriesTarget > 0 ? caloriesLeft(effectiveStats) : "--" },
+            { label: "Protein left", value: effectiveStats.proteinTarget > 0 ? `${proteinLeft(effectiveStats)}g` : "--" },
+            { label: "Meals today", value: effectiveStats.mealsToday },
+            { label: "Day streak", value: effectiveStats.streak },
           ].map((item) => (
             <div key={item.label} className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,18,28,.95),rgba(4,8,18,.98))] px-4 py-4 shadow-[0_16px_46px_rgba(0,0,0,.28)]">
               <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{item.label}</div>
