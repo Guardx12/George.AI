@@ -24,6 +24,8 @@ type CoachProfile = {
   weightKg?: number
   activityLevel?: ActivityLevel
   goal?: Goal
+  allergies?: string[]
+  dislikes?: string[]
 }
 
 type CoachStats = {
@@ -205,7 +207,7 @@ function fatLeft(stats: CoachStats) { return Math.max(0, stats.fatTarget - stats
 function isProfileComplete(profile: CoachProfile | null, stats: CoachStats) {
   return Boolean(
     profile?.goal && profile?.sex && profile?.age && profile?.heightCm && profile?.weightKg && profile?.activityLevel && profile?.country &&
-      stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0
+      profile?.allergies !== undefined && profile?.dislikes !== undefined && stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0
   )
 }
 
@@ -261,6 +263,120 @@ function parseCountry(input: string): Country | null {
   return null
 }
 
+
+
+function parseAllergyAnswer(input: string): string[] {
+  const t = input.toLowerCase().trim()
+  if (/^(none|no|nothing|nope|nil)$/.test(t) || /\b(no allergies|no allergy)\b/.test(t)) return []
+  const cleaned = t
+    .replace(/allerg(?:y|ies)\s*(?:to)?/g, ' ')
+    .replace(/i(?:'|’)m allergic to/g, ' ')
+    .replace(/i am allergic to/g, ' ')
+    .replace(/avoid/g, ' ')
+  return parseListField(cleaned)
+}
+
+function parseDislikeAnswer(input: string): string[] {
+  const t = input.toLowerCase().trim()
+  if (/^(none|no|nothing|nope|nil)$/.test(t) || /\b(nothing really|anything is fine|all good)\b/.test(t)) return []
+  const cleaned = t
+    .replace(/.*don't like\s*/,'')
+    .replace(/.*do not like\s*/,'')
+    .replace(/.*dislike\s*/,'')
+    .replace(/.*hate\s*/,'')
+    .replace(/.*won'?t eat\s*/,'')
+    .replace(/foods?\s*(?:to avoid)?/g,' ')
+  return parseListField(cleaned)
+}
+
+function applyStepAnswer(step: string, input: string, prevProfile: CoachProfile): CoachProfile {
+  const next = { ...prevProfile }
+  switch (step) {
+    case 'goal': {
+      const goal = parseGoal(input)
+      if (goal) next.goal = goal
+      break
+    }
+    case 'sex': {
+      const sex = parseSex(input)
+      if (sex) next.sex = sex
+      break
+    }
+    case 'age': {
+      const age = parseAge(input)
+      if (age) next.age = age
+      break
+    }
+    case 'height': {
+      const h = parseHeightCm(input)
+      if (h) next.heightCm = h
+      break
+    }
+    case 'weight': {
+      const w = parseWeightKg(input)
+      if (w) next.weightKg = w
+      break
+    }
+    case 'activity': {
+      const a = parseActivity(input)
+      if (a) next.activityLevel = a
+      break
+    }
+    case 'allergies': {
+      next.allergies = parseAllergyAnswer(input)
+      break
+    }
+    case 'dislikes': {
+      next.dislikes = parseDislikeAnswer(input)
+      break
+    }
+    case 'country': {
+      const c = parseCountry(input) || inferCountryFromBrowser() || undefined
+      if (c) next.country = c
+      break
+    }
+  }
+  return next
+}
+function parseListField(input: string) {
+  return input
+    .split(/,| and /i)
+    .map(v => v.trim())
+    .filter(Boolean)
+}
+
+function parseAllergies(input: string): string[] | null {
+  const t = input.toLowerCase()
+  if (!t.includes('allerg')) return null
+  if (/(none|no allergies|no allergy)/.test(t)) return []
+  const cleaned = t.replace(/.*allerg(?:y|ies)\s*(?:to)?\s*/,'').replace(/[:.]/g,' ')
+  const vals = parseListField(cleaned)
+  return vals.length ? vals : []
+}
+
+function parseDislikes(input: string): string[] | null {
+  const t = input.toLowerCase()
+  if (!(t.includes("don't like") || t.includes('do not like') || t.includes('hate') || t.includes('dislike') || t.includes("won't eat") || t.includes('wont eat'))) return null
+  if (/(nothing|none)/.test(t)) return []
+  let cleaned = t
+    .replace(/.*don't like\s*/,'')
+    .replace(/.*do not like\s*/,'')
+    .replace(/.*dislike\s*/,'')
+    .replace(/.*hate\s*/,'')
+    .replace(/.*won'?t eat\s*/,'')
+  const vals = parseListField(cleaned)
+  return vals.length ? vals : []
+}
+
+function isConfirmIntent(input: string) {
+  const t = input.toLowerCase().trim()
+  return /(yes|yeah|yep|please do|go on then|log it|log that|save that|save it|yes log it|yes log that|log meal)/.test(t)
+}
+
+function isLogIntent(input: string) {
+  const t = input.toLowerCase()
+  return /\blog meal\b|\badd meal\b|\bsave meal\b/.test(t)
+}
 function mergeProfileFromInput(input: string, prevProfile: CoachProfile): { profile: CoachProfile; complete: boolean } {
   const next = { ...prevProfile }
   const goal = parseGoal(input)
@@ -270,6 +386,8 @@ function mergeProfileFromInput(input: string, prevProfile: CoachProfile): { prof
   const weightKg = parseWeightKg(input)
   const activityLevel = parseActivity(input)
   const country = parseCountry(input)
+  const allergies = parseAllergies(input)
+  const dislikes = parseDislikes(input)
   if (goal) next.goal = goal
   if (sex) next.sex = sex
   if (age) next.age = age
@@ -277,8 +395,10 @@ function mergeProfileFromInput(input: string, prevProfile: CoachProfile): { prof
   if (weightKg) next.weightKg = weightKg
   if (activityLevel) next.activityLevel = activityLevel
   if (country) next.country = country
+  if (allergies) next.allergies = allergies
+  if (dislikes) next.dislikes = dislikes
   if (!next.country) next.country = inferCountryFromBrowser() || undefined
-  return { profile: next, complete: Boolean(next.goal && next.sex && next.age && next.heightCm && next.weightKg && next.activityLevel && next.country) }
+  return { profile: next, complete: Boolean(next.goal && next.sex && next.age && next.heightCm && next.weightKg && next.activityLevel && next.country && next.allergies !== undefined && next.dislikes !== undefined) }
 }
 
 function getOnboardingStep(profile: CoachProfile | null, stats: CoachStats) {
@@ -288,6 +408,8 @@ function getOnboardingStep(profile: CoachProfile | null, stats: CoachStats) {
   if (!profile?.heightCm) return "height"
   if (!profile?.weightKg) return "weight"
   if (!profile?.activityLevel) return "activity"
+  if (profile?.allergies === undefined) return "allergies"
+  if (profile?.dislikes === undefined) return "dislikes"
   if (!profile?.country) return "country"
   if (!(stats.caloriesTarget > 0 && stats.proteinTarget > 0)) return "country"
   return "done"
@@ -301,6 +423,8 @@ function nextOnboardingInstruction(step: string) {
     case "height": return "Now ask only this: what’s your height? Accept cm or feet and inches."
     case "weight": return "Now ask only this: what’s your current weight? Accept kg, lb, or stone."
     case "activity": return "Now ask only this: how active are you day to day — sedentary, lightly active, moderately active, or very active?"
+    case "allergies": return "Now ask only this: do you have any allergies or foods you need me to avoid? If none, say none."
+    case "dislikes": return "Now ask only this: are there any foods you do not like or do not want in your plans? If none, say none."
     case "country": return "Now ask only this: are you in the UK or the US?"
     default: return "Setup is complete. Briefly confirm their calories and protein targets, then ask what they want help with right now."
   }
@@ -308,7 +432,7 @@ function nextOnboardingInstruction(step: string) {
 
 function profileContext(profile: CoachProfile | null, stats: CoachStats) {
   if (!isProfileComplete(profile, stats)) {
-    return `This user is not set up yet. You must onboard them first. Ask one question at a time and collect: goal, sex, age, height, weight, activity level, then country. Once complete, explain that their calories, protein, carbs and fats are set and you’ll guide the rest. Do not skip setup.`
+    return `This user is not set up yet. You must onboard them first. Ask one question at a time and collect: goal, sex, age, height, weight, activity level, allergies, disliked foods, then country. Once complete, explain that their calories, protein, carbs and fats are set and you’ll guide the rest. Do not skip setup.`
   }
   return `Saved profile:\n- country: ${profile!.country}\n- sex: ${profile!.sex}\n- age: ${profile!.age}\n- height: ${profile!.heightCm} cm\n- weight: ${profile!.weightKg} kg\n- activity: ${profile!.activityLevel}\n- goal: ${profile!.goal}\n- calorie target: ${stats.caloriesTarget}\n- protein target: ${stats.proteinTarget}\n- carbs target: ${stats.carbsTarget}\n- fat target: ${stats.fatTarget}\n- calories left right now: ${caloriesLeft(stats)}\n- protein left right now: ${proteinLeft(stats)}\n- carbs left right now: ${carbsLeft(stats)}\n- fat left right now: ${fatLeft(stats)}\n- meals logged today: ${stats.mealsToday}\n- streak: ${stats.streak}\nUse this automatically. Do not ask for stats again unless the user says they’ve changed.`
 }
@@ -407,6 +531,8 @@ export function CoachGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<CoachStats>(DEFAULT_STATS)
   const [profile, setProfile] = useState<CoachProfile | null>(null)
+  const [pendingEstimate, setPendingEstimate] = useState<MacroEstimate | null>(null)
+  const [pendingMealText, setPendingMealText] = useState<string | null>(null)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -420,9 +546,11 @@ export function CoachGeorgeLiveAssistant() {
   const profileRef = useRef<CoachProfile | null>(null)
   const pendingEstimateRef = useRef<MacroEstimate | null>(null)
   const pendingMealTextRef = useRef<string | null>(null)
+  const onboardingStepRef = useRef<string>("goal")
 
   useEffect(() => { statsRef.current = stats }, [stats])
   useEffect(() => { profileRef.current = profile }, [profile])
+  useEffect(() => { onboardingStepRef.current = getOnboardingStep(profile ?? EMPTY_PROFILE, stats) }, [profile, stats])
 
   const profileReady = isProfileComplete(profile, stats)
   const pie = pieSegments(stats)
@@ -536,6 +664,8 @@ export function CoachGeorgeLiveAssistant() {
   function applyMealLog(estimate: MacroEstimate, mealText: string) {
     pendingEstimateRef.current = null
     pendingMealTextRef.current = null
+    setPendingEstimate(null)
+    setPendingMealText(null)
 
     const base = markUsage(normalizeStatsForToday(statsRef.current))
     const updated: CoachStats = {
@@ -562,7 +692,10 @@ export function CoachGeorgeLiveAssistant() {
     const ready = isProfileComplete(profileRef.current, statsRef.current)
 
     if (!ready) {
-      const applied = mergeProfileFromInput(cleaned, onboardingProfileRef.current || EMPTY_PROFILE)
+      const currentProfile = onboardingProfileRef.current || EMPTY_PROFILE
+      const currentStep = onboardingStepRef.current || getOnboardingStep(currentProfile, statsRef.current)
+      let stepped = applyStepAnswer(currentStep, cleaned, currentProfile)
+      const applied = mergeProfileFromInput(cleaned, stepped)
       onboardingProfileRef.current = applied.profile
       setProfile(applied.profile)
       if (applied.complete) {
@@ -570,9 +703,12 @@ export function CoachGeorgeLiveAssistant() {
         return
       }
       const nextStep = getOnboardingStep(applied.profile, statsRef.current)
+      onboardingStepRef.current = nextStep
       const dc = dcRef.current
       if (dc?.readyState === "open") {
         dc.send(JSON.stringify({ type: "response.create", response: { instructions: nextOnboardingInstruction(nextStep) } }))
+      } else {
+        pushAssistantMessage(nextOnboardingInstruction(nextStep).replace(/^.*?:\s*/, ""))
       }
       return
     }
@@ -594,7 +730,9 @@ export function CoachGeorgeLiveAssistant() {
 
       pendingEstimateRef.current = estimate
       pendingMealTextRef.current = cleaned
-      pushAssistantMessage(`That comes out to roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Would you like me to log that?`)
+      setPendingEstimate(estimate)
+      setPendingMealText(cleaned)
+      pushAssistantMessage(`That comes out to roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Would you like me to log that? You can say yes or tap Log meal below.`)
       return
     }
 
@@ -729,6 +867,10 @@ export function CoachGeorgeLiveAssistant() {
 
   function handleQuickAction(actionKey: QuickActionKey) {
     setStats(prev => markUsage(prev))
+    if (actionKey === "log_meal" && pendingEstimateRef.current) {
+      applyMealLog(pendingEstimateRef.current, pendingMealTextRef.current || "your meal")
+      return
+    }
     const prompt = buildQuickPrompt(actionKey, profileRef.current, statsRef.current)
     if (connectionState === "connected") {
       sendTextPrompt(prompt)
@@ -835,6 +977,20 @@ export function CoachGeorgeLiveAssistant() {
             </div>
           </div>
         </div>
+
+
+        {pendingEstimate ? (
+          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Ready to log</div>
+                <div className="mt-2 text-base font-medium text-white">{pendingMealText || "Meal estimate"}</div>
+                <div className="mt-2 text-sm text-slate-300">{pendingEstimate.calories} kcal • {pendingEstimate.protein}g protein • {pendingEstimate.carbs}g carbs • {pendingEstimate.fat}g fat</div>
+              </div>
+              <button type="button" onClick={() => applyMealLog(pendingEstimate, pendingMealText || "your meal")} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Log meal</button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           {QUICK_ACTIONS.map((action) => {
