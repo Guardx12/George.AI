@@ -528,6 +528,32 @@ export function CoachGeorgeLiveAssistant() {
     }
   }
 
+
+  function pushAssistantMessage(content: string) {
+    setMessages(prev => [...prev, makeMessage("assistant", content)])
+  }
+
+  function applyMealLog(estimate: MacroEstimate, mealText: string) {
+    pendingEstimateRef.current = null
+    pendingMealTextRef.current = null
+
+    const base = markUsage(normalizeStatsForToday(statsRef.current))
+    const updated: CoachStats = {
+      ...base,
+      caloriesUsed: base.caloriesUsed + estimate.calories,
+      proteinUsed: base.proteinUsed + estimate.protein,
+      carbsUsed: base.carbsUsed + estimate.carbs,
+      fatUsed: base.fatUsed + estimate.fat,
+      mealsToday: base.mealsToday + (estimate.countedAsMeal ? 1 : 0),
+    }
+
+    setStats(updated)
+    pushAssistantMessage(
+      `Logged ${mealText}. That adds roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. ` +
+      `You’ve got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`
+    )
+  }
+
   function addUserTranscript(text: string) {
     const cleaned = text.trim()
     if (!cleaned) return
@@ -568,16 +594,7 @@ export function CoachGeorgeLiveAssistant() {
 
       pendingEstimateRef.current = estimate
       pendingMealTextRef.current = cleaned
-      const dc = dcRef.current
-      if (dc?.readyState === "open") {
-        dc.send(JSON.stringify({
-          type: "response.create",
-          response: {
-            instructions: `${profileContext(profileRef.current, statsRef.current)}
-The user has described a meal but has not confirmed logging yet. Estimate it as roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Then ask exactly: Would you like me to log that? Do not say you already logged it.`
-          }
-        }))
-      }
+      pushAssistantMessage(`That comes out to roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Would you like me to log that?`)
       return
     }
 
