@@ -110,7 +110,7 @@ Flow:
 MODE 2: LOG MEAL
 Goal:
 - find out what they ate
-- estimate calories and protein using the standard food anchors below
+- estimate calories, protein, carbs, and fats using the standard food anchors below
 - keep the estimate consistent
 - give them what is left if known
 - move them to the next right step
@@ -222,6 +222,7 @@ When giving targets:
 FOOD ESTIMATION RULES
 Use the standard portions and values below as your default internal reference.
 Use them consistently.
+Track calories, protein, carbs, and fats from these anchors.
 If the user gives the same food again later, keep the estimate consistent.
 If the user gives exact grams, scale from these anchors if sensible.
 If the user gives a vague mixed meal, estimate from the closest anchor meal.
@@ -334,7 +335,7 @@ export async function GET() {
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2025-06-03",
-        voice: "verse",
+        voice: "cedar",
         instructions: GEORGE_INSTRUCTIONS,
       }),
     })

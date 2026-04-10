@@ -2,8 +2,8 @@ import type { Metadata } from "next"
 import { CoachGeorgeLiveAssistant } from "@/components/coach-george-live-assistant"
 
 export const metadata: Metadata = {
-  title: "CoachGeorge | Product",
-  description: "Coach George product interface.",
+  title: "CoachGeorge",
+  description: "CoachGeorge premium product experience.",
   alternates: { canonical: "https://askgeorge.app/coachgeorge" },
 }
 

@@ -28,20 +28,24 @@ type QuickActionKey = "log_meal" | "off_track" | "what_eat" | "workout"
 type OnboardingStep = "goal" | "sex" | "age" | "height" | "weight" | "activity" | "country" | "done"
 
 type CoachProfile = {
-  country: Country
-  sex: Sex
-  age: number
-  heightCm: number
-  weightKg: number
-  activityLevel: ActivityLevel
-  goal: Goal
+  country?: Country
+  sex?: Sex
+  age?: number
+  heightCm?: number
+  weightKg?: number
+  activityLevel?: ActivityLevel
+  goal?: Goal
 }
 
 type CoachStats = {
   caloriesTarget: number
   proteinTarget: number
+  carbsTarget: number
+  fatTarget: number
   caloriesUsed: number
   proteinUsed: number
+  carbsUsed: number
+  fatUsed: number
   mealsToday: number
   streak: number
   lastActiveDate: string | null
@@ -51,21 +55,17 @@ const STORAGE_KEY = "coach-george-v3-messages"
 const PROFILE_KEY = "coach-george-profile-v2"
 const STATS_KEY = "coach-george-stats-v5"
 
-const DEFAULT_PROFILE: CoachProfile = {
-  country: "UK",
-  sex: "male",
-  age: 30,
-  heightCm: 180,
-  weightKg: 90,
-  activityLevel: "moderately active",
-  goal: "lose fat",
-}
+const EMPTY_PROFILE: CoachProfile = {}
 
 const DEFAULT_STATS: CoachStats = {
   caloriesTarget: 0,
   proteinTarget: 0,
+  carbsTarget: 0,
+  fatTarget: 0,
   caloriesUsed: 0,
   proteinUsed: 0,
+  carbsUsed: 0,
+  fatUsed: 0,
   mealsToday: 0,
   streak: 0,
   lastActiveDate: null,
@@ -104,8 +104,15 @@ function markUsage(stats: CoachStats): CoachStats {
 }
 
 function calculateTargets(profile: CoachProfile) {
+  const weight = profile.weightKg || 0
+  const height = profile.heightCm || 0
+  const age = profile.age || 0
+  const sex = profile.sex || "male"
+  const goal = profile.goal || "lose fat"
+  const activityLevel = profile.activityLevel || "moderately active"
+
   const baseBmr =
-    10 * profile.weightKg + 6.25 * profile.heightCm - 5 * profile.age + (profile.sex === "male" ? 5 : -161)
+    10 * weight + 6.25 * height - 5 * age + (sex === "male" ? 5 : -161)
 
   const multiplierMap: Record<ActivityLevel, number> = {
     sedentary: 1.2,
@@ -114,13 +121,20 @@ function calculateTargets(profile: CoachProfile) {
     "very active": 1.725,
   }
 
-  const maintenance = baseBmr * multiplierMap[profile.activityLevel]
-  const calories = profile.goal === "lose fat" ? maintenance - 400 : profile.goal === "gain muscle" ? maintenance + 200 : maintenance
-  const proteinMultiplier = profile.goal === "maintain" ? 1.8 : 2
+  const maintenance = baseBmr * multiplierMap[activityLevel]
+  const calories = goal === "lose fat" ? maintenance - 400 : goal === "gain muscle" ? maintenance + 200 : maintenance
+  const proteinMultiplier = goal === "maintain" ? 1.8 : 2
+  const caloriesTarget = Math.round(calories / 50) * 50
+  const proteinTarget = Math.round((weight * proteinMultiplier) / 5) * 5
+  const proteinCalories = proteinTarget * 4
+  const fatTarget = Math.round((((caloriesTarget * 0.25) / 9) ) / 5) * 5
+  const carbsTarget = Math.max(0, Math.round(((caloriesTarget - proteinCalories - fatTarget * 9) / 4) / 5) * 5)
 
   return {
-    caloriesTarget: Math.round(calories / 50) * 50,
-    proteinTarget: Math.round((profile.weightKg * proteinMultiplier) / 5) * 5,
+    caloriesTarget,
+    proteinTarget,
+    carbsTarget,
+    fatTarget,
   }
 }
 
@@ -130,6 +144,14 @@ function caloriesLeft(stats: CoachStats) {
 
 function proteinLeft(stats: CoachStats) {
   return Math.max(0, stats.proteinTarget - stats.proteinUsed)
+}
+
+function carbsLeft(stats: CoachStats) {
+  return Math.max(0, stats.carbsTarget - stats.carbsUsed)
+}
+
+function fatLeft(stats: CoachStats) {
+  return Math.max(0, stats.fatTarget - stats.fatUsed)
 }
 
 function isProfileComplete(profile: CoachProfile | null, stats: CoachStats) {
@@ -297,7 +319,7 @@ function buildFirstResponseEvent(profile: CoachProfile | null, stats: CoachStats
   const complete = isProfileComplete(profile, stats)
   const instructions = complete
     ? `${profileContext(profile, stats)}\n\nGreet them like a returning user in one short line. Then ask what they want help with right now.`
-    : `${profileContext(profile, stats)}\n\n${nextOnboardingInstruction(getOnboardingStep(profile ?? DEFAULT_PROFILE, stats))}`
+    : `${profileContext(profile, stats)}\n\n${nextOnboardingInstruction(getOnboardingStep(profile ?? EMPTY_PROFILE, stats))}`
   return {
     type: "response.create",
     response: { instructions },
@@ -318,13 +340,72 @@ function buildQuickPrompt(actionKey: QuickActionKey, profile: CoachProfile | nul
   }
 }
 
+
+
+type MacroEstimate = { calories: number; protein: number; carbs: number; fat: number; countedAsMeal: boolean }
+
+const FOOD_LIBRARY: Array<{ keywords: string[]; calories: number; protein: number; carbs: number; fat: number; meal?: boolean }> = [
+  { keywords: ["chicken and rice", "chicken rice"], calories: 520, protein: 45, carbs: 52, fat: 10, meal: true },
+  { keywords: ["steak and potatoes", "steak potatoes", "steak meal"], calories: 680, protein: 50, carbs: 48, fat: 28, meal: true },
+  { keywords: ["protein shake", "shake"], calories: 120, protein: 24, carbs: 3, fat: 2 },
+  { keywords: ["greek yogurt", "yoghurt"], calories: 120, protein: 20, carbs: 8, fat: 0 },
+  { keywords: ["eggs on toast", "omelette"], calories: 360, protein: 24, carbs: 24, fat: 18, meal: true },
+  { keywords: ["oats", "porridge", "oatmeal"], calories: 320, protein: 18, carbs: 42, fat: 7, meal: true },
+  { keywords: ["salmon and rice", "salmon rice"], calories: 610, protein: 44, carbs: 48, fat: 25, meal: true },
+  { keywords: ["chicken wrap", "wrap"], calories: 460, protein: 34, carbs: 38, fat: 16, meal: true },
+  { keywords: ["burger"], calories: 520, protein: 28, carbs: 35, fat: 30, meal: true },
+  { keywords: ["pizza"], calories: 700, protein: 28, carbs: 70, fat: 32, meal: true },
+  { keywords: ["takeaway", "take away", "chip shop", "mcdonald", "kfc", "greggs"], calories: 850, protein: 30, carbs: 90, fat: 36, meal: true },
+  { keywords: ["rice"], calories: 180, protein: 4, carbs: 40, fat: 1 },
+  { keywords: ["potatoes", "jacket potato", "baked potato"], calories: 230, protein: 6, carbs: 50, fat: 0 },
+  { keywords: ["chicken breast", "chicken"], calories: 330, protein: 60, carbs: 0, fat: 7, meal: true },
+  { keywords: ["steak"], calories: 400, protein: 50, carbs: 0, fat: 22, meal: true },
+]
+
+function estimateFromText(input: string): MacroEstimate | null {
+  const t = input.toLowerCase()
+  let found = FOOD_LIBRARY.find((item) => item.keywords.some((k) => t.includes(k)))
+  if (!found) return null
+  let multiplier = 1
+  if (t.includes("large") || t.includes("big")) multiplier = 1.25
+  if (t.includes("small") || t.includes("light")) multiplier = 0.8
+  if (t.includes("2 ") || t.includes("double")) multiplier = 1.8
+  return {
+    calories: Math.round(found.calories * multiplier),
+    protein: Math.round(found.protein * multiplier),
+    carbs: Math.round(found.carbs * multiplier),
+    fat: Math.round(found.fat * multiplier),
+    countedAsMeal: !!found.meal,
+  }
+}
+
+function pieSegments(stats: CoachStats) {
+  const total = stats.proteinUsed + stats.carbsUsed + stats.fatUsed
+  if (!total) return [] as Array<{color:string; dash:number; offset:number}>
+  const vals = [stats.proteinUsed, stats.carbsUsed, stats.fatUsed]
+  const colors = ["#22d3ee", "#3b82f6", "#fb923c"]
+  let cumulative = 0
+  const circumference = 2 * Math.PI * 42
+  return vals.map((v, i) => {
+    const dash = (v / total) * circumference
+    const offset = -cumulative
+    cumulative += dash
+    return { color: colors[i], dash, offset }
+  })
+}
+
+function progressPct(used:number,target:number){
+  if (!target) return 0
+  return Math.max(0, Math.min(100, Math.round((used/target)*100)))
+}
+
 function buildCoachGuidance(profile: CoachProfile | null, stats: CoachStats) {
   if (!isProfileComplete(profile, stats)) return "First time here? Tap to talk and George will get you set up properly."
   const cals = caloriesLeft(stats)
   const protein = proteinLeft(stats)
   if (stats.mealsToday === 0) return `You’re set for ${stats.caloriesTarget} kcal and ${stats.proteinTarget}g protein today.`
-  if (stats.mealsToday === 1) return `You’ve got ${cals} kcal and ${protein}g protein left. Keep the next meal controlled.`
-  return `${cals} kcal and ${protein}g protein left. Keep the rest of the day tight.`
+  if (stats.mealsToday === 1) return `You’ve got ${cals} kcal, ${protein}g protein, ${carbsLeft(stats)}g carbs and ${fatLeft(stats)}g fat left. Keep the next meal controlled.`
+  return `${cals} kcal, ${protein}g protein, ${carbsLeft(stats)}g carbs and ${fatLeft(stats)}g fat left. Keep the rest of the day tight.`
 }
 
 export function CoachGeorgeLiveAssistant() {
@@ -343,13 +424,19 @@ export function CoachGeorgeLiveAssistant() {
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const queuedPromptRef = useRef<string | null>(null)
-  const onboardingProfileRef = useRef<CoachProfile>(DEFAULT_PROFILE)
+  const onboardingProfileRef = useRef<CoachProfile>(EMPTY_PROFILE)
 
   const profileReady = isProfileComplete(profile, stats)
   const latestAssistantMessage = useMemo(() => {
     const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant")
     return latestAssistant?.content || buildCoachGuidance(profile, stats)
   }, [messages, profile, stats])
+  const macroBars = [
+    { label: "Protein", used: stats.proteinUsed, target: stats.proteinTarget, color: "from-cyan-300 to-cyan-500" },
+    { label: "Carbs", used: stats.carbsUsed, target: stats.carbsTarget, color: "from-blue-400 to-blue-600" },
+    { label: "Fats", used: stats.fatUsed, target: stats.fatTarget, color: "from-amber-300 to-orange-500" },
+  ]
+  const pie = pieSegments(stats)
 
   useEffect(() => {
     try {
@@ -374,7 +461,7 @@ export function CoachGeorgeLiveAssistant() {
         const parsed = JSON.parse(rawProfile)
         if (parsed && typeof parsed === "object") {
           setProfile(parsed)
-          onboardingProfileRef.current = { ...DEFAULT_PROFILE, ...parsed }
+          onboardingProfileRef.current = { ...EMPTY_PROFILE, ...parsed }
         }
       }
     } catch {}
@@ -448,8 +535,22 @@ export function CoachGeorgeLiveAssistant() {
     if (!cleaned) return
     setMessages((prev) => [...prev, makeMessage("user", cleaned)])
 
+    if (profileReady) {
+      const estimate = estimateFromText(cleaned)
+      if (estimate) {
+        setStats((prev) => ({
+          ...markUsage(prev),
+          caloriesUsed: prev.caloriesUsed + estimate.calories,
+          proteinUsed: prev.proteinUsed + estimate.protein,
+          carbsUsed: prev.carbsUsed + estimate.carbs,
+          fatUsed: prev.fatUsed + estimate.fat,
+          mealsToday: prev.mealsToday + (estimate.countedAsMeal ? 1 : 0),
+        }))
+      }
+    }
+
     if (!profileReady) {
-      const currentProfile = onboardingProfileRef.current
+      const currentProfile = onboardingProfileRef.current || EMPTY_PROFILE
       const step = getOnboardingStep(currentProfile, stats)
       if (step !== "done") {
         const applied = applyOnboardingAnswer(step, cleaned, currentProfile)
@@ -462,6 +563,8 @@ export function CoachGeorgeLiveAssistant() {
             ...targets,
             caloriesUsed: 0,
             proteinUsed: 0,
+            carbsUsed: 0,
+            fatUsed: 0,
             mealsToday: 0,
           }
           setProfile(applied.profile)
@@ -564,7 +667,8 @@ export function CoachGeorgeLiveAssistant() {
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
-        },
+          sampleRate: 48000,
+        } as MediaTrackConstraints,
       })
       localStreamRef.current = stream
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
@@ -622,11 +726,7 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function handleQuickAction(actionKey: QuickActionKey) {
-    setStats((prev) => {
-      let next = markUsage(prev)
-      if (actionKey === "log_meal") next = { ...next, mealsToday: next.mealsToday + 1 }
-      return next
-    })
+    setStats((prev) => markUsage(prev))
     const prompt = buildQuickPrompt(actionKey, profile, stats)
     if (connectionState === "connected") {
       sendTextPrompt(prompt)
@@ -659,55 +759,99 @@ export function CoachGeorgeLiveAssistant() {
         <div className="absolute left-1/2 top-28 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full bg-cyan-400/12 blur-[110px]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pb-10 pt-10">
-        <div className="text-center">
-          <div className="text-[42px] font-semibold tracking-[0.28em] text-white sm:text-[52px]">GEORGE</div>
-          <div className="mt-2 text-[12px] uppercase tracking-[0.5em] text-slate-400">Tap to talk</div>
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[34px] font-semibold tracking-[0.22em] text-white">COACHGEORGE</div>
+            <div className="mt-1 text-[11px] uppercase tracking-[0.42em] text-slate-500">Live performance coach</div>
+          </div>
+          <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.28em] text-cyan-200">{connectionState === "connected" ? "Live" : "Ready"}</div>
         </div>
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-6 flex justify-center">
           <button
             type="button"
             disabled={connectionState === "connecting"}
             onClick={connectionState === "connected" ? stopConversation : startConversation}
-            className="group relative flex h-[350px] w-[350px] items-center justify-center rounded-full focus:outline-none disabled:cursor-not-allowed"
+            className="group relative flex h-[320px] w-[320px] items-center justify-center rounded-full focus:outline-none disabled:cursor-not-allowed"
           >
-            <div className="absolute inset-0 rounded-full border border-cyan-300/15 opacity-80" style={{ animation: "ringPulse 3.4s ease-in-out infinite" }} />
-            <div className="absolute inset-[14px] rounded-full border border-cyan-400/18" />
-            <div className="absolute inset-[28px] rounded-full border border-cyan-400/20" style={{ animation: "ringPulse 2.8s ease-in-out infinite" }} />
-            <div className="absolute inset-[40px] rounded-full border border-amber-300/10" />
-            <div className="absolute inset-[18px] rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,rgba(34,211,238,.0),rgba(34,211,238,.28),rgba(251,146,60,.14),rgba(34,211,238,.0))] opacity-90 blur-[1px]" style={{ animation: "shimmer 12s linear infinite" }} />
-            <div className="absolute inset-[62px] rounded-full border border-cyan-200/8 bg-[radial-gradient(circle_at_50%_45%,rgba(22,163,184,.32),rgba(3,7,18,.95)_70%)]" style={{ animation: "coreGlow 4.3s ease-in-out infinite" }} />
-            <div className="absolute inset-[82px] rounded-full bg-[radial-gradient(circle_at_50%_36%,rgba(148,163,184,.46),rgba(15,23,42,.12)_18%,rgba(2,6,23,.92)_58%)]" />
-            <div className="absolute inset-[98px] rounded-full bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,.18),transparent_18%),radial-gradient(circle_at_50%_62%,rgba(34,211,238,.08),transparent_50%)]" />
-            <div className="absolute left-1/2 top-[102px] flex h-20 w-20 -translate-x-1/2 items-center justify-center rounded-full border border-white/18 bg-white/12 shadow-[0_12px_40px_rgba(0,0,0,.35)] backdrop-blur">
-              <BarChart3 className="h-9 w-9 text-white/90" />
+            <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(56,189,248,0.18),transparent_48%),radial-gradient(circle_at_50%_50%,rgba(249,115,22,0.12),transparent_70%)] blur-xl" />
+            <div className="absolute inset-0 rounded-full border border-cyan-300/15 opacity-90" style={{ animation: "ringPulse 3.4s ease-in-out infinite" }} />
+            <div className="absolute inset-[10px] rounded-full border border-cyan-200/10" />
+            <div className="absolute inset-[18px] rounded-full border border-cyan-300/18" style={{ animation: "ringPulse 2.7s ease-in-out infinite" }} />
+            <div className="absolute inset-[30px] rounded-full border border-amber-300/12" />
+            <div className="absolute inset-[18px] rounded-full bg-[conic-gradient(from_90deg_at_50%_50%,rgba(34,211,238,0.02),rgba(34,211,238,0.35),rgba(249,115,22,0.22),rgba(34,211,238,0.04),rgba(34,211,238,0.02))]" style={{ animation: "shimmer 10s linear infinite" }} />
+            <div className="absolute inset-[54px] rounded-full border border-white/6 bg-[radial-gradient(circle_at_50%_42%,rgba(34,211,238,.28),rgba(3,7,18,.96)_64%)]" style={{ animation: "coreGlow 4.3s ease-in-out infinite" }} />
+            <div className="absolute inset-[80px] rounded-full bg-[radial-gradient(circle_at_50%_36%,rgba(255,255,255,.40),rgba(15,23,42,.14)_18%,rgba(2,6,23,.94)_58%)]" />
+            <div className="absolute left-1/2 top-[86px] flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full border border-white/16 bg-white/10 shadow-[0_12px_40px_rgba(0,0,0,.35)] backdrop-blur">
+              <BarChart3 className="h-7 w-7 text-white/90" />
             </div>
             <div className="relative z-10 mt-16 text-center">
-              <div className="text-[52px] font-semibold tracking-tight text-white">George</div>
-              <div className="mt-2 text-2xl text-white/85">{connectionState === "connecting" ? "Connecting…" : connectionState === "connected" ? "Live now" : "Tap to talk"}</div>
+              <div className="text-[48px] font-semibold tracking-tight text-white">George</div>
+              <div className="mt-2 text-[22px] text-white/82">{connectionState === "connecting" ? "Connecting…" : connectionState === "connected" ? "Live now" : "Tap to talk"}</div>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-slate-300">performance • tracking • coaching</div>
             </div>
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-4">
+        <div className="mt-5 grid grid-cols-2 gap-3">
           {[
             { label: "Calories left", value: stats.caloriesTarget > 0 ? caloriesLeft(stats) : "--" },
             { label: "Protein left", value: stats.proteinTarget > 0 ? `${proteinLeft(stats)}g` : "--" },
             { label: "Meals today", value: stats.mealsToday },
             { label: "Day streak", value: stats.streak },
-          ].map((item, index) => (
-            <div
-              key={item.label}
-              className="rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(2,8,20,.94))] px-6 py-5 shadow-[0_18px_55px_rgba(0,0,0,.28)]"
-            >
-              <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">{item.label}</div>
-              <div className={`mt-4 text-[54px] font-semibold leading-none text-white ${index === 1 ? "text-[52px]" : ""}`}>{item.value}</div>
+          ].map((item) => (
+            <div key={item.label} className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,18,28,.95),rgba(4,8,18,.98))] px-4 py-4 shadow-[0_16px_46px_rgba(0,0,0,.28)]">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{item.label}</div>
+              <div className="mt-3 text-[38px] font-semibold leading-none text-white">{item.value}</div>
             </div>
           ))}
         </div>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.9),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Macro progress</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">consumed / target</div>
+          </div>
+          <div className="mt-4 space-y-4">
+            {macroBars.map((bar) => (
+              <div key={bar.label}>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium text-white">{bar.label}</span>
+                  <span className="text-slate-400">{bar.used} / {bar.target || "--"}g</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-white/6">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${bar.color} transition-all duration-500`} style={{ width: `${progressPct(bar.used, bar.target)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex items-center gap-4">
+            <div className="relative h-28 w-28 shrink-0">
+              <svg viewBox="0 0 100 100" className="h-28 w-28 -rotate-90">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="12" />
+                {pie.map((seg, idx) => (
+                  <circle key={idx} cx="50" cy="50" r="42" fill="none" stroke={seg.color} strokeWidth="12" strokeDasharray={`${seg.dash} 999`} strokeDashoffset={seg.offset} strokeLinecap="round" />
+                ))}
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-center">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Today</div>
+                  <div className="text-lg font-semibold text-white">Macros</div>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-white"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400" /> Protein</div>
+              <div className="flex items-center gap-2 text-white"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Carbs</div>
+              <div className="flex items-center gap-2 text-white"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" /> Fats</div>
+              <p className="pt-1 text-xs leading-5 text-slate-400">George tracks these against your daily targets as you log meals.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
           {QUICK_ACTIONS.map((action) => {
             const Icon = action.icon
             return (
@@ -715,26 +859,25 @@ export function CoachGeorgeLiveAssistant() {
                 key={action.key}
                 type="button"
                 onClick={() => handleQuickAction(action.key)}
-                className={`group relative flex w-full items-center gap-5 overflow-hidden rounded-[1.7rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.95),rgba(3,7,18,.96))] px-5 py-5 text-left shadow-[0_18px_55px_rgba(0,0,0,.24)] transition duration-200 hover:-translate-y-[1px] hover:border-white/20`}
+                className={`group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.94),rgba(3,7,18,.98))] px-4 py-4 text-left shadow-[0_18px_46px_rgba(0,0,0,.24)] transition duration-200 hover:-translate-y-[1px] hover:border-white/20`}
               >
-                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${action.accent} opacity-70`} />
-                <span className="relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-cyan-200">
-                  <Icon className="h-6 w-6" />
-                </span>
-                <span className="relative z-10 flex flex-1 items-center justify-between gap-3">
-                  <span className="text-[21px] font-medium tracking-tight text-white">{action.label}</span>
-                  <ChevronRight className="h-5 w-5 text-slate-500 transition group-hover:text-white" />
-                </span>
+                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${action.accent} opacity-80`} />
+                <div className="relative z-10 flex items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="text-[17px] font-medium leading-6 tracking-tight text-white">{action.label}</span>
+                </div>
               </button>
             )
           })}
         </div>
 
-        <div className="mt-6 rounded-[1.8rem] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(6,33,44,.74),rgba(2,8,20,.92))] px-6 py-6 shadow-[0_20px_60px_rgba(0,0,0,.28)]">
+        <div className="mt-5 rounded-[1.6rem] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(7,26,36,.78),rgba(2,8,20,.95))] px-5 py-5 shadow-[0_20px_55px_rgba(0,0,0,.28)]">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-cyan-200/80">
             <Sparkles className="h-3.5 w-3.5" /> George status
           </div>
-          <p className="mt-3 text-[19px] leading-9 text-white">{latestAssistantMessage}</p>
+          <p className="mt-3 text-[17px] leading-8 text-white">{latestAssistantMessage}</p>
         </div>
 
         {error ? <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm leading-6 text-rose-200">{error}</div> : null}
