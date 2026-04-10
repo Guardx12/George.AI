@@ -39,6 +39,7 @@ type CoachStats = {
   streak: number
   lastActiveDate: string | null
   currentDayDate: string | null
+  timezone?: string | null
 }
 
 type MacroEstimate = {
@@ -51,7 +52,7 @@ type MacroEstimate = {
 
 const STORAGE_KEY = "coach-george-v4-messages"
 const PROFILE_KEY = "coach-george-profile-v3"
-const STATS_KEY = "coach-george-stats-v7"
+const STATS_KEY = "coach-george-stats-v8"
 
 const EMPTY_PROFILE: CoachProfile = {}
 const DEFAULT_STATS: CoachStats = {
@@ -67,6 +68,7 @@ const DEFAULT_STATS: CoachStats = {
   streak: 0,
   lastActiveDate: null,
   currentDayDate: null,
+  timezone: null,
 }
 
 const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; accent: string; icon: any }> = [
@@ -77,8 +79,10 @@ const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; accent: string;
 ]
 
 const FOOD_LIBRARY: Array<{ keywords: string[]; calories: number; protein: number; carbs: number; fat: number; meal?: boolean }> = [
-  { keywords: ["protein powder", "protein shake", "whey"], calories: 120, protein: 24, carbs: 3, fat: 2 },
+  { keywords: ["protein powder", "protein shake", "whey", "shake"], calories: 120, protein: 24, carbs: 3, fat: 2 },
   { keywords: ["oats", "porridge", "oatmeal"], calories: 190, protein: 6, carbs: 32, fat: 4 },
+  { keywords: ["salmon sandwich", "salmon bagel", "salmon wrap"], calories: 430, protein: 30, carbs: 36, fat: 17, meal: true },
+  { keywords: ["sandwich", "meal deal sandwich", "deli sandwich"], calories: 380, protein: 20, carbs: 40, fat: 13, meal: true },
   { keywords: ["chicken and rice", "chicken rice"], calories: 520, protein: 45, carbs: 52, fat: 10, meal: true },
   { keywords: ["steak and potatoes", "steak potatoes", "steak meal"], calories: 680, protein: 50, carbs: 48, fat: 28, meal: true },
   { keywords: ["greek yogurt", "greek yoghurt", "yoghurt"], calories: 120, protein: 20, carbs: 8, fat: 0 },
@@ -91,7 +95,10 @@ const FOOD_LIBRARY: Array<{ keywords: string[]; calories: number; protein: numbe
   { keywords: ["rice"], calories: 180, protein: 4, carbs: 40, fat: 1 },
   { keywords: ["potatoes", "jacket potato", "baked potato"], calories: 230, protein: 6, carbs: 50, fat: 0 },
   { keywords: ["chicken breast", "chicken"], calories: 330, protein: 60, carbs: 0, fat: 7, meal: true },
+  { keywords: ["salmon"], calories: 420, protein: 45, carbs: 0, fat: 25, meal: true },
   { keywords: ["steak"], calories: 400, protein: 50, carbs: 0, fat: 22, meal: true },
+  { keywords: ["bread", "toast"], calories: 180, protein: 6, carbs: 34, fat: 2 },
+  { keywords: ["bagel"], calories: 250, protein: 9, carbs: 49, fat: 1 },
 ]
 
 function uid() {
@@ -102,22 +109,47 @@ function makeMessage(role: LiveMessage["role"], content: string): LiveMessage {
   return { id: uid(), role, content }
 }
 
-function localDateIso(date = new Date()) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
+function localDateIso(date = new Date(), timeZone?: string | null) {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || undefined,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    return formatter.format(date)
+  } catch {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, "0")
+    const d = String(date.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
+  }
 }
 
-function yesterdayIso() {
+function yesterdayIso(timeZone?: string | null) {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  return localDateIso(d)
+  return localDateIso(d, timeZone)
+}
+
+function inferCountryFromBrowser(): Country | null {
+  if (typeof window === "undefined") return null
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+  const lang = navigator.language?.toLowerCase() || ""
+  if (tz.includes("London") || lang.includes("en-gb")) return "UK"
+  if (tz.startsWith("America/") || lang.includes("en-us")) return "US"
+  return null
+}
+
+function getBrowserTimeZone() {
+  if (typeof window === "undefined") return null
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || null
 }
 
 function normalizeStatsForToday(stats: CoachStats): CoachStats {
-  const today = localDateIso()
-  if (stats.currentDayDate === today) return stats
+  const zone = stats.timezone || getBrowserTimeZone()
+  const today = localDateIso(new Date(), zone)
+  if (stats.currentDayDate === today) return { ...stats, timezone: zone }
   return {
     ...stats,
     caloriesUsed: 0,
@@ -126,14 +158,16 @@ function normalizeStatsForToday(stats: CoachStats): CoachStats {
     fatUsed: 0,
     mealsToday: 0,
     currentDayDate: today,
+    timezone: zone,
   }
 }
 
 function markUsage(stats: CoachStats): CoachStats {
   const normalized = normalizeStatsForToday(stats)
-  const today = localDateIso()
+  const zone = normalized.timezone || getBrowserTimeZone()
+  const today = localDateIso(new Date(), zone)
   if (normalized.lastActiveDate === today) return normalized
-  if (normalized.lastActiveDate === yesterdayIso()) return { ...normalized, streak: normalized.streak + 1, lastActiveDate: today }
+  if (normalized.lastActiveDate === yesterdayIso(zone)) return { ...normalized, streak: normalized.streak + 1, lastActiveDate: today }
   return { ...normalized, streak: 1, lastActiveDate: today }
 }
 
@@ -216,7 +250,8 @@ function parseActivity(input: string): ActivityLevel | null {
   if (t.includes("sedentary") || t.includes("desk") || t.includes("not very active")) return "sedentary"
   if (t.includes("light") || t.includes("few walks") || t.includes("lightly active")) return "lightly active"
   if (t.includes("moderate") || t.includes("moderately active") || t.includes("3 times") || t.includes("4 times")) return "moderately active"
-  if (t.includes("very active") || t.includes("active") || t.includes("train a lot") || t.includes("5 times") || t.includes("6 times")) return "very active"
+  if (t.includes("very active") || t.includes("train a lot") || t.includes("5 times") || t.includes("6 times") || t.includes("daily")) return "very active"
+  if (t.includes("active")) return "moderately active"
   return null
 }
 function parseCountry(input: string): Country | null {
@@ -242,6 +277,7 @@ function mergeProfileFromInput(input: string, prevProfile: CoachProfile): { prof
   if (weightKg) next.weightKg = weightKg
   if (activityLevel) next.activityLevel = activityLevel
   if (country) next.country = country
+  if (!next.country) next.country = inferCountryFromBrowser() || undefined
   return { profile: next, complete: Boolean(next.goal && next.sex && next.age && next.heightCm && next.weightKg && next.activityLevel && next.country) }
 }
 
@@ -305,9 +341,11 @@ function estimateFromText(input: string): MacroEstimate | null {
     return true
   })
   let multiplier = 1
-  if (t.includes("large") || t.includes("big")) multiplier = 1.25
-  if (t.includes("small") || t.includes("light")) multiplier = 0.8
-  if (t.includes("double")) multiplier = 1.8
+  const scoopMatch = t.match(/(\d+)\s*scoops?/) || t.match(/(\d+)x\s*(?:protein|shake|whey)/)
+  if (scoopMatch && t.includes("protein")) multiplier = Math.max(multiplier, Number(scoopMatch[1]))
+  if (t.includes("large") || t.includes("big")) multiplier *= 1.25
+  if (t.includes("small") || t.includes("light")) multiplier *= 0.8
+  if (t.includes("double")) multiplier *= 1.8
   const total = unique.reduce((acc, item) => ({
     calories: acc.calories + item.calories,
     protein: acc.protein + item.protein,
@@ -315,13 +353,14 @@ function estimateFromText(input: string): MacroEstimate | null {
     fat: acc.fat + item.fat,
     countedAsMeal: acc.countedAsMeal || !!item.meal,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0, countedAsMeal: false })
-  const hasMealWord = /breakfast|lunch|dinner|meal/.test(t)
+  const hasMealWord = /breakfast|lunch|dinner|meal|sandwich|wrap|bagel/.test(t)
+  const countedAsMeal = total.countedAsMeal || hasMealWord || unique.length > 1 || total.calories * multiplier >= 250
   return {
     calories: Math.round(total.calories * multiplier),
     protein: Math.round(total.protein * multiplier),
     carbs: Math.round(total.carbs * multiplier),
     fat: Math.round(total.fat * multiplier),
-    countedAsMeal: total.countedAsMeal || hasMealWord,
+    countedAsMeal,
   }
 }
 
@@ -406,8 +445,9 @@ export function CoachGeorgeLiveAssistant() {
       if (rawProfile) {
         const parsed = JSON.parse(rawProfile)
         if (parsed && typeof parsed === "object") {
-          setProfile(parsed)
-          onboardingProfileRef.current = { ...EMPTY_PROFILE, ...parsed }
+          const withCountry = { ...parsed, country: parsed.country || inferCountryFromBrowser() || undefined }
+          setProfile(withCountry)
+          onboardingProfileRef.current = { ...EMPTY_PROFILE, ...withCountry }
         }
       }
     } catch {}
@@ -415,7 +455,7 @@ export function CoachGeorgeLiveAssistant() {
       const rawStats = window.localStorage.getItem(STATS_KEY)
       if (rawStats) {
         const parsed = JSON.parse(rawStats)
-        if (parsed && typeof parsed === "object") setStats(normalizeStatsForToday({ ...DEFAULT_STATS, ...parsed }))
+        if (parsed && typeof parsed === "object") setStats(normalizeStatsForToday({ ...DEFAULT_STATS, ...parsed, timezone: parsed.timezone || getBrowserTimeZone() }))
       }
     } catch {}
   }, [])
@@ -423,6 +463,18 @@ export function CoachGeorgeLiveAssistant() {
   useEffect(() => { try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: messages.slice(-20) })) } catch {} }, [messages])
   useEffect(() => { try { window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile ?? {})) } catch {} }, [profile])
   useEffect(() => { try { window.localStorage.setItem(STATS_KEY, JSON.stringify(stats)) } catch {} }, [stats])
+
+  useEffect(() => {
+    if (!profileRef.current) {
+      const inferred = inferCountryFromBrowser()
+      if (inferred) {
+        const next = { ...EMPTY_PROFILE, country: inferred }
+        setProfile(next)
+        onboardingProfileRef.current = next
+      }
+    }
+    setStats(prev => normalizeStatsForToday({ ...prev, timezone: prev.timezone || getBrowserTimeZone() }))
+  }, [])
 
   async function cleanupConversation() {
     dcRef.current?.close(); dcRef.current = null
@@ -484,6 +536,7 @@ export function CoachGeorgeLiveAssistant() {
     if (!ready) {
       const applied = mergeProfileFromInput(cleaned, onboardingProfileRef.current || EMPTY_PROFILE)
       onboardingProfileRef.current = applied.profile
+      setProfile(applied.profile)
       if (applied.complete) {
         persistCompletedProfile(applied.profile)
         return
@@ -493,7 +546,6 @@ export function CoachGeorgeLiveAssistant() {
       if (dc?.readyState === "open") {
         dc.send(JSON.stringify({ type: "response.create", response: { instructions: nextOnboardingInstruction(nextStep) } }))
       }
-      setProfile(applied.profile)
       return
     }
 
