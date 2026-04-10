@@ -764,9 +764,6 @@ export function CoachGeorgeLiveAssistant() {
     if (isFinal) {
       const finalText = currentAssistantTextRef.current
       hydrateTargetsFromAssistant(finalText)
-      if (pendingEstimateRef.current && /\blogg(?:ed|ing)\b|\bsaved\b/i.test(finalText)) {
-        applyMealLog(pendingEstimateRef.current, pendingMealTextRef.current || "your meal")
-      }
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
     }
@@ -853,16 +850,7 @@ export function CoachGeorgeLiveAssistant() {
 
     const estimate = estimateFromText(cleaned)
     if (estimate) {
-      if (explicitLog) {
-        applyMealLog(estimate, cleaned)
-        return
-      }
-
-      pendingEstimateRef.current = estimate
-      pendingMealTextRef.current = cleaned
-      setPendingEstimate(estimate)
-      setPendingMealText(cleaned)
-      pushAssistantMessage(`That comes out to roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Would you like me to log that? You can say yes or tap Log meal below.`)
+      applyMealLog(estimate, cleaned)
       return
     }
 
