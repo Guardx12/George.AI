@@ -12,11 +12,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: " | Conversational Digital Member of Staff for Your Website",
+    default: "George",
     template: "%s",
   },
   description:
-    " — your conversational digital member of staff for your website. He talks to website visitors, answers questions about services and facilities, explains pricing and options, guides visitors toward becoming enquiries, and captures enquiry details automatically.",
+    "George by AskGeorge.",
   generator: "v0.app",
   icons: {
     icon: "/favicon.ico",
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_GB",
     url: "https://askgeorge.app",
-    images: [{ url: "/george-preview.png?v=8", width: 1200, height: 630, alt: ", your conversational digital member of staff for your website" }],
+    images: [{ url: "/george-preview.png?v=8", width: 1200, height: 630, alt: "George by AskGeorge" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: " | Conversational Digital Member of Staff for Your Website | GuardX",
+    title: "George",
     description:
-      " — your conversational digital member of staff for your website. He talks to website visitors, answers questions about services and facilities, explains pricing and options, guides visitors toward becoming enquiries, and captures enquiry details automatically.",
+      "George by AskGeorge.",
     images: ["/george-preview.png?v=8"],
   },
   alternates: { canonical: "https://askgeorge.app" },
@@ -98,7 +98,7 @@ export default function RootLayout({
             "url": "https://www.guardxnetwork.com",
             "logo": "https://www.guardxnetwork.com/images/guardx-logo.png",
             "image": "https://www.guardxnetwork.com/images/guardx-logo.png",
-            "description": " — your conversational digital member of staff for your website. He talks to website visitors, answers questions about services and facilities, explains pricing and options, guides visitors toward becoming enquiries, and captures enquiry details automatically.",
+            "description": "George by AskGeorge.",
             "areaServed": {
               "@type": "Country",
               "name": "United Kingdom"
