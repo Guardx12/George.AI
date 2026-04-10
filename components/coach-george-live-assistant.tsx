@@ -418,6 +418,8 @@ export function CoachGeorgeLiveAssistant() {
   const onboardingProfileRef = useRef<CoachProfile>(EMPTY_PROFILE)
   const statsRef = useRef<CoachStats>(DEFAULT_STATS)
   const profileRef = useRef<CoachProfile | null>(null)
+  const pendingEstimateRef = useRef<MacroEstimate | null>(null)
+  const pendingMealTextRef = useRef<string | null>(null)
 
   useEffect(() => { statsRef.current = stats }, [stats])
   useEffect(() => { profileRef.current = profile }, [profile])
@@ -549,22 +551,37 @@ export function CoachGeorgeLiveAssistant() {
       return
     }
 
+    const explicitLog = isLogIntent(cleaned)
+    const pending = pendingEstimateRef.current
+
+    if (pending && isConfirmIntent(cleaned) && !estimateFromText(cleaned)) {
+      applyMealLog(pending, pendingMealTextRef.current || "their last meal")
+      return
+    }
+
     const estimate = estimateFromText(cleaned)
     if (estimate) {
-      setStats(prev => {
-        const next = markUsage(prev)
-        return {
-          ...next,
-          caloriesUsed: next.caloriesUsed + estimate.calories,
-          proteinUsed: next.proteinUsed + estimate.protein,
-          carbsUsed: next.carbsUsed + estimate.carbs,
-          fatUsed: next.fatUsed + estimate.fat,
-          mealsToday: next.mealsToday + (estimate.countedAsMeal ? 1 : 0),
-        }
-      })
-    } else {
-      setStats(prev => markUsage(prev))
+      if (explicitLog) {
+        applyMealLog(estimate, cleaned)
+        return
+      }
+
+      pendingEstimateRef.current = estimate
+      pendingMealTextRef.current = cleaned
+      const dc = dcRef.current
+      if (dc?.readyState === "open") {
+        dc.send(JSON.stringify({
+          type: "response.create",
+          response: {
+            instructions: `${profileContext(profileRef.current, statsRef.current)}
+The user has described a meal but has not confirmed logging yet. Estimate it as roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Then ask exactly: Would you like me to log that? Do not say you already logged it.`
+          }
+        }))
+      }
+      return
     }
+
+    setStats(prev => markUsage(prev))
   }
 
   function sendTextPrompt(prompt: string) {
