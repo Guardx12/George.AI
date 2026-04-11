@@ -719,6 +719,310 @@ export function CoachGeorgeLiveAssistant() {
 
     const ready = isProfileComplete(currentProfile)
     return (
+      <div className="mt-5 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Live setup preview</div>
+        <div className="mt-2 text-sm leading-6 text-slate-300">As you talk, George fills this in. When it looks right, save it.</div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {entries.map(([label, value]) => (
+            <div key={label} className="rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-3">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{label}</div>
+              <div className="mt-2 text-sm text-white">{value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {ready ? (
+            <button type="button" onClick={() => completeOnboarding(currentProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Save targets</button>
+          ) : (
+            <div className="text-xs text-slate-400">George is still collecting the missing details.</div>
+          )}
+          {ready ? <button type="button" onClick={() => setPendingProfile(null)} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button> : null}
+        </div>
+      </div>
+    )
+  }
+
+  function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
+    if (!delta) return
+    if (!currentAssistantMessageIdRef.current) {
+      const message = makeMessage("assistant", delta)
+      currentAssistantMessageIdRef.current = message.id
+      currentAssistantTextRef.current = delta
+      setMessages((prev) => [...prev, message])
+    } else {
+      currentAssistantTextRef.current += delta
+      const targetId = currentAssistantMessageIdRef.current
+      setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, content: currentAssistantTextRef.current } : m)))
+    }
+
+    if (isFinal) {
+      const finalText = currentAssistantTextRef.current.trim()
+      if (pendingArtifactRef.current && finalText) {
+        const buttonLabel = pendingArtifactRef.current === "workout" ? "Save workout" : (/(swap|replace)/i.test(finalText) ? "Apply swap" : "Save meal plan")
+        setPendingArtifactPreview({ kind: pendingArtifactRef.current, body: finalText, buttonLabel })
+      }
+      pendingArtifactRef.current = null
+      currentAssistantMessageIdRef.current = null
+      currentAssistantTextRef.current = ""
+    }
+  }
+
+  function startOnboardingFollowUp(nextProfile: CoachProfile) {
+    setProfile(nextProfile)
+    const nextStep = getOnboardingStep(nextProfile)
+    if (!sendDataChannelInstructions(nextOnboardingInstruction(nextStep))) {
+      pushAssistantMessage(nextOnboardingInstruction(nextStep).replace(/^.*?:\s*/, ""))
+    }
+  }
+
+  function handleProfileUpdates(input: string) {
+    const current = profileRef.current ?? EMPTY_PROFILE
+    const next = { ...current }
+    const goal = parseGoal(input)
+    const sex = parseSex(input)
+    const age = parseAge(input)
+    const heightCm = parseHeightCm(input)
+    const weightKg = parseWeightKg(input)
+    const activity = parseActivity(input)
+    const planStyle = parsePlanStyle(input)
+    const country = parseCountry(input)
+    if (goal) next.goal = goal
+    if (sex) next.sex = sex
+    if (age) next.age = age
+    if (heightCm) next.heightCm = heightCm
+    if (weightKg) next.weightKg = weightKg
+    if (activity) next.activityLevel = activity
+    if (planStyle) next.planStyle = planStyle
+    const mealsPerDay = parseMealsPerDay(input)
+    if (mealsPerDay) next.mealsPerDay = mealsPerDay
+    if (country) next.country = country
+
+    const lower = input.toLowerCase()
+    if (lower.includes("don't like") || lower.includes("do not like") || lower.includes("hate")) next.dislikes = parseDislikeAnswer(input)
+    if (lower.includes("allerg")) next.allergies = parseAllergyAnswer(input)
+
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      setProfile(next)
+      const nextTargets = calculateTargets(next)
+      if (nextTargets) setTargets(nextTargets)
+      pushAssistantMessage("Got it — I’ve updated your saved details.")
+      return true
+    }
+    return false
+  }
+
+  function addUserTranscript(text: string) {
+    const cleaned = text.trim()
+    if (!cleaned) return
+    setMessages((prev) => [...prev, makeMessage("user", cleaned)])
+    savePatternFromInput(cleaned)
+
+    if (pendingProfileRef.current && isAffirmative(cleaned)) {
+      completeOnboarding(pendingProfileRef.current)
+      return
+    }
+
+    if (checkInRef.current.draft || /weigh in|weigh-in|check in|check-in/i.test(cleaned)) {
+      advanceCheckIn(cleaned)
+      return
+    }
+
+    if (!isProfileComplete(profileRef.current ?? EMPTY_PROFILE) || !onboardingComplete) {
+      const current = profileRef.current ?? EMPTY_PROFILE
+      const step = getOnboardingStep(current)
+      const nextProfile = applyOnboardingAnswer(step, cleaned, current)
+      if (getOnboardingStep(nextProfile) === "done") {
+        const resolved = { ...nextProfile, country: nextProfile.country || inferCountryFromBrowser() || "UK" }
+        setPendingProfile(resolved)
+        pushAssistantMessage(`I’ve got your details. Confirm these and I’ll lock your targets in: ${resolved.name}, ${resolved.goal}, ${resolved.sex}, ${resolved.age}, ${resolved.heightCm}cm, ${resolved.weightKg}kg, ${resolved.activityLevel}, ${resolved.planStyle}, ${resolved.mealsPerDay} meals.`)
+        return
+      }
+      startOnboardingFollowUp(nextProfile)
+      return
+    }
+
+    if (handleProfileUpdates(cleaned)) return
+
+    if (/meal plan|full day|what should i eat|build me a plan|food plan|day of eating|swap|breakfast|lunch|dinner|snack/i.test(cleaned)) {
+      pendingArtifactRef.current = "meal_plan"
+    } else if (/workout|session|train|gym|home workout|boxing|run/i.test(cleaned)) {
+      pendingArtifactRef.current = "workout"
+    }
+  }
+
+  function sendTextPrompt(prompt: string) {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== "open") return
+    setMessages((prev) => [...prev, makeMessage("user", prompt)])
+    dc.send(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: prompt }] } }))
+    dc.send(JSON.stringify({ type: "response.create" }))
+  }
+
+  function handleRealtimeEvent(event: any) {
+    const type = event?.type
+    if (!type) return
+    switch (type) {
+      case "session.created":
+      case "session.updated":
+        setStatusText("George is live")
+        break
+      case "input_audio_buffer.speech_started":
+        setStatusText("Listening…")
+        break
+      case "input_audio_buffer.speech_stopped":
+        setStatusText("Thinking…")
+        break
+      case "response.created":
+      case "response.output_audio.delta":
+        setStatusText("George is replying…")
+        break
+      case "response.output_audio.done":
+        setStatusText("Listening…")
+        break
+      case "response.output_audio_transcript.delta":
+        appendOrUpdateAssistantPartial(typeof event.delta === "string" ? event.delta : "")
+        break
+      case "response.output_audio_transcript.done":
+        appendOrUpdateAssistantPartial(typeof event.transcript === "string" ? event.transcript : "", true)
+        break
+      case "conversation.item.input_audio_transcription.completed":
+        addUserTranscript(typeof event.transcript === "string" ? event.transcript : "")
+        break
+      case "conversation.item.created":
+        if (event?.item?.role === "user") {
+          const textBits = Array.isArray(event.item?.content)
+            ? event.item.content.filter((c: any) => c?.type === "input_text" && typeof c?.text === "string").map((c: any) => c.text)
+            : []
+          if (textBits.length) addUserTranscript(textBits.join(" ").trim())
+        }
+        break
+      case "error":
+        setError(event?.error?.message || "George hit a voice error.")
+        setStatusText("There was a connection problem")
+        break
+      default:
+        break
+    }
+  }
+
+  async function cleanupConversation() {
+    try { dcRef.current?.close() } catch {}
+    try { pcRef.current?.close() } catch {}
+    try { audioRef.current?.pause() } catch {}
+    try { localStreamRef.current?.getTracks().forEach((track) => track.stop()) } catch {}
+    dcRef.current = null
+    pcRef.current = null
+    audioRef.current = null
+    localStreamRef.current = null
+    currentAssistantTextRef.current = ""
+    currentAssistantMessageIdRef.current = null
+  }
+
+  async function startConversation() {
+    await cleanupConversation()
+    setConnectionState("connecting")
+    setError(null)
+    setStatusText("Connecting George…")
+    try {
+      const tokenResponse = await fetch("/api/george-session", { method: "GET", cache: "no-store" })
+      const tokenData = await tokenResponse.json().catch(() => null)
+      if (!tokenResponse.ok) throw new Error(typeof tokenData?.error === "string" ? tokenData.error : "Could not create a secure live session.")
+      const ephemeralKey = tokenData?.client_secret?.value || tokenData?.value
+      if (typeof ephemeralKey !== "string" || !ephemeralKey) throw new Error("Live voice token was missing.")
+
+      const pc = new RTCPeerConnection()
+      pcRef.current = pc
+      const audio = document.createElement("audio")
+      audio.autoplay = true
+      ;(audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
+      audioRef.current = audio
+      pc.ontrack = (event) => {
+        audio.srcObject = event.streams[0]
+        void audio.play().catch(() => {})
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 48000 } as MediaTrackConstraints,
+      })
+      localStreamRef.current = stream
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      const dc = pc.createDataChannel("oai-events")
+      dcRef.current = dc
+      dc.addEventListener("open", () => {
+        setConnectionState("connected")
+        setStatusText("Listening…")
+        dc.send(JSON.stringify({ type: "session.update", session: { input_audio_transcription: { model: "gpt-4o-mini-transcribe" } } }))
+        window.setTimeout(() => {
+          dc.send(JSON.stringify(buildFirstResponseEvent(profileRef.current, targetsRef.current, checkInRef.current)))
+          if (queuedPromptRef.current) {
+            const prompt = queuedPromptRef.current
+            queuedPromptRef.current = null
+            window.setTimeout(() => sendTextPrompt(prompt), 300)
+          }
+        }, 150)
+      })
+      dc.addEventListener("message", (event) => {
+        try { handleRealtimeEvent(JSON.parse(event.data)) } catch {}
+      })
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      const response = await fetch("https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ephemeralKey}`, "Content-Type": "application/sdp", "OpenAI-Beta": "realtime=v1" },
+        body: offer.sdp,
+      })
+      const answerText = await response.text()
+      if (!response.ok) throw new Error(answerText.trim() || "Could not connect George.")
+      await pc.setRemoteDescription({ type: "answer", sdp: answerText })
+      pc.addEventListener("connectionstatechange", () => {
+        if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+          setConnectionState("error")
+          setStatusText("Connection ended")
+        }
+      })
+    } catch (err) {
+      await cleanupConversation()
+      setConnectionState("error")
+      setStatusText("Could not connect George")
+      setError(err instanceof Error ? err.message : "Could not connect George right now.")
+    }
+  }
+
+  async function stopConversation() {
+    await cleanupConversation()
+    setConnectionState("idle")
+    setStatusText("Ready when you are")
+    setError(null)
+  }
+
+  function handleQuickAction(actionKey: QuickActionKey) {
+    if (actionKey === "build_plan") pendingArtifactRef.current = "meal_plan"
+    if (actionKey === "workout") pendingArtifactRef.current = "workout"
+    const prompt = buildQuickPrompt(actionKey, profileRef.current, targetsRef.current, checkInRef.current)
+    setPendingArtifactPreview(null)
+    if (connectionState === "connected") {
+      sendTextPrompt(prompt)
+      return
+    }
+    queuedPromptRef.current = prompt
+    void startConversation()
+  }
+
+  function handleStartCheckIn() {
+    const next = startCheckInDraft(checkInRef.current)
+    setCheckIn(next)
+    const prompt = nextCheckInInstruction("weight")
+    if (connectionState === "connected") {
+      sendDataChannelInstructions(prompt)
+      return
+    }
+    queuedPromptRef.current = prompt
+    void startConversation()
+  }
+
+  return (
     <div className="relative min-h-screen overflow-hidden bg-[#030507] text-white">
       <style>{`
         @keyframes ringPulse { 0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.02);opacity:1} }
@@ -754,89 +1058,135 @@ export function CoachGeorgeLiveAssistant() {
           </button>
         </div>
 
-        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Live conversation</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-300">buttons appear here</div>
+        <div className="mt-5 text-center text-sm leading-6 text-slate-300">{buildCoachGreeting()}</div>
+
+        {renderProfilePreviewCard(!onboardingComplete ? (pendingProfile ?? profile) : pendingProfile)}
+
+        {pendingArtifactPreview ? (
+          <div className="mt-5 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+            <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Action ready</div>
+            <div className="mt-2 text-sm leading-6 text-slate-300">George has prepared this. Review it, then confirm it.</div>
+            <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+              {renderLines(pendingArtifactPreview.body).slice(0, 12).map((line, index) => <div key={`${pendingArtifactPreview.kind}-${index}`}>{line}</div>)}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={confirmPendingArtifact} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">{pendingArtifactPreview.buttonLabel}</button>
+              <button type="button" onClick={clearPendingArtifact} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
+            </div>
           </div>
-          <div className="mt-3 space-y-2">
-            {[...messages].filter((m) => m.role !== "system").slice(-3).map((message) => (
-              <div key={message.id} className={`rounded-[1.1rem] border px-3 py-3 text-sm leading-6 ${message.role === "assistant" ? "border-cyan-300/15 bg-cyan-400/5 text-slate-200" : "border-white/8 bg-white/[0.03] text-slate-300"}`}>
-                <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">{message.role === "assistant" ? "George" : "You"}</div>
-                <div className="mt-1 whitespace-pre-wrap">{message.content}</div>
+        ) : null}
+
+        {targets ? (
+          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Your targets</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Current weight {profile?.weightKg ? `${profile.weightKg}kg` : "—"}</div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[
+                { label: "Protein", value: `${targets.protein}g`, valueClass: "text-cyan-300" },
+                { label: "Carbs", value: `${targets.carbs}g`, valueClass: "text-blue-300" },
+                { label: "Fats", value: `${targets.fats}g`, valueClass: "text-orange-300" },
+                { label: "Calories", value: `${targets.calories}`, valueClass: "text-white" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">{item.label}</div>
+                  <div className={`mt-3 text-[34px] font-semibold leading-none ${item.valueClass}`}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+              <span className="text-slate-500">Plan style:</span> <span className="ml-2 text-white capitalize">{profile?.planStyle ?? "balanced"}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingProfile ? (
+          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Confirm details</div>
+              <div className="mt-2 text-base font-medium text-white">Create your saved targets</div>
+              <div className="mt-3 text-sm text-slate-300">
+                {pendingProfile.name}, {pendingProfile.goal}, {pendingProfile.sex}, {pendingProfile.age}, {pendingProfile.heightCm}cm, {pendingProfile.weightKg}kg, {pendingProfile.activityLevel}, {pendingProfile.planStyle}
               </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button type="button" onClick={() => completeOnboarding(pendingProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Confirm details</button>
+                <button type="button" onClick={() => setPendingProfile(null)} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><UtensilsCrossed className="h-4 w-4" /> Current meal plan</div>
+          {activeMealPlan ? (
+            <>
+              <div className="mt-3 text-lg font-semibold text-white">{activeMealPlan.title}</div>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {renderLines(activeMealPlan.body).map((line, index) => <div key={`${activeMealPlan.id}-${index}`}>{line}</div>)}
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-sm leading-6 text-slate-300">No meal plan saved yet — ask George to build you a full day, swap a meal, or sort a snack.</div>
+          )}
+        </div>
+
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Dumbbell className="h-4 w-4" /> Current workout</div>
+          {activeWorkoutPlan ? (
+            <>
+              <div className="mt-3 text-lg font-semibold text-white">{activeWorkoutPlan.title}</div>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {renderLines(activeWorkoutPlan.body).map((line, index) => <div key={`${activeWorkoutPlan.id}-${index}`}>{line}</div>)}
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-sm leading-6 text-slate-300">No workout saved yet — ask George for a gym session, home workout, boxing session, or quick conditioning block.</div>
+          )}
+        </div>
+
+        {targets ? (
+          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><CalendarClock className="h-4 w-4" /> Weekly check-in</div>
+              <div className={`text-[10px] uppercase tracking-[0.3em] ${checkIn.status === "overdue" ? "text-amber-300" : checkIn.status === "due" ? "text-cyan-300" : "text-slate-500"}`}>{relativeCheckInLabel(checkIn)}</div>
+            </div>
+            <div className="mt-3 text-sm leading-6 text-slate-300">Keep your weight and weekly feedback current so George can adjust your targets and plans when needed.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={handleStartCheckIn} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white transition hover:bg-white/10">Start check-in</button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Try asking George</div>
+          <div className="mt-2 text-sm leading-6 text-slate-300">These are just prompts to get George going. The real save buttons appear when something is ready to confirm.</div>
+          <div className="mt-3 grid grid-cols-1 gap-2">
+            {[
+              { key: "build_plan", label: "Build me a plan" },
+              { key: "what_eat", label: "What should I eat today?" },
+              { key: "off_track", label: "I went off track" },
+              { key: "workout", label: "Give me a workout" },
+            ].map((action) => (
+              <button key={action.key} type="button" onClick={() => handleQuickAction(action.key as QuickActionKey)} className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-white/[0.05]">
+                {action.label}
+              </button>
             ))}
-            {!messages.filter((m) => m.role !== "system").length ? (
-              <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm leading-6 text-slate-400">Talk to George. As soon as something is ready to confirm, the right button appears here.</div>
-            ) : null}
           </div>
+        </div>
 
-          {!onboardingComplete ? (
-            <div className="mt-4 rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-slate-300">
-              <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Setup preview</div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <div><span className="text-slate-500">Name</span><div>{(pendingProfile ?? profile)?.name || "—"}</div></div>
-                <div><span className="text-slate-500">Goal</span><div>{(pendingProfile ?? profile)?.goal || "—"}</div></div>
-                <div><span className="text-slate-500">Sex</span><div>{(pendingProfile ?? profile)?.sex || "—"}</div></div>
-                <div><span className="text-slate-500">Age</span><div>{(pendingProfile ?? profile)?.age || "—"}</div></div>
-                <div><span className="text-slate-500">Height</span><div>{(pendingProfile ?? profile)?.heightCm ? `${(pendingProfile ?? profile)?.heightCm} cm` : "—"}</div></div>
-                <div><span className="text-slate-500">Weight</span><div>{(pendingProfile ?? profile)?.weightKg ? `${(pendingProfile ?? profile)?.weightKg} kg` : "—"}</div></div>
-                <div><span className="text-slate-500">Style</span><div>{(pendingProfile ?? profile)?.planStyle || "—"}</div></div>
-                <div><span className="text-slate-500">Meals</span><div>{(pendingProfile ?? profile)?.mealsPerDay ? `${(pendingProfile ?? profile)?.mealsPerDay}` : "—"}</div></div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {pendingProfile ? <button type="button" onClick={() => completeOnboarding(pendingProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Save targets</button> : <div className="text-xs text-slate-400">George is still collecting the missing setup details.</div>}
-              </div>
+        {patterns.items.length ? (
+          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Target className="h-4 w-4" /> Coaching memory</div>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+              {patterns.items.slice(-3).map((item, index) => <div key={`${item}-${index}`} className="flex items-start gap-2"><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-500" /> <span>{item}</span></div>)}
             </div>
-          ) : null}
-
-          {pendingArtifactPreview ? (
-            <div className="mt-4 rounded-[1.1rem] border border-cyan-300/15 bg-cyan-400/5 px-3 py-3 text-sm leading-6 text-slate-200">
-              <div className="text-[10px] uppercase tracking-[0.24em] text-cyan-200">Action ready</div>
-              <div className="mt-2 whitespace-pre-wrap">{pendingArtifactPreview.body}</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" onClick={confirmPendingArtifact} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">{pendingArtifactPreview.buttonLabel}</button>
-                <button type="button" onClick={clearPendingArtifact} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Macros</div>
-            {targets ? <div className="mt-3 space-y-2 text-sm text-slate-200"><div className="flex justify-between"><span>Protein</span><span className="text-cyan-300">{targets.protein}g</span></div><div className="flex justify-between"><span>Carbs</span><span className="text-blue-300">{targets.carbs}g</span></div><div className="flex justify-between"><span>Fats</span><span className="text-orange-300">{targets.fats}g</span></div><div className="flex justify-between"><span>Calories</span><span>{targets.calories}</span></div></div> : <div className="mt-3 text-sm leading-6 text-slate-400">No saved macros yet.</div>}
           </div>
-          <div className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Current weight</div>
-            {profile?.weightKg ? <div className="mt-3 text-[34px] font-semibold leading-none text-white">{profile.weightKg}<span className="ml-1 text-lg text-slate-400">kg</span></div> : <div className="mt-3 text-sm leading-6 text-slate-400">No current weight saved yet.</div>}
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Current meal plan</div>
-          {activeMealPlan ? <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">{renderLines(activeMealPlan.body).map((line, index) => <div key={`${activeMealPlan.id}-${index}`}>{line}</div>)}</div> : <div className="mt-3 text-sm leading-6 text-slate-400">No meal plan saved yet.</div>}
-        </div>
-
-        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Current workout</div>
-          {activeWorkoutPlan ? <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">{renderLines(activeWorkoutPlan.body).map((line, index) => <div key={`${activeWorkoutPlan.id}-${index}`}>{line}</div>)}</div> : <div className="mt-3 text-sm leading-6 text-slate-400">No workout saved yet.</div>}
-        </div>
+        ) : null}
 
         <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
           <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Latest from George</div>
           <div className="mt-3 text-sm leading-6 text-slate-300">{latestAssistantMessage}</div>
-        </div>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          {[
-            { key: "build_plan", label: "Build me a plan" },
-            { key: "what_eat", label: "What should I eat today?" },
-            { key: "off_track", label: "I went off track" },
-            { key: "workout", label: "Give me a workout" },
-          ].map((action) => (
-            <button key={action.key} type="button" onClick={() => handleQuickAction(action.key as QuickActionKey)} className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold tracking-[0.02em] text-slate-200 transition hover:bg-white/[0.08]">{action.label}</button>
-          ))}
         </div>
 
         {error ? <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm leading-6 text-rose-200">{error}</div> : null}
