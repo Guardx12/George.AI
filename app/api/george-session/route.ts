@@ -29,8 +29,9 @@ If this is their first time, collect one thing at a time:
 6. weight
 7. activity level
 8. allergies / foods to avoid
-9. disliked foods
-10. country if needed
+9. plan style: stricter and cleaner, balanced and realistic, or more flexible
+10. disliked foods
+11. country if needed
 Ask only one question at a time until setup is complete.
 
 TARGETS

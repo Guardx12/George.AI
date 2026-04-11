@@ -1794,6 +1794,15 @@ export const GEORGE_INGREDIENTS: Ingredient[] = [
     "food_tier": "flexible"
   },
   {
+    "ingredient_name": "potatoes boiled",
+    "category": "carb",
+    "calories_per_100g": 77.0,
+    "protein_per_100g": 2.0,
+    "carbs_per_100g": 17.0,
+    "fat_per_100g": 0.1,
+    "food_tier": "performance"
+  },
+  {
     "ingredient_name": "white potatoes",
     "category": "carb",
     "calories_per_100g": 77.0,
@@ -1853,7 +1862,7 @@ export const GEORGE_RECIPE_ROWS: RecipeRow[] = [
   {
     "meal_name": "Egg omelette spinach",
     "ingredient": "spinach",
-    "grams": 80
+    "grams": 50
   },
   {
     "meal_name": "Egg omelette spinach",
@@ -1863,7 +1872,7 @@ export const GEORGE_RECIPE_ROWS: RecipeRow[] = [
   {
     "meal_name": "Weetabix bowl",
     "ingredient": "weetabix",
-    "grams": 70
+    "grams": 60
   },
   {
     "meal_name": "Weetabix bowl",
@@ -1873,7 +1882,7 @@ export const GEORGE_RECIPE_ROWS: RecipeRow[] = [
   {
     "meal_name": "Weetabix bowl",
     "ingredient": "banana",
-    "grams": 120
+    "grams": 100
   },
   {
     "meal_name": "Chicken rice bowl",
@@ -1893,17 +1902,42 @@ export const GEORGE_RECIPE_ROWS: RecipeRow[] = [
   {
     "meal_name": "Chicken rice bowl",
     "ingredient": "olive oil",
-    "grams": 5
+    "grams": 10
+  },
+  {
+    "meal_name": "Chicken wrap",
+    "ingredient": "chicken breast raw",
+    "grams": 120
+  },
+  {
+    "meal_name": "Chicken wrap",
+    "ingredient": "wrap tortilla",
+    "grams": 60
+  },
+  {
+    "meal_name": "Chicken wrap",
+    "ingredient": "lettuce",
+    "grams": 50
+  },
+  {
+    "meal_name": "Chicken wrap",
+    "ingredient": "tomato sauce",
+    "grams": 20
   },
   {
     "meal_name": "Tuna sandwich",
     "ingredient": "tuna canned in water",
-    "grams": 120
+    "grams": 100
   },
   {
     "meal_name": "Tuna sandwich",
-    "ingredient": "white bread",
+    "ingredient": "wholemeal bread",
     "grams": 80
+  },
+  {
+    "meal_name": "Tuna sandwich",
+    "ingredient": "sweetcorn",
+    "grams": 50
   },
   {
     "meal_name": "Tuna sandwich",
@@ -1911,172 +1945,301 @@ export const GEORGE_RECIPE_ROWS: RecipeRow[] = [
     "grams": 10
   },
   {
-    "meal_name": "Tuna sandwich",
-    "ingredient": "lettuce",
-    "grams": 30
-  },
-  {
-    "meal_name": "Greek yogurt protein bowl",
-    "ingredient": "greek yogurt 0 percent",
-    "grams": 250
-  },
-  {
-    "meal_name": "Greek yogurt protein bowl",
-    "ingredient": "oats",
-    "grams": 50
-  },
-  {
-    "meal_name": "Greek yogurt protein bowl",
-    "ingredient": "blueberries",
-    "grams": 100
-  },
-  {
-    "meal_name": "Greek yogurt protein bowl",
-    "ingredient": "honey",
-    "grams": 10
-  },
-  {
-    "meal_name": "Avocado eggs on toast",
-    "ingredient": "eggs whole",
-    "grams": 120
-  },
-  {
-    "meal_name": "Avocado eggs on toast",
-    "ingredient": "avocado",
+    "meal_name": "Egg fried rice",
+    "ingredient": "white rice dry",
     "grams": 70
   },
   {
-    "meal_name": "Avocado eggs on toast",
-    "ingredient": "sourdough bread",
+    "meal_name": "Egg fried rice",
+    "ingredient": "eggs whole",
+    "grams": 100
+  },
+  {
+    "meal_name": "Egg fried rice",
+    "ingredient": "peas",
+    "grams": 50
+  },
+  {
+    "meal_name": "Egg fried rice",
+    "ingredient": "soy sauce",
+    "grams": 10
+  },
+  {
+    "meal_name": "Egg fried rice",
+    "ingredient": "olive oil",
+    "grams": 5
+  },
+  {
+    "meal_name": "Turkey salad",
+    "ingredient": "turkey breast",
+    "grams": 150
+  },
+  {
+    "meal_name": "Turkey salad",
+    "ingredient": "lettuce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Turkey salad",
+    "ingredient": "olive oil",
+    "grams": 10
+  },
+  {
+    "meal_name": "Lentil soup",
+    "ingredient": "lentils cooked",
+    "grams": 200
+  },
+  {
+    "meal_name": "Lentil soup",
+    "ingredient": "carrots",
+    "grams": 50
+  },
+  {
+    "meal_name": "Lentil soup",
+    "ingredient": "onion",
+    "grams": 50
+  },
+  {
+    "meal_name": "Lentil soup",
+    "ingredient": "olive oil",
+    "grams": 5
+  },
+  {
+    "meal_name": "Chicken pasta",
+    "ingredient": "chicken breast raw",
+    "grams": 120
+  },
+  {
+    "meal_name": "Chicken pasta",
+    "ingredient": "pasta dry",
+    "grams": 75
+  },
+  {
+    "meal_name": "Chicken pasta",
+    "ingredient": "tomato sauce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Jacket potato beans",
+    "ingredient": "potatoes boiled",
+    "grams": 300
+  },
+  {
+    "meal_name": "Jacket potato beans",
+    "ingredient": "baked beans",
+    "grams": 150
+  },
+  {
+    "meal_name": "Ham cheese toastie",
+    "ingredient": "ham",
     "grams": 80
   },
   {
-    "meal_name": "Chicken pasta bowl",
+    "meal_name": "Ham cheese toastie",
+    "ingredient": "cheddar cheese",
+    "grams": 40
+  },
+  {
+    "meal_name": "Ham cheese toastie",
+    "ingredient": "white bread",
+    "grams": 80
+  },
+  {
+    "meal_name": "Chicken stir fry",
     "ingredient": "chicken breast raw",
     "grams": 150
   },
   {
-    "meal_name": "Chicken pasta bowl",
-    "ingredient": "pasta dry",
-    "grams": 80
-  },
-  {
-    "meal_name": "Chicken pasta bowl",
-    "ingredient": "tomato sauce",
-    "grams": 120
-  },
-  {
-    "meal_name": "Chicken pasta bowl",
-    "ingredient": "spinach",
-    "grams": 60
-  },
-  {
-    "meal_name": "Beef mince pasta",
-    "ingredient": "lean beef mince 5 percent",
+    "meal_name": "Chicken stir fry",
+    "ingredient": "mixed vegetables",
     "grams": 150
   },
   {
-    "meal_name": "Beef mince pasta",
-    "ingredient": "penne pasta dry",
-    "grams": 80
+    "meal_name": "Chicken stir fry",
+    "ingredient": "soy sauce",
+    "grams": 10
   },
   {
-    "meal_name": "Beef mince pasta",
-    "ingredient": "tomato sauce",
-    "grams": 120
+    "meal_name": "Chicken stir fry",
+    "ingredient": "olive oil",
+    "grams": 10
   },
   {
-    "meal_name": "Beef mince pasta",
-    "ingredient": "onion",
-    "grams": 60
+    "meal_name": "Chicken stir fry",
+    "ingredient": "noodles dry",
+    "grams": 75
   },
   {
-    "meal_name": "Salmon rice greens",
-    "ingredient": "salmon",
+    "meal_name": "Chicken dinner",
+    "ingredient": "chicken breast raw",
     "grams": 150
   },
   {
-    "meal_name": "Salmon rice greens",
-    "ingredient": "basmati rice dry",
+    "meal_name": "Chicken dinner",
+    "ingredient": "white rice dry",
     "grams": 70
   },
   {
-    "meal_name": "Salmon rice greens",
-    "ingredient": "green beans",
-    "grams": 100
-  },
-  {
-    "meal_name": "Steak potatoes veg",
-    "ingredient": "steak sirloin",
-    "grams": 180
-  },
-  {
-    "meal_name": "Steak potatoes veg",
-    "ingredient": "white potatoes",
-    "grams": 250
-  },
-  {
-    "meal_name": "Steak potatoes veg",
+    "meal_name": "Chicken dinner",
     "ingredient": "broccoli",
     "grams": 100
   },
   {
-    "meal_name": "Turkey wrap",
-    "ingredient": "turkey breast",
-    "grams": 140
+    "meal_name": "Chicken dinner",
+    "ingredient": "olive oil",
+    "grams": 10
   },
   {
-    "meal_name": "Turkey wrap",
-    "ingredient": "wrap wholemeal",
-    "grams": 70
-  },
-  {
-    "meal_name": "Turkey wrap",
-    "ingredient": "lettuce",
-    "grams": 40
-  },
-  {
-    "meal_name": "Turkey wrap",
-    "ingredient": "low fat mayo",
-    "grams": 15
-  },
-  {
-    "meal_name": "Cottage cheese fruit bowl",
-    "ingredient": "cottage cheese",
-    "grams": 250
-  },
-  {
-    "meal_name": "Cottage cheese fruit bowl",
-    "ingredient": "apple",
+    "meal_name": "Spaghetti bolognese",
+    "ingredient": "lean beef mince 5 percent",
     "grams": 150
   },
   {
-    "meal_name": "Cottage cheese fruit bowl",
-    "ingredient": "walnuts",
-    "grams": 15
-  }
+    "meal_name": "Spaghetti bolognese",
+    "ingredient": "pasta dry",
+    "grams": 75
+  },
+  {
+    "meal_name": "Spaghetti bolognese",
+    "ingredient": "tomato sauce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Spaghetti bolognese",
+    "ingredient": "olive oil",
+    "grams": 10
+  },
+  {
+    "meal_name": "Chilli con carne",
+    "ingredient": "lean beef mince 5 percent",
+    "grams": 150
+  },
+  {
+    "meal_name": "Chilli con carne",
+    "ingredient": "kidney beans",
+    "grams": 100
+  },
+  {
+    "meal_name": "Chilli con carne",
+    "ingredient": "tomato sauce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Chilli con carne",
+    "ingredient": "olive oil",
+    "grams": 10
+  },
+  {
+    "meal_name": "Salmon potatoes",
+    "ingredient": "salmon",
+    "grams": 150
+  },
+  {
+    "meal_name": "Salmon potatoes",
+    "ingredient": "potatoes boiled",
+    "grams": 250
+  },
+  {
+    "meal_name": "Salmon potatoes",
+    "ingredient": "broccoli",
+    "grams": 100
+  },
+  {
+    "meal_name": "Chicken curry",
+    "ingredient": "chicken breast raw",
+    "grams": 150
+  },
+  {
+    "meal_name": "Chicken curry",
+    "ingredient": "white rice dry",
+    "grams": 70
+  },
+  {
+    "meal_name": "Chicken curry",
+    "ingredient": "curry sauce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Beef stir fry",
+    "ingredient": "lean beef mince 5 percent",
+    "grams": 150
+  },
+  {
+    "meal_name": "Beef stir fry",
+    "ingredient": "noodles dry",
+    "grams": 80
+  },
+  {
+    "meal_name": "Beef stir fry",
+    "ingredient": "mixed vegetables",
+    "grams": 150
+  },
+  {
+    "meal_name": "Beef stir fry",
+    "ingredient": "soy sauce",
+    "grams": 10
+  },
+  {
+    "meal_name": "Turkey meatballs",
+    "ingredient": "turkey breast",
+    "grams": 150
+  },
+  {
+    "meal_name": "Turkey meatballs",
+    "ingredient": "pasta dry",
+    "grams": 75
+  },
+  {
+    "meal_name": "Turkey meatballs",
+    "ingredient": "tomato sauce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Veg curry",
+    "ingredient": "lentils cooked",
+    "grams": 150
+  },
+  {
+    "meal_name": "Veg curry",
+    "ingredient": "white rice dry",
+    "grams": 70
+  },
+  {
+    "meal_name": "Veg curry",
+    "ingredient": "curry sauce",
+    "grams": 100
+  },
+  {
+    "meal_name": "Chicken fajitas",
+    "ingredient": "chicken breast raw",
+    "grams": 150
+  },
+  {
+    "meal_name": "Chicken fajitas",
+    "ingredient": "wrap tortilla",
+    "grams": 80
+  },
+  {
+    "meal_name": "Chicken fajitas",
+    "ingredient": "bell peppers",
+    "grams": 100
+  },
+  {
+    "meal_name": "Chicken fajitas",
+    "ingredient": "onion",
+    "grams": 50
+  },
+  {
+    "meal_name": "Baked cod meal",
+    "ingredient": "cod",
+    "grams": 150
+  },
+  {
+    "meal_name": "Baked cod meal",
+    "ingredient": "potatoes boiled",
+    "grams": 250
+  },
 ]
-
-function round1(value: number) {
-  return Math.round(value * 10) / 10
-}
-
-export function calculateRecipeTotals(rows: RecipeRow[]) {
-  return rows.reduce(
-    (acc, row) => {
-      const ingredient = INGREDIENT_BY_NAME[row.ingredient]
-      if (!ingredient) return acc
-      const factor = row.grams / 100
-      acc.calories += ingredient.calories_per_100g * factor
-      acc.protein += ingredient.protein_per_100g * factor
-      acc.carbs += ingredient.carbs_per_100g * factor
-      acc.fat += ingredient.fat_per_100g * factor
-      acc.tiers.add(ingredient.food_tier)
-      return acc
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0, tiers: new Set<FoodTier>() },
-  )
-}
 
 export const GEORGE_RECIPES: RecipeSummary[] = Array.from(
   GEORGE_RECIPE_ROWS.reduce((map, row) => {

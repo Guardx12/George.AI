@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CalendarClock, ChevronRight, Dumbbell, Flame, PhoneOff, Salad, Target, UtensilsCrossed } from "lucide-react"
-import { getFoodSystemCounts } from "@/lib/coach-george-food"
 
 type LiveMessage = {
   id: string
@@ -29,6 +28,7 @@ type CoachProfile = {
   goal?: Goal
   allergies?: string[]
   dislikes?: string[]
+  planStyle?: "performance" | "balanced" | "flexible"
 }
 
 type CoachTargets = {
@@ -201,7 +201,8 @@ function isProfileComplete(profile: CoachProfile) {
     profile.activityLevel &&
     profile.country &&
     profile.allergies !== undefined &&
-    profile.dislikes !== undefined,
+    profile.dislikes !== undefined &&
+    profile.planStyle,
   )
 }
 
@@ -227,6 +228,14 @@ function parseGoal(input: string): Goal | null {
   if (t.includes("lose") || t.includes("fat loss") || t.includes("cut") || t.includes("lean")) return "lose fat"
   if (t.includes("gain") || t.includes("muscle") || t.includes("bulk")) return "gain muscle"
   if (t.includes("maintain")) return "maintain"
+  return null
+}
+
+function parsePlanStyle(input: string): "performance" | "balanced" | "flexible" | null {
+  const t = input.toLowerCase()
+  if (t.includes("performance") || t.includes("strict") || t.includes("cleaner")) return "performance"
+  if (t.includes("flexible")) return "flexible"
+  if (t.includes("balanced") || t.includes("realistic")) return "balanced"
   return null
 }
 
@@ -347,6 +356,11 @@ function applyOnboardingAnswer(step: string, input: string, prevProfile: CoachPr
       if (value) next.activityLevel = value
       break
     }
+    case "planStyle": {
+      const value = parsePlanStyle(input)
+      if (value) next.planStyle = value
+      break
+    }
     case "allergies":
       next.allergies = parseAllergyAnswer(input)
       break
@@ -370,6 +384,7 @@ function getOnboardingStep(profile: CoachProfile) {
   if (!profile.heightCm) return "height"
   if (!profile.weightKg) return "weight"
   if (!profile.activityLevel) return "activity"
+  if (!profile.planStyle) return "planStyle"
   if (profile.allergies === undefined) return "allergies"
   if (profile.dislikes === undefined) return "dislikes"
   if (!profile.country) return "country"
@@ -385,6 +400,7 @@ function nextOnboardingInstruction(step: string) {
     case "height": return "Now ask only this: what’s your height? Accept cm or feet and inches."
     case "weight": return "Now ask only this: what’s your current weight? Accept kg, lb, or stone."
     case "activity": return "Now ask only this: how active are you day to day — sedentary, lightly active, moderately active, or very active?"
+    case "planStyle": return "Now ask only this: do you want your plan stricter and cleaner, balanced and realistic, or more flexible?"
     case "allergies": return "Now ask only this: do you have any allergies or foods you need me to avoid? If none, say none."
     case "dislikes": return "Now ask only this: are there any foods you do not like or do not want in your plans? If none, say none."
     case "country": return "Now ask only this: are you in the UK or the US?"
@@ -394,7 +410,7 @@ function nextOnboardingInstruction(step: string) {
 
 function profileContext(profile: CoachProfile | null, targets: CoachTargets | null, checkIn: CheckInState) {
   if (!profile || !isProfileComplete(profile) || !targets) {
-    return "This user is not set up yet. Onboard them one question at a time. Collect first name, goal, sex, age, height, weight, activity level, allergies, dislikes, and country. Do not skip steps."
+    return "This user is not set up yet. Onboard them one question at a time. Collect first name, goal, sex, age, height, weight, activity level, plan style, allergies, dislikes, and country. Do not skip steps."
   }
   return `Saved profile:\n- name: ${profile.name}\n- country: ${profile.country}\n- sex: ${profile.sex}\n- age: ${profile.age}\n- height: ${profile.heightCm} cm\n- weight: ${profile.weightKg} kg\n- activity: ${profile.activityLevel}\n- goal: ${profile.goal}\n- targets: ${targets.calories} calories, ${targets.protein}g protein, ${targets.carbs}g carbs, ${targets.fats}g fats\n- check-in status: ${checkIn.status}\nUse this automatically. Do not ask for their stats again unless they say something has changed.`
 }
@@ -491,7 +507,6 @@ export function CoachGeorgeLiveAssistant() {
   const [checkIn, setCheckIn] = useState<CheckInState>(EMPTY_CHECKIN)
   const [onboardingComplete, setOnboardingComplete] = useState(false)
   const [pendingProfile, setPendingProfile] = useState<CoachProfile | null>(null)
-  const foodSystemCounts = useMemo(() => getFoodSystemCounts(), [])
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -519,15 +534,16 @@ export function CoachGeorgeLiveAssistant() {
   useEffect(() => {
     const stored = loadStoredState()
     if (!stored) return
-    setMessages(stored.messages)
     const nextProfile = Object.keys(stored.profile || {}).length ? { ...stored.profile, country: stored.profile.country || inferCountryFromBrowser() || undefined } : null
+    const validSetup = Boolean(nextProfile && isProfileComplete(nextProfile) && stored.targets)
+    setMessages(stored.messages)
     setProfile(nextProfile)
-    setTargets(stored.targets)
-    setActiveMealPlan(stored.activeMealPlan)
-    setActiveWorkoutPlan(stored.activeWorkoutPlan)
+    setTargets(validSetup ? stored.targets : null)
+    setActiveMealPlan(validSetup ? stored.activeMealPlan : null)
+    setActiveWorkoutPlan(validSetup ? stored.activeWorkoutPlan : null)
     setPatterns(stored.patterns)
-    setCheckIn(calculateCheckInStatus(stored.checkIn))
-    setOnboardingComplete(stored.onboardingComplete)
+    setCheckIn(validSetup ? calculateCheckInStatus(stored.checkIn) : EMPTY_CHECKIN)
+    setOnboardingComplete(validSetup && stored.onboardingComplete)
   }, [])
 
   useEffect(() => {
@@ -687,6 +703,7 @@ export function CoachGeorgeLiveAssistant() {
     const heightCm = parseHeightCm(input)
     const weightKg = parseWeightKg(input)
     const activity = parseActivity(input)
+    const planStyle = parsePlanStyle(input)
     const country = parseCountry(input)
     if (goal) next.goal = goal
     if (sex) next.sex = sex
@@ -694,6 +711,7 @@ export function CoachGeorgeLiveAssistant() {
     if (heightCm) next.heightCm = heightCm
     if (weightKg) next.weightKg = weightKg
     if (activity) next.activityLevel = activity
+    if (planStyle) next.planStyle = planStyle
     if (country) next.country = country
 
     const lower = input.toLowerCase()
@@ -733,7 +751,7 @@ export function CoachGeorgeLiveAssistant() {
       if (getOnboardingStep(nextProfile) === "done") {
         const resolved = { ...nextProfile, country: nextProfile.country || inferCountryFromBrowser() || "UK" }
         setPendingProfile(resolved)
-        pushAssistantMessage(`I’ve got your details. Confirm these and I’ll lock your targets in: ${resolved.name}, ${resolved.goal}, ${resolved.sex}, ${resolved.age}, ${resolved.heightCm}cm, ${resolved.weightKg}kg, ${resolved.activityLevel}.`)
+        pushAssistantMessage(`I’ve got your details. Confirm these and I’ll lock your targets in: ${resolved.name}, ${resolved.goal}, ${resolved.sex}, ${resolved.age}, ${resolved.heightCm}cm, ${resolved.weightKg}kg, ${resolved.activityLevel}, ${resolved.planStyle}.`)
         return
       }
       startOnboardingFollowUp(nextProfile)
@@ -958,29 +976,19 @@ export function CoachGeorgeLiveAssistant() {
 
         <div className="mt-5 text-center text-sm leading-6 text-slate-300">{buildCoachGreeting()}</div>
 
-        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Food system loaded</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-300">ready</div>
+        {!targets ? (
+          <div className="mt-5 rounded-[1.6rem] border border-cyan-300/15 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-5 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="text-[10px] uppercase tracking-[0.34em] text-cyan-300/70">Setup</div>
+            <div className="mt-2 text-lg font-semibold text-white">Let’s get your coaching profile sorted</div>
+            <div className="mt-3 text-sm leading-6 text-slate-300">Tell George your stats and what you want help with. Once setup is complete, your targets and current weight will stay visible here.</div>
           </div>
-          <div className="mt-3 text-sm leading-6 text-slate-300">George now has your controlled food system loaded, so he builds plans from real ingredients and base recipes instead of rough guesswork.</div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Ingredients</div>
-              <div className="mt-3 text-[34px] font-semibold leading-none text-emerald-300">{foodSystemCounts.ingredientCount}</div>
-            </div>
-            <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Base recipes</div>
-              <div className="mt-3 text-[34px] font-semibold leading-none text-cyan-300">{foodSystemCounts.recipeCount}</div>
-            </div>
-          </div>
-        </div>
+        ) : null}
 
         {targets ? (
           <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
             <div className="flex items-center justify-between">
               <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Your targets</div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">saved to this browser</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Current weight {profile?.weightKg ? `${profile.weightKg}kg` : "—"}</div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {[
@@ -995,6 +1003,9 @@ export function CoachGeorgeLiveAssistant() {
                 </div>
               ))}
             </div>
+            <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+              <span className="text-slate-500">Plan style:</span> <span className="ml-2 text-white capitalize">{profile?.planStyle ?? "balanced"}</span>
+            </div>
           </div>
         ) : null}
 
@@ -1004,7 +1015,7 @@ export function CoachGeorgeLiveAssistant() {
               <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Confirm details</div>
               <div className="mt-2 text-base font-medium text-white">Create your saved targets</div>
               <div className="mt-3 text-sm text-slate-300">
-                {pendingProfile.name}, {pendingProfile.goal}, {pendingProfile.sex}, {pendingProfile.age}, {pendingProfile.heightCm}cm, {pendingProfile.weightKg}kg, {pendingProfile.activityLevel}
+                {pendingProfile.name}, {pendingProfile.goal}, {pendingProfile.sex}, {pendingProfile.age}, {pendingProfile.heightCm}cm, {pendingProfile.weightKg}kg, {pendingProfile.activityLevel}, {pendingProfile.planStyle}
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button type="button" onClick={() => completeOnboarding(pendingProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Confirm details</button>
@@ -1014,57 +1025,62 @@ export function CoachGeorgeLiveAssistant() {
           </div>
         ) : null}
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          {QUICK_ACTIONS.map((action) => {
-            const Icon = action.icon
-            return (
-              <button key={action.key} type="button" onClick={() => handleQuickAction(action.key)} className="group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.94),rgba(3,7,18,.98))] px-4 py-4 text-left shadow-[0_18px_46px_rgba(0,0,0,.24)] transition duration-200 hover:-translate-y-[1px] hover:border-white/20">
-                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${action.accent} opacity-80`} />
-                <div className="relative z-10 flex items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white"><Icon className="h-5 w-5" /></span>
-                  <span className="text-[17px] font-medium leading-6 tracking-tight text-white">{action.label}</span>
-                </div>
-              </button>
-            )
-          })}
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><UtensilsCrossed className="h-4 w-4" /> Current meal plan</div>
+          {activeMealPlan ? (
+            <>
+              <div className="mt-3 text-lg font-semibold text-white">{activeMealPlan.title}</div>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {renderLines(activeMealPlan.body).map((line, index) => <div key={`${activeMealPlan.id}-${index}`}>{line}</div>)}
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-sm leading-6 text-slate-300">No meal plan saved yet — ask George to build you a full day, swap a meal, or sort a snack.</div>
+          )}
         </div>
 
         <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><CalendarClock className="h-4 w-4" /> Weekly check-in</div>
-            <div className={`text-[10px] uppercase tracking-[0.3em] ${checkIn.status === "overdue" ? "text-amber-300" : checkIn.status === "due" ? "text-cyan-300" : "text-slate-500"}`}>{relativeCheckInLabel(checkIn)}</div>
-          </div>
-          <div className="mt-3 text-sm leading-6 text-slate-300">George keeps your last weigh-in date in this browser and knows when your next check-in is due or late.</div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={handleStartCheckIn} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white transition hover:bg-white/10">Start check-in</button>
-          </div>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Dumbbell className="h-4 w-4" /> Current workout</div>
+          {activeWorkoutPlan ? (
+            <>
+              <div className="mt-3 text-lg font-semibold text-white">{activeWorkoutPlan.title}</div>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {renderLines(activeWorkoutPlan.body).map((line, index) => <div key={`${activeWorkoutPlan.id}-${index}`}>{line}</div>)}
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-sm leading-6 text-slate-300">No workout saved yet — ask George for a gym session, home workout, boxing session, or quick conditioning block.</div>
+          )}
         </div>
 
-        {activeMealPlan ? (
+        {targets ? (
           <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><UtensilsCrossed className="h-4 w-4" /> Today’s plan</div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">saved</div>
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><CalendarClock className="h-4 w-4" /> Weekly check-in</div>
+              <div className={`text-[10px] uppercase tracking-[0.3em] ${checkIn.status === "overdue" ? "text-amber-300" : checkIn.status === "due" ? "text-cyan-300" : "text-slate-500"}`}>{relativeCheckInLabel(checkIn)}</div>
             </div>
-            <div className="mt-3 text-lg font-semibold text-white">{activeMealPlan.title}</div>
-            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-              {renderLines(activeMealPlan.body).map((line, index) => <div key={`${activeMealPlan.id}-${index}`}>{line}</div>)}
+            <div className="mt-3 text-sm leading-6 text-slate-300">Keep your weight and weekly feedback current so George can adjust your targets and plans when needed.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={handleStartCheckIn} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white transition hover:bg-white/10">Start check-in</button>
             </div>
           </div>
         ) : null}
 
-        {activeWorkoutPlan ? (
-          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Dumbbell className="h-4 w-4" /> Active workout</div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">saved</div>
-            </div>
-            <div className="mt-3 text-lg font-semibold text-white">{activeWorkoutPlan.title}</div>
-            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-              {renderLines(activeWorkoutPlan.body).map((line, index) => <div key={`${activeWorkoutPlan.id}-${index}`}>{line}</div>)}
-            </div>
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Try asking George</div>
+          <div className="mt-3 grid grid-cols-1 gap-2">
+            {[
+              { key: "build_plan", label: "Build me a plan" },
+              { key: "what_eat", label: "What should I eat today?" },
+              { key: "off_track", label: "I went off track" },
+              { key: "workout", label: "Give me a workout" },
+            ].map((action) => (
+              <button key={action.key} type="button" onClick={() => handleQuickAction(action.key as QuickActionKey)} className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-white/[0.05]">
+                {action.label}
+              </button>
+            ))}
           </div>
-        ) : null}
+        </div>
 
         {patterns.items.length ? (
           <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
