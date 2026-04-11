@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { BarChart3, Dumbbell, Flame, PhoneOff, Salad, UtensilsCrossed } from "lucide-react"
+import { CalendarClock, ChevronRight, Dumbbell, Flame, PhoneOff, Salad, Target, UtensilsCrossed } from "lucide-react"
+import { getFoodSystemCounts } from "@/lib/coach-george-food"
 
 type LiveMessage = {
   id: string
@@ -11,10 +12,11 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 type ActivityLevel = "sedentary" | "lightly active" | "moderately active" | "very active"
-type Goal = "lose fat" | "maintain" | "gain muscle"
+type Goal = "lose fat" | "maintain" | "gain muscle" | "fight prep / performance"
 type Sex = "male" | "female"
 type Country = "UK" | "US"
-type QuickActionKey = "log_meal" | "off_track" | "what_eat" | "workout"
+type QuickActionKey = "build_plan" | "off_track" | "what_eat" | "workout"
+type ArtifactKind = "meal_plan" | "workout" | null
 
 type CoachProfile = {
   name?: string
@@ -29,154 +31,68 @@ type CoachProfile = {
   dislikes?: string[]
 }
 
-type LoggedMeal = {
-  id: string
-  text: string
+type CoachTargets = {
   calories: number
   protein: number
   carbs: number
-  fat: number
-  countedAsMeal: boolean
+  fats: number
+}
+
+type PlanArtifact = {
+  id: string
+  title: string
+  kind: Exclude<ArtifactKind, null>
+  body: string
   createdAt: string
 }
 
-type PendingDelete = {
-  mealId: string
-  text: string
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
+type PatternMemory = {
+  items: string[]
 }
 
-type CoachStats = {
-  caloriesTarget: number
-  proteinTarget: number
-  carbsTarget: number
-  fatTarget: number
-  caloriesUsed: number
-  proteinUsed: number
-  carbsUsed: number
-  fatUsed: number
-  mealsToday: number
-  streak: number
-  lastActiveDate: string | null
-  currentDayDate: string | null
-  timezone?: string | null
+type CheckInStatus = "up_to_date" | "due" | "overdue"
+
+type CheckInDraft = {
+  weightKg?: number
+  hunger?: string
+  energy?: string
+  adherence?: string
 }
 
-type StoredAppState = {
+type CheckInState = {
+  lastCheckInDate: string | null
+  nextCheckInDate: string | null
+  status: CheckInStatus
+  draft: CheckInDraft | null
+}
+
+type StoredCoachState = {
   messages: LiveMessage[]
   profile: CoachProfile
-  stats: CoachStats
-  pendingEstimate: MacroEstimate | null
-  pendingMealText: string | null
-  pendingTargets: CoachStats | null
-  loggedMeals: LoggedMeal[]
-  pendingDelete: PendingDelete | null
+  targets: CoachTargets | null
+  activeMealPlan: PlanArtifact | null
+  activeWorkoutPlan: PlanArtifact | null
+  patterns: PatternMemory
+  checkIn: CheckInState
+  onboardingComplete: boolean
 }
 
-type MacroEstimate = {
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
-  countedAsMeal: boolean
-}
-
-const STORAGE_KEY = "coach-george-v4-messages"
-const PROFILE_KEY = "coach-george-profile-v3"
-const STATS_KEY = "coach-george-stats-v8"
-const APP_STATE_KEY = "coach-george-app-state-v1"
+const STORAGE_KEY = "coach-george-v2-state"
 
 const EMPTY_PROFILE: CoachProfile = {}
-const DEFAULT_STATS: CoachStats = {
-  caloriesTarget: 0,
-  proteinTarget: 0,
-  carbsTarget: 0,
-  fatTarget: 0,
-  caloriesUsed: 0,
-  proteinUsed: 0,
-  carbsUsed: 0,
-  fatUsed: 0,
-  mealsToday: 0,
-  streak: 0,
-  lastActiveDate: null,
-  currentDayDate: null,
-  timezone: null,
-}
-
-function buildStoredAppState(args: Partial<StoredAppState>): StoredAppState {
-  return {
-    messages: Array.isArray(args.messages) ? args.messages : [],
-    profile: { ...EMPTY_PROFILE, ...(args.profile || {}) },
-    stats: { ...DEFAULT_STATS, ...(args.stats || {}) },
-    pendingEstimate: args.pendingEstimate ?? null,
-    pendingMealText: args.pendingMealText ?? null,
-    pendingTargets: args.pendingTargets ? { ...DEFAULT_STATS, ...args.pendingTargets } : null,
-    loggedMeals: Array.isArray(args.loggedMeals) ? args.loggedMeals : [],
-    pendingDelete: args.pendingDelete ?? null,
-  }
-}
-
-function loadStoredAppState(): StoredAppState | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = window.localStorage.getItem(APP_STATE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== "object") return null
-    return buildStoredAppState(parsed)
-  } catch {
-    return null
-  }
-}
-
-function saveStoredAppState(args: Partial<StoredAppState>) {
-  if (typeof window === "undefined") return
-  try {
-    const current = loadStoredAppState() || buildStoredAppState({})
-    const next = buildStoredAppState({
-      ...current,
-      ...args,
-      profile: { ...current.profile, ...(args.profile || {}) },
-      stats: { ...current.stats, ...(args.stats || {}) },
-    })
-    window.localStorage.setItem(APP_STATE_KEY, JSON.stringify(next))
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: next.messages.slice(-20) }))
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(next.profile || {}))
-    window.localStorage.setItem(STATS_KEY, JSON.stringify(next.stats || DEFAULT_STATS))
-  } catch {}
+const EMPTY_PATTERNS: PatternMemory = { items: [] }
+const EMPTY_CHECKIN: CheckInState = {
+  lastCheckInDate: null,
+  nextCheckInDate: null,
+  status: "due",
+  draft: null,
 }
 
 const QUICK_ACTIONS: Array<{ key: QuickActionKey; label: string; accent: string; icon: any }> = [
-  { key: "log_meal", label: "Build me a plan", accent: "from-sky-400/30 to-sky-600/5", icon: UtensilsCrossed },
+  { key: "build_plan", label: "Build me a plan", accent: "from-sky-400/30 to-sky-600/5", icon: UtensilsCrossed },
   { key: "off_track", label: "Went off track", accent: "from-amber-300/30 to-orange-500/5", icon: Flame },
   { key: "what_eat", label: "What should I eat?", accent: "from-emerald-300/30 to-emerald-500/5", icon: Salad },
   { key: "workout", label: "Give me a workout", accent: "from-cyan-300/30 to-blue-500/5", icon: Dumbbell },
-]
-
-const FOOD_LIBRARY: Array<{ keywords: string[]; calories: number; protein: number; carbs: number; fat: number; meal?: boolean }> = [
-  { keywords: ["protein powder", "protein shake", "whey", "shake"], calories: 120, protein: 24, carbs: 3, fat: 2 },
-  { keywords: ["oats", "porridge", "oatmeal"], calories: 190, protein: 6, carbs: 32, fat: 4 },
-  { keywords: ["salmon sandwich", "salmon bagel", "salmon wrap"], calories: 430, protein: 30, carbs: 36, fat: 17, meal: true },
-  { keywords: ["sandwich", "meal deal sandwich", "deli sandwich"], calories: 380, protein: 20, carbs: 40, fat: 13, meal: true },
-  { keywords: ["chicken and rice", "chicken rice"], calories: 520, protein: 45, carbs: 52, fat: 10, meal: true },
-  { keywords: ["steak and potatoes", "steak potatoes", "steak meal"], calories: 680, protein: 50, carbs: 48, fat: 28, meal: true },
-  { keywords: ["greek yogurt", "greek yoghurt", "yoghurt"], calories: 120, protein: 20, carbs: 8, fat: 0 },
-  { keywords: ["eggs on toast", "omelette"], calories: 360, protein: 24, carbs: 24, fat: 18, meal: true },
-  { keywords: ["salmon and rice", "salmon rice"], calories: 610, protein: 44, carbs: 48, fat: 25, meal: true },
-  { keywords: ["chicken wrap", "wrap"], calories: 460, protein: 34, carbs: 38, fat: 16, meal: true },
-  { keywords: ["burger"], calories: 520, protein: 28, carbs: 35, fat: 30, meal: true },
-  { keywords: ["pizza"], calories: 700, protein: 28, carbs: 70, fat: 32, meal: true },
-  { keywords: ["takeaway", "take away", "chip shop", "mcdonald", "kfc", "greggs"], calories: 850, protein: 30, carbs: 90, fat: 36, meal: true },
-  { keywords: ["rice"], calories: 180, protein: 4, carbs: 40, fat: 1 },
-  { keywords: ["potatoes", "jacket potato", "baked potato"], calories: 230, protein: 6, carbs: 50, fat: 0 },
-  { keywords: ["chicken breast", "chicken"], calories: 330, protein: 60, carbs: 0, fat: 7, meal: true },
-  { keywords: ["salmon"], calories: 420, protein: 45, carbs: 0, fat: 25, meal: true },
-  { keywords: ["steak"], calories: 400, protein: 50, carbs: 0, fat: 22, meal: true },
-  { keywords: ["bread", "toast"], calories: 180, protein: 6, carbs: 34, fat: 2 },
-  { keywords: ["bagel"], calories: 250, protein: 9, carbs: 49, fat: 1 },
 ]
 
 function uid() {
@@ -187,27 +103,106 @@ function makeMessage(role: LiveMessage["role"], content: string): LiveMessage {
   return { id: uid(), role, content }
 }
 
-function localDateIso(date = new Date(), timeZone?: string | null) {
-  try {
-    const formatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone: timeZone || undefined,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-    return formatter.format(date)
-  } catch {
-    const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, "0")
-    const d = String(date.getDate()).padStart(2, "0")
-    return `${y}-${m}-${d}`
+function localDateIso(date = new Date()) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+function addDays(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T12:00:00`)
+  date.setDate(date.getDate() + days)
+  return localDateIso(date)
+}
+
+function diffDays(fromIso: string, toIso: string) {
+  const from = new Date(`${fromIso}T12:00:00`).getTime()
+  const to = new Date(`${toIso}T12:00:00`).getTime()
+  return Math.round((to - from) / 86400000)
+}
+
+function calculateCheckInStatus(checkIn: CheckInState): CheckInState {
+  const today = localDateIso()
+  if (!checkIn.nextCheckInDate) {
+    return { ...checkIn, status: "due" }
+  }
+  const days = diffDays(today, checkIn.nextCheckInDate)
+  if (days > 0) return { ...checkIn, status: "up_to_date" }
+  if (days === 0) return { ...checkIn, status: "due" }
+  return { ...checkIn, status: "overdue" }
+}
+
+function buildStoredState(partial?: Partial<StoredCoachState>): StoredCoachState {
+  return {
+    messages: partial?.messages ?? [],
+    profile: { ...EMPTY_PROFILE, ...(partial?.profile ?? {}) },
+    targets: partial?.targets ?? null,
+    activeMealPlan: partial?.activeMealPlan ?? null,
+    activeWorkoutPlan: partial?.activeWorkoutPlan ?? null,
+    patterns: partial?.patterns ?? EMPTY_PATTERNS,
+    checkIn: calculateCheckInStatus(partial?.checkIn ?? EMPTY_CHECKIN),
+    onboardingComplete: partial?.onboardingComplete ?? false,
   }
 }
 
-function yesterdayIso(timeZone?: string | null) {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return localDateIso(d, timeZone)
+function loadStoredState(): StoredCoachState | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return buildStoredState(parsed)
+  } catch {
+    return null
+  }
+}
+
+function saveStoredState(state: StoredCoachState) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(buildStoredState(state)))
+}
+
+function calculateTargets(profile: CoachProfile): CoachTargets | null {
+  const weight = profile.weightKg || 0
+  const height = profile.heightCm || 0
+  const age = profile.age || 0
+  const sex = profile.sex || "male"
+  const goal = profile.goal || "lose fat"
+  const activityLevel = profile.activityLevel || "moderately active"
+  if (!weight || !height || !age || !sex || !goal || !activityLevel) return null
+
+  const bmr = 10 * weight + 6.25 * height - 5 * age + (sex === "male" ? 5 : -161)
+  const multipliers: Record<ActivityLevel, number> = {
+    sedentary: 1.2,
+    "lightly active": 1.375,
+    "moderately active": 1.55,
+    "very active": 1.725,
+  }
+
+  const maintenance = bmr * multipliers[activityLevel]
+  const rawCalories = goal === "lose fat" ? maintenance - 400 : goal === "gain muscle" ? maintenance + 200 : goal === "fight prep / performance" ? maintenance - 250 : maintenance
+  const calories = Math.max(1200, Math.round(rawCalories / 50) * 50)
+  const proteinPerKg = goal === "maintain" ? 1.8 : goal === "fight prep / performance" ? 2.2 : 2
+  const protein = Math.round((weight * proteinPerKg) / 5) * 5
+  const fats = Math.max(40, Math.round(((calories * 0.25) / 9) / 5) * 5)
+  const carbs = Math.max(0, Math.round(((calories - protein * 4 - fats * 9) / 4) / 5) * 5)
+  return { calories, protein, carbs, fats }
+}
+
+function isProfileComplete(profile: CoachProfile) {
+  return Boolean(
+    profile.name &&
+    profile.goal &&
+    profile.sex &&
+    profile.age &&
+    profile.heightCm &&
+    profile.weightKg &&
+    profile.activityLevel &&
+    profile.country &&
+    profile.allergies !== undefined &&
+    profile.dislikes !== undefined,
+  )
 }
 
 function inferCountryFromBrowser(): Country | null {
@@ -219,91 +214,27 @@ function inferCountryFromBrowser(): Country | null {
   return null
 }
 
-function getBrowserTimeZone() {
-  if (typeof window === "undefined") return null
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || null
-}
-
-function normalizeStatsForToday(stats: CoachStats): CoachStats {
-  const zone = stats.timezone || getBrowserTimeZone()
-  const today = localDateIso(new Date(), zone)
-  if (stats.currentDayDate === today) return { ...stats, timezone: zone }
-  return {
-    ...stats,
-    caloriesUsed: 0,
-    proteinUsed: 0,
-    carbsUsed: 0,
-    fatUsed: 0,
-    mealsToday: 0,
-    currentDayDate: today,
-    timezone: zone,
-  }
-}
-
-function markUsage(stats: CoachStats): CoachStats {
-  const normalized = normalizeStatsForToday(stats)
-  const zone = normalized.timezone || getBrowserTimeZone()
-  const today = localDateIso(new Date(), zone)
-  if (normalized.lastActiveDate === today) return normalized
-  if (normalized.lastActiveDate === yesterdayIso(zone)) return { ...normalized, streak: normalized.streak + 1, lastActiveDate: today }
-  return { ...normalized, streak: 1, lastActiveDate: today }
-}
-
-function calculateTargets(profile: CoachProfile) {
-  const weight = profile.weightKg || 0
-  const height = profile.heightCm || 0
-  const age = profile.age || 0
-  const sex = profile.sex || "male"
-  const goal = profile.goal || "lose fat"
-  const activityLevel = profile.activityLevel || "moderately active"
-
-  const bmr = 10 * weight + 6.25 * height - 5 * age + (sex === "male" ? 5 : -161)
-  const multipliers: Record<ActivityLevel, number> = {
-    sedentary: 1.2,
-    "lightly active": 1.375,
-    "moderately active": 1.55,
-    "very active": 1.725,
-  }
-
-  const maintenance = bmr * multipliers[activityLevel]
-  const rawCalories = goal === "lose fat" ? maintenance - 400 : goal === "gain muscle" ? maintenance + 200 : maintenance
-  const caloriesTarget = Math.max(1200, Math.round(rawCalories / 50) * 50)
-  const proteinTarget = Math.round(((weight * (goal === "maintain" ? 1.8 : 2)) / 5)) * 5
-  const fatTarget = Math.max(40, Math.round(((caloriesTarget * 0.25) / 9) / 5) * 5)
-  const carbsTarget = Math.max(0, Math.round(((caloriesTarget - proteinTarget * 4 - fatTarget * 9) / 4) / 5) * 5)
-
-  return { caloriesTarget, proteinTarget, carbsTarget, fatTarget }
-}
-
-function caloriesLeft(stats: CoachStats) { return Math.max(0, stats.caloriesTarget - stats.caloriesUsed) }
-function proteinLeft(stats: CoachStats) { return Math.max(0, stats.proteinTarget - stats.proteinUsed) }
-function carbsLeft(stats: CoachStats) { return Math.max(0, stats.carbsTarget - stats.carbsUsed) }
-function fatLeft(stats: CoachStats) { return Math.max(0, stats.fatTarget - stats.fatUsed) }
-
-function isProfileComplete(profile: CoachProfile | null, stats: CoachStats) {
-  return Boolean(
-    profile?.name && profile?.goal && profile?.sex && profile?.age && profile?.heightCm && profile?.weightKg && profile?.activityLevel && profile?.country &&
-      profile?.allergies !== undefined && profile?.dislikes !== undefined && stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0
-  )
-}
-
 function parseSex(input: string): Sex | null {
   const t = input.toLowerCase()
   if (/\b(male|man|guy|bloke)\b/.test(t)) return "male"
   if (/\b(female|woman|girl|lady)\b/.test(t)) return "female"
   return null
 }
+
 function parseGoal(input: string): Goal | null {
   const t = input.toLowerCase()
+  if (t.includes("fight") || t.includes("box") || t.includes("performance") || t.includes("sport")) return "fight prep / performance"
   if (t.includes("lose") || t.includes("fat loss") || t.includes("cut") || t.includes("lean")) return "lose fat"
   if (t.includes("gain") || t.includes("muscle") || t.includes("bulk")) return "gain muscle"
   if (t.includes("maintain")) return "maintain"
   return null
 }
+
 function parseAge(input: string) {
   const m = input.match(/\b(1[6-9]|[2-8][0-9]|9[0-9])\b/)
   return m ? Number(m[1]) : null
 }
+
 function parseHeightCm(input: string) {
   const t = input.toLowerCase()
   const cm = t.match(/(\d{3})\s*cm/)
@@ -313,16 +244,18 @@ function parseHeightCm(input: string) {
   const plain = t.match(/\b(1[4-9]\d|2[0-2]\d)\b/)
   return plain ? Number(plain[1]) : null
 }
+
 function parseWeightKg(input: string) {
   const t = input.toLowerCase()
   const kg = t.match(/(\d{2,3}(?:\.\d+)?)\s*kg/)
   if (kg) return Math.round(Number(kg[1]))
   const lbs = t.match(/(\d{2,3})\s*(?:lb|lbs|pounds?)/)
   if (lbs) return Math.round(Number(lbs[1]) * 0.453592)
-  const stone = t.match(/(\d{1,2})\s*(?:st|stone)\s*(\d{1,2})?/)
+  const stone = t.match(/(\d{1,2})\s*(?:st|stone)\s*(\d{1,2})?/) 
   if (stone) return Math.round(Number(stone[1]) * 6.35029 + Number(stone[2] || 0) * 0.453592)
   return null
 }
+
 function parseActivity(input: string): ActivityLevel | null {
   const t = input.toLowerCase()
   if (t.includes("sedentary") || t.includes("desk") || t.includes("not very active")) return "sedentary"
@@ -332,6 +265,7 @@ function parseActivity(input: string): ActivityLevel | null {
   if (t.includes("active")) return "moderately active"
   return null
 }
+
 function parseCountry(input: string): Country | null {
   const t = input.toLowerCase()
   if (t.includes("uk") || t.includes("united kingdom") || t.includes("england") || t.includes("britain")) return "UK"
@@ -348,44 +282,17 @@ function parseName(input: string): string | null {
   return null
 }
 
-function normaliseMealText(input: string) {
+function parseListField(input: string) {
   return input
-    .replace(/^(can i )?(please )?(log|add|save)\s+(a\s+)?meal[:,]?\s*/i, "")
-    .replace(/^(i\s+had|i\s+ate|i'?ve had|for breakfast i had|for lunch i had|for dinner i had)\s+/i, "")
-    .replace(/^(delete|remove|take off)\s+/i, "")
-    .trim()
+    .split(/,| and /i)
+    .map((v) => v.trim())
+    .filter(Boolean)
 }
-
-function titleMealText(input: string) {
-  const cleaned = normaliseMealText(input).replace(/[.?!]$/, "").trim()
-  if (!cleaned) return "Meal"
-  return cleaned.replace(/\b\w/g, (s) => s.toUpperCase())
-}
-
-function looksLikeFoodInput(input: string) {
-  const t = input.toLowerCase()
-  if (/^(yes|yeah|yep|no|nope|cancel|stop|keep|delete)$/i.test(t.trim())) return false
-  return /\b(i had|i ate|for breakfast|for lunch|for dinner|meal|snack|protein shake|banana|sandwich|wrap|burger|pizza|pasta|rice|chicken|salmon|steak|yoghurt|yogurt|big mac|mcdonald|kfc|greggs|curry|chips|fries|toast|eggs|apple|fruit|bar|crisps|biscuit|cookie|bagel|oats|porridge|tuna|shake|smoothie)\b/i.test(t)
-}
-
-function parseDeleteIntent(input: string) {
-  const trimmed = input.trim()
-  if (/^(delete|remove|take off|take away)\s+(that|it|last one|last meal)$/i.test(trimmed)) return "__LAST__"
-  const m = trimmed.match(/(?:delete|remove|take off|take away)\s+(?:the\s+)?(.+)/i)
-  return m ? titleMealText(m[1]) : null
-}
-
-
-
 
 function parseAllergyAnswer(input: string): string[] {
   const t = input.toLowerCase().trim()
   if (/^(none|no|nothing|nope|nil)$/.test(t) || /\b(no allergies|no allergy)\b/.test(t)) return []
-  const cleaned = t
-    .replace(/allerg(?:y|ies)\s*(?:to)?/g, ' ')
-    .replace(/i(?:'|’)m allergic to/g, ' ')
-    .replace(/i am allergic to/g, ' ')
-    .replace(/avoid/g, ' ')
+  const cleaned = t.replace(/allerg(?:y|ies)\s*(?:to)?/g, " ").replace(/i(?:'|’)m allergic to/g, " ").replace(/i am allergic to/g, " ").replace(/avoid/g, " ")
   return parseListField(cleaned)
 }
 
@@ -393,153 +300,86 @@ function parseDislikeAnswer(input: string): string[] {
   const t = input.toLowerCase().trim()
   if (/^(none|no|nothing|nope|nil)$/.test(t) || /\b(nothing really|anything is fine|all good)\b/.test(t)) return []
   const cleaned = t
-    .replace(/.*don't like\s*/,'')
-    .replace(/.*do not like\s*/,'')
-    .replace(/.*dislike\s*/,'')
-    .replace(/.*hate\s*/,'')
-    .replace(/.*won'?t eat\s*/,'')
-    .replace(/foods?\s*(?:to avoid)?/g,' ')
+    .replace(/.*don't like\s*/, "")
+    .replace(/.*do not like\s*/, "")
+    .replace(/.*dislike\s*/, "")
+    .replace(/.*hate\s*/, "")
+    .replace(/.*won'?t eat\s*/, "")
+    .replace(/foods?\s*(?:to avoid)?/g, " ")
   return parseListField(cleaned)
 }
 
-function applyStepAnswer(step: string, input: string, prevProfile: CoachProfile): CoachProfile {
+function applyOnboardingAnswer(step: string, input: string, prevProfile: CoachProfile): CoachProfile {
   const next = { ...prevProfile }
   switch (step) {
-    case 'name': {
-      const name = parseName(input)
-      if (name) next.name = name
+    case "name": {
+      const value = parseName(input)
+      if (value) next.name = value
       break
     }
-    case 'goal': {
-      const goal = parseGoal(input)
-      if (name) next.name = name
-  if (goal) next.goal = goal
+    case "goal": {
+      const value = parseGoal(input)
+      if (value) next.goal = value
       break
     }
-    case 'sex': {
-      const sex = parseSex(input)
-      if (sex) next.sex = sex
+    case "sex": {
+      const value = parseSex(input)
+      if (value) next.sex = value
       break
     }
-    case 'age': {
-      const age = parseAge(input)
-      if (age) next.age = age
+    case "age": {
+      const value = parseAge(input)
+      if (value) next.age = value
       break
     }
-    case 'height': {
-      const h = parseHeightCm(input)
-      if (h) next.heightCm = h
+    case "height": {
+      const value = parseHeightCm(input)
+      if (value) next.heightCm = value
       break
     }
-    case 'weight': {
-      const w = parseWeightKg(input)
-      if (w) next.weightKg = w
+    case "weight": {
+      const value = parseWeightKg(input)
+      if (value) next.weightKg = value
       break
     }
-    case 'activity': {
-      const a = parseActivity(input)
-      if (a) next.activityLevel = a
+    case "activity": {
+      const value = parseActivity(input)
+      if (value) next.activityLevel = value
       break
     }
-    case 'allergies': {
+    case "allergies":
       next.allergies = parseAllergyAnswer(input)
       break
-    }
-    case 'dislikes': {
+    case "dislikes":
       next.dislikes = parseDislikeAnswer(input)
       break
-    }
-    case 'country': {
-      const c = parseCountry(input) || inferCountryFromBrowser() || undefined
-      if (c) next.country = c
+    case "country": {
+      const value = parseCountry(input) || inferCountryFromBrowser() || undefined
+      if (value) next.country = value
       break
     }
   }
   return next
 }
-function parseListField(input: string) {
-  return input
-    .split(/,| and /i)
-    .map(v => v.trim())
-    .filter(Boolean)
-}
 
-function parseAllergies(input: string): string[] | null {
-  const t = input.toLowerCase()
-  if (!t.includes('allerg')) return null
-  if (/(none|no allergies|no allergy)/.test(t)) return []
-  const cleaned = t.replace(/.*allerg(?:y|ies)\s*(?:to)?\s*/,'').replace(/[:.]/g,' ')
-  const vals = parseListField(cleaned)
-  return vals.length ? vals : []
-}
-
-function parseDislikes(input: string): string[] | null {
-  const t = input.toLowerCase()
-  if (!(t.includes("don't like") || t.includes('do not like') || t.includes('hate') || t.includes('dislike') || t.includes("won't eat") || t.includes('wont eat'))) return null
-  if (/(nothing|none)/.test(t)) return []
-  let cleaned = t
-    .replace(/.*don't like\s*/,'')
-    .replace(/.*do not like\s*/,'')
-    .replace(/.*dislike\s*/,'')
-    .replace(/.*hate\s*/,'')
-    .replace(/.*won'?t eat\s*/,'')
-  const vals = parseListField(cleaned)
-  return vals.length ? vals : []
-}
-
-function isConfirmIntent(input: string) {
-  const t = input.toLowerCase().trim()
-  return /(yes|yeah|yep|please do|go on then|log it|log that|save that|save it|yes log it|yes log that|log meal)/.test(t)
-}
-
-function isLogIntent(input: string) {
-  const t = input.toLowerCase()
-  return /\blog meal\b|\badd meal\b|\bsave meal\b/.test(t)
-}
-function mergeProfileFromInput(input: string, prevProfile: CoachProfile): { profile: CoachProfile; complete: boolean } {
-  const next = { ...prevProfile }
-  const name = parseName(input)
-  const goal = parseGoal(input)
-  const sex = parseSex(input)
-  const age = parseAge(input)
-  const heightCm = parseHeightCm(input)
-  const weightKg = parseWeightKg(input)
-  const activityLevel = parseActivity(input)
-  const country = parseCountry(input)
-  const allergies = parseAllergies(input)
-  const dislikes = parseDislikes(input)
-  if (goal) next.goal = goal
-  if (sex) next.sex = sex
-  if (age) next.age = age
-  if (heightCm) next.heightCm = heightCm
-  if (weightKg) next.weightKg = weightKg
-  if (activityLevel) next.activityLevel = activityLevel
-  if (country) next.country = country
-  if (allergies) next.allergies = allergies
-  if (dislikes) next.dislikes = dislikes
-  if (!next.country) next.country = inferCountryFromBrowser() || undefined
-  return { profile: next, complete: Boolean(next.name && next.goal && next.sex && next.age && next.heightCm && next.weightKg && next.activityLevel && next.country && next.allergies !== undefined && next.dislikes !== undefined) }
-}
-
-function getOnboardingStep(profile: CoachProfile | null, stats: CoachStats) {
-  if (!profile?.name) return "name"
-  if (!profile?.goal) return "goal"
-  if (!profile?.sex) return "sex"
-  if (!profile?.age) return "age"
-  if (!profile?.heightCm) return "height"
-  if (!profile?.weightKg) return "weight"
-  if (!profile?.activityLevel) return "activity"
-  if (profile?.allergies === undefined) return "allergies"
-  if (profile?.dislikes === undefined) return "dislikes"
-  if (!profile?.country) return "country"
-  if (!(stats.caloriesTarget > 0 && stats.proteinTarget > 0)) return "country"
+function getOnboardingStep(profile: CoachProfile) {
+  if (!profile.name) return "name"
+  if (!profile.goal) return "goal"
+  if (!profile.sex) return "sex"
+  if (!profile.age) return "age"
+  if (!profile.heightCm) return "height"
+  if (!profile.weightKg) return "weight"
+  if (!profile.activityLevel) return "activity"
+  if (profile.allergies === undefined) return "allergies"
+  if (profile.dislikes === undefined) return "dislikes"
+  if (!profile.country) return "country"
   return "done"
 }
 
 function nextOnboardingInstruction(step: string) {
   switch (step) {
     case "name": return "Start setup. Ask only this: what’s your first name?"
-    case "goal": return "Good. Now ask only this: what’s your main goal right now — lose fat, maintain, or gain muscle?"
+    case "goal": return "Good. Now ask only this: what’s your main goal right now — lose fat, maintain, gain muscle, or fight prep / performance?"
     case "sex": return "Good. Now ask only this: are you male or female?"
     case "age": return "Now ask only this: how old are you?"
     case "height": return "Now ask only this: what’s your height? Accept cm or feet and inches."
@@ -548,154 +388,94 @@ function nextOnboardingInstruction(step: string) {
     case "allergies": return "Now ask only this: do you have any allergies or foods you need me to avoid? If none, say none."
     case "dislikes": return "Now ask only this: are there any foods you do not like or do not want in your plans? If none, say none."
     case "country": return "Now ask only this: are you in the UK or the US?"
-    default: return "Setup is complete. Briefly confirm their calories and protein targets, then ask what they want help with right now."
+    default: return "Setup is complete. Briefly confirm that their targets are ready, then ask what they want help with right now."
   }
 }
 
-function profileContext(profile: CoachProfile | null, stats: CoachStats) {
-  if (!isProfileComplete(profile, stats)) {
-    return `This user is not set up yet. You must onboard them first. Ask one question at a time and collect: first name, goal, sex, age, height, weight, activity level, allergies, disliked foods, then country. Once complete, explain that their calories, protein, carbs and fats are set and you’ll guide the rest. Do not skip setup.`
+function profileContext(profile: CoachProfile | null, targets: CoachTargets | null, checkIn: CheckInState) {
+  if (!profile || !isProfileComplete(profile) || !targets) {
+    return "This user is not set up yet. Onboard them one question at a time. Collect first name, goal, sex, age, height, weight, activity level, allergies, dislikes, and country. Do not skip steps."
   }
-  return `Saved profile:\n- name: ${profile!.name}\n- country: ${profile!.country}\n- sex: ${profile!.sex}\n- age: ${profile!.age}\n- height: ${profile!.heightCm} cm\n- weight: ${profile!.weightKg} kg\n- activity: ${profile!.activityLevel}\n- goal: ${profile!.goal}\n- calorie target: ${stats.caloriesTarget}\n- protein target: ${stats.proteinTarget}\n- carbs target: ${stats.carbsTarget}\n- fat target: ${stats.fatTarget}\n- calories left right now: ${caloriesLeft(stats)}\n- protein left right now: ${proteinLeft(stats)}\n- carbs left right now: ${carbsLeft(stats)}\n- fat left right now: ${fatLeft(stats)}\n- meals logged today: ${stats.mealsToday}\n- streak: ${stats.streak}\nUse this automatically. Do not ask for stats again unless the user says they’ve changed.`
+  return `Saved profile:\n- name: ${profile.name}\n- country: ${profile.country}\n- sex: ${profile.sex}\n- age: ${profile.age}\n- height: ${profile.heightCm} cm\n- weight: ${profile.weightKg} kg\n- activity: ${profile.activityLevel}\n- goal: ${profile.goal}\n- targets: ${targets.calories} calories, ${targets.protein}g protein, ${targets.carbs}g carbs, ${targets.fats}g fats\n- check-in status: ${checkIn.status}\nUse this automatically. Do not ask for their stats again unless they say something has changed.`
 }
 
-function buildFirstResponseEvent(profile: CoachProfile | null, stats: CoachStats) {
-  const complete = isProfileComplete(profile, stats)
-  const instructions = complete
-    ? `${profileContext(profile, stats)}\n\nGreet them like a returning user by first name in one short line. Then ask what they want help with right now.`
-    : `${profileContext(profile, stats)}\n\n${nextOnboardingInstruction(getOnboardingStep(profile ?? EMPTY_PROFILE, stats))}`
+function buildFirstResponseEvent(profile: CoachProfile | null, targets: CoachTargets | null, checkIn: CheckInState) {
+  const instructions = profile && isProfileComplete(profile) && targets
+    ? `${profileContext(profile, targets, checkIn)}\n\nGreet them like a returning user by first name in one short line. If their weekly check-in is due or overdue, mention it briefly. Then ask what they want help with right now.`
+    : `${profileContext(profile, targets, checkIn)}\n\n${nextOnboardingInstruction(getOnboardingStep(profile ?? EMPTY_PROFILE))}`
   return { type: "response.create", response: { instructions } }
 }
 
-function buildQuickPrompt(actionKey: QuickActionKey, profile: CoachProfile | null, stats: CoachStats) {
-  const context = profileContext(profile, stats)
-  if (actionKey === "log_meal") return `${context}\nThe user tapped Log meal. Ask what they had before estimating anything. Ask one short follow-up if portion is unclear. Then estimate calories, protein, carbs and fats consistently, update what is left, and tell them the next best move.`
-  if (actionKey === "off_track") return `${context}\nThe user tapped Went off track. Reset them calmly but firmly. Ask what actually happened. Do not shame them. Then tell them the next best move for today.`
-  if (actionKey === "what_eat") return `${context}\nThe user tapped What should I eat. Consider how many meals are likely left today before recommending anything. Give specific portion sizes, rough calories, rough protein, rough carbs and rough fats for the next meal. Do not be vague.`
-  return `${context}\nThe user tapped Give me a workout. Ask only what you need, then give a simple structured workout they can do now.`
+function buildQuickPrompt(actionKey: QuickActionKey, profile: CoachProfile | null, targets: CoachTargets | null, checkIn: CheckInState) {
+  const context = profileContext(profile, targets, checkIn)
+  if (actionKey === "build_plan") {
+    return `${context}\nThe user tapped Build me a plan. Give a premium, practical full day of eating. Use a short title, then headings for Breakfast, Lunch, Dinner, and Snack. Include specific portions. Keep the tone like a coach, not a tracker.`
+  }
+  if (actionKey === "off_track") {
+    return `${context}\nThe user tapped Went off track. Reset them calmly but firmly. Ask what happened, then give the next best move for today. Keep it short and practical.`
+  }
+  if (actionKey === "what_eat") {
+    return `${context}\nThe user tapped What should I eat. Give one strong next meal recommendation with portion sizes, then 2 quick alternatives. Keep it crisp.`
+  }
+  return `${context}\nThe user tapped Give me a workout. Give a practical workout they can do now. Use a short title and a clear structure with exercises, sets, reps, or time blocks.`
 }
 
-
-function estimateFromText(input: string): MacroEstimate | null {
-  const original = normaliseMealText(input)
-  const t = original.toLowerCase()
-  if (!t) return null
-
-  const specificItems: Array<{ keywords: string[]; calories: number; protein: number; carbs: number; fat: number; meal?: boolean }> = [
-    { keywords: ["big mac"], calories: 550, protein: 26, carbs: 45, fat: 30, meal: true },
-    { keywords: ["banana"], calories: 105, protein: 1, carbs: 27, fat: 0 },
-    { keywords: ["apple"], calories: 95, protein: 0, carbs: 25, fat: 0 },
-    { keywords: ["tuna sandwich"], calories: 420, protein: 28, carbs: 38, fat: 16, meal: true },
-    { keywords: ["tuna pasta"], calories: 560, protein: 34, carbs: 56, fat: 20, meal: true },
-    { keywords: ["pasta"], calories: 520, protein: 18, carbs: 78, fat: 14, meal: true },
-    { keywords: ["curry"], calories: 680, protein: 30, carbs: 62, fat: 32, meal: true },
-    { keywords: ["chips", "fries"], calories: 365, protein: 4, carbs: 48, fat: 17, meal: true },
-    { keywords: ["crisps"], calories: 170, protein: 2, carbs: 15, fat: 11 },
-    { keywords: ["biscuit", "cookie"], calories: 160, protein: 2, carbs: 20, fat: 7 },
-    { keywords: ["protein bar"], calories: 220, protein: 20, carbs: 20, fat: 7 },
-    { keywords: ["smoothie"], calories: 220, protein: 6, carbs: 38, fat: 4 },
-  ]
-  const source = [...specificItems, ...FOOD_LIBRARY]
-  const matched = source.filter((item) => item.keywords.some((k) => t.includes(k)))
-  const seen = new Set<string>()
-  const unique = matched.filter((item) => {
-    const key = item.keywords[0]
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-
-  let multiplier = 1
-  const scoopMatch = t.match(/(\d+)\s*scoops?/) || t.match(/(\d+)x\s*(?:protein|shake|whey)/)
-  const countMatch = t.match(/\b(\d+)\s+(?:bananas?|apples?|sandwiches?|wraps?|burgers?|slices?|bars?)\b/)
-  if (scoopMatch && t.includes("protein")) multiplier = Math.max(multiplier, Number(scoopMatch[1]))
-  if (countMatch) multiplier = Math.max(multiplier, Number(countMatch[1]))
-  if (t.includes("large") || t.includes("big")) multiplier *= 1.2
-  if (t.includes("small") || t.includes("light")) multiplier *= 0.85
-  if (t.includes("double")) multiplier *= 1.8
-
-  if (unique.length) {
-    const total = unique.reduce((acc, item) => ({
-      calories: acc.calories + item.calories,
-      protein: acc.protein + item.protein,
-      carbs: acc.carbs + item.carbs,
-      fat: acc.fat + item.fat,
-      countedAsMeal: acc.countedAsMeal || !!item.meal,
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0, countedAsMeal: false })
-    const hasMealWord = /breakfast|lunch|dinner|meal|sandwich|wrap|bagel|burger|pasta|curry/.test(t)
-    const countedAsMeal = total.countedAsMeal || hasMealWord || unique.length > 1 || total.calories * multiplier >= 250
-    return {
-      calories: Math.round(total.calories * multiplier),
-      protein: Math.round(total.protein * multiplier),
-      carbs: Math.round(total.carbs * multiplier),
-      fat: Math.round(total.fat * multiplier),
-      countedAsMeal,
-    }
-  }
-
-  if (!looksLikeFoodInput(input)) return null
-
-  const words = t.split(/\s+/).filter(Boolean).length
-  const mealLike = /sandwich|wrap|burger|pizza|pasta|rice|curry|breakfast|lunch|dinner|meal|takeaway|mcdonald|kfc|greggs/.test(t)
-  if (mealLike) {
-    return { calories: 550, protein: 28, carbs: 55, fat: 22, countedAsMeal: true }
-  }
-  if (words <= 3) {
-    return { calories: 180, protein: 4, carbs: 24, fat: 6, countedAsMeal: false }
-  }
-  return { calories: 350, protein: 18, carbs: 32, fat: 14, countedAsMeal: true }
+function artifactTitle(kind: Exclude<ArtifactKind, null>) {
+  if (kind === "meal_plan") return "Current plan"
+  return "Current workout"
 }
 
+function normaliseArtifactBody(text: string) {
+  return text.replace(/\n{3,}/g, "\n\n").trim()
+}
 
-function parseTargetsFromAssistantText(input: string) {
+function extractPattern(input: string) {
   const t = input.toLowerCase()
-  const cal = t.match(/([\d,]{3,5})\s*(?:kcal|calories?)/)
-  const protein = t.match(/([\d,]{2,4})\s*(?:g|grams?)\s*(?:of\s*)?protein/)
-  const carbs = t.match(/([\d,]{2,4})\s*(?:g|grams?)\s*(?:of\s*)?carbs?/)
-  const fat = t.match(/([\d,]{2,4})\s*(?:g|grams?)\s*(?:of\s*)?(?:fat|fats)/)
-  const toNum = (v?: string | null) => (v ? Number(v.replace(/,/g, "")) : null)
-  return {
-    caloriesTarget: toNum(cal?.[1]),
-    proteinTarget: toNum(protein?.[1]),
-    carbsTarget: toNum(carbs?.[1]),
-    fatTarget: toNum(fat?.[1]),
+  if (t.includes("hungry") && t.includes("night")) return "Struggles with late-night hunger"
+  if (t.includes("tired") || t.includes("low energy")) return "Low energy comes up sometimes"
+  if (t.includes("don't like") || t.includes("do not like") || t.includes("hate")) return "Preference update mentioned"
+  if (t.includes("busy") || t.includes("quick meal")) return "Needs practical low-friction meals"
+  return null
+}
+
+function isAffirmative(input: string) {
+  return /^(yes|yeah|yep|correct|that'?s right|confirm|sounds good)$/i.test(input.trim())
+}
+
+function startCheckInDraft(checkIn: CheckInState): CheckInState {
+  return { ...checkIn, draft: {} }
+}
+
+function getCheckInStep(checkIn: CheckInState) {
+  const draft = checkIn.draft ?? {}
+  if (!draft.weightKg) return "weight"
+  if (!draft.hunger) return "hunger"
+  if (!draft.energy) return "energy"
+  if (!draft.adherence) return "adherence"
+  return "done"
+}
+
+function nextCheckInInstruction(step: string) {
+  switch (step) {
+    case "weight": return "Start the weekly check-in. Ask only this: what’s your current weight?"
+    case "hunger": return "Now ask only this: how was your hunger this week?"
+    case "energy": return "Now ask only this: how was your energy this week?"
+    case "adherence": return "Now ask only this: how manageable did the plan feel this week, and what do you want changed?"
+    default: return "Thank them. Briefly summarise the check-in and say their next check-in is in 7 days."
   }
 }
 
-function pieSegments(stats: CoachStats) {
-  const total = stats.proteinUsed + stats.carbsUsed + stats.fatUsed
-  if (!total) return [] as Array<{color:string; dash:number; offset:number}>
-  const vals = [stats.proteinUsed, stats.carbsUsed, stats.fatUsed]
-  const colors = ["#67e8f9", "#60a5fa", "#fb923c"]
-  let cumulative = 0
-  const circumference = 2 * Math.PI * 42
-  return vals.map((v, i) => {
-    const dash = (v / total) * circumference
-    const offset = -cumulative
-    cumulative += dash
-    return { color: colors[i], dash, offset }
-  })
+function relativeCheckInLabel(checkIn: CheckInState) {
+  if (!checkIn.nextCheckInDate) return "Check-in due"
+  const today = localDateIso()
+  const delta = diffDays(today, checkIn.nextCheckInDate)
+  if (delta > 0) return `Next check-in in ${delta} day${delta === 1 ? "" : "s"}`
+  if (delta === 0) return "Time to check in"
+  return `Check-in ${Math.abs(delta)} day${Math.abs(delta) === 1 ? "" : "s"} late`
 }
 
-function progressPct(used: number, target: number) {
-  if (!target) return 0
-  return Math.max(0, Math.min(100, Math.round((used / target) * 100)))
-}
-
-function macroPercentages(stats: CoachStats) {
-  const total = stats.proteinUsed + stats.carbsUsed + stats.fatUsed
-  if (!total) return { protein: 0, carbs: 0, fat: 0 }
-  return {
-    protein: Math.round((stats.proteinUsed / total) * 100),
-    carbs: Math.round((stats.carbsUsed / total) * 100),
-    fat: Math.round((stats.fatUsed / total) * 100),
-  }
-}
-
-function buildCoachGuidance(profile: CoachProfile | null, stats: CoachStats) {
-  if (!isProfileComplete(profile, stats)) return "First time here? Tap to talk and George will get you set up properly."
-  if (stats.mealsToday === 0) return `You’re set for ${stats.caloriesTarget} kcal and ${stats.proteinTarget}g protein today.`
-  return `${caloriesLeft(stats)} kcal left • ${proteinLeft(stats)}g protein left • ${carbsLeft(stats)}g carbs left • ${fatLeft(stats)}g fat left.`
+function renderLines(text: string) {
+  return normaliseArtifactBody(text).split("\n").filter(Boolean)
 }
 
 export function CoachGeorgeLiveAssistant() {
@@ -703,13 +483,15 @@ export function CoachGeorgeLiveAssistant() {
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [statusText, setStatusText] = useState("Ready when you are")
   const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState<CoachStats>(DEFAULT_STATS)
   const [profile, setProfile] = useState<CoachProfile | null>(null)
-  const [pendingEstimate, setPendingEstimate] = useState<MacroEstimate | null>(null)
-  const [pendingMealText, setPendingMealText] = useState<string | null>(null)
-  const [pendingTargets, setPendingTargets] = useState<CoachStats | null>(null)
-  const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>([])
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [targets, setTargets] = useState<CoachTargets | null>(null)
+  const [activeMealPlan, setActiveMealPlan] = useState<PlanArtifact | null>(null)
+  const [activeWorkoutPlan, setActiveWorkoutPlan] = useState<PlanArtifact | null>(null)
+  const [patterns, setPatterns] = useState<PatternMemory>(EMPTY_PATTERNS)
+  const [checkIn, setCheckIn] = useState<CheckInState>(EMPTY_CHECKIN)
+  const [onboardingComplete, setOnboardingComplete] = useState(false)
+  const [pendingProfile, setPendingProfile] = useState<CoachProfile | null>(null)
+  const foodSystemCounts = useMemo(() => getFoodSystemCounts(), [])
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -718,193 +500,150 @@ export function CoachGeorgeLiveAssistant() {
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const queuedPromptRef = useRef<string | null>(null)
-  const onboardingProfileRef = useRef<CoachProfile>(EMPTY_PROFILE)
-  const statsRef = useRef<CoachStats>(DEFAULT_STATS)
   const profileRef = useRef<CoachProfile | null>(null)
-  const pendingEstimateRef = useRef<MacroEstimate | null>(null)
-  const pendingMealTextRef = useRef<string | null>(null)
-  const pendingTargetsRef = useRef<CoachStats | null>(null)
-  const loggedMealsRef = useRef<LoggedMeal[]>([])
-  const pendingDeleteRef = useRef<PendingDelete | null>(null)
-  const onboardingStepRef = useRef<string>("name")
+  const targetsRef = useRef<CoachTargets | null>(null)
+  const checkInRef = useRef<CheckInState>(EMPTY_CHECKIN)
+  const pendingProfileRef = useRef<CoachProfile | null>(null)
+  const pendingArtifactRef = useRef<ArtifactKind>(null)
 
-  useEffect(() => { statsRef.current = stats }, [stats])
   useEffect(() => { profileRef.current = profile }, [profile])
-  useEffect(() => { loggedMealsRef.current = loggedMeals }, [loggedMeals])
-  useEffect(() => { pendingDeleteRef.current = pendingDelete }, [pendingDelete])
-  useEffect(() => { onboardingStepRef.current = getOnboardingStep(profile ?? EMPTY_PROFILE, stats) }, [profile, stats])
+  useEffect(() => { targetsRef.current = targets }, [targets])
+  useEffect(() => { checkInRef.current = checkIn }, [checkIn])
+  useEffect(() => { pendingProfileRef.current = pendingProfile }, [pendingProfile])
 
-  const effectiveStats = useMemo(() => {
-    if (stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0) return stats
-    if (profile?.goal && profile?.sex && profile?.age && profile?.heightCm && profile?.weightKg && profile?.activityLevel) {
-      return { ...stats, ...calculateTargets(profile) }
-    }
-    return stats
-  }, [profile, stats])
-  const profileReady = isProfileComplete(profile, effectiveStats)
-  const pie = pieSegments(effectiveStats)
-  const macroPct = macroPercentages(effectiveStats)
-  const latestAssistantMessage = useMemo(() => [...messages].reverse().find(m => m.role === "assistant")?.content || buildCoachGuidance(profile, effectiveStats), [messages, profile, effectiveStats])
-  const latestMeals = useMemo(() => [...loggedMeals].slice(-4).reverse(), [loggedMeals])
-  const macroBars = [
-    { label: "Protein", used: effectiveStats.proteinUsed, target: effectiveStats.proteinTarget, color: "from-cyan-300 to-cyan-500" },
-    { label: "Carbs", used: effectiveStats.carbsUsed, target: effectiveStats.carbsTarget, color: "from-blue-400 to-blue-600" },
-    { label: "Fats", used: effectiveStats.fatUsed, target: effectiveStats.fatTarget, color: "from-amber-300 to-orange-500" },
-  ]
+  const latestAssistantMessage = useMemo(
+    () => [...messages].reverse().find((message) => message.role === "assistant")?.content || "Tell George what’s going on and he’ll tell you what to do.",
+    [messages],
+  )
 
   useEffect(() => {
-    const stored = loadStoredAppState()
-    if (stored) {
-      if (stored.messages?.length) setMessages(stored.messages)
-      const nextProfile = { ...EMPTY_PROFILE, ...(stored.profile || {}) }
-      if (Object.keys(nextProfile).length) {
-        const withCountry = { ...nextProfile, country: nextProfile.country || inferCountryFromBrowser() || undefined }
-        setProfile(withCountry)
-        onboardingProfileRef.current = withCountry
-      }
-      const normalizedStats = normalizeStatsForToday({ ...DEFAULT_STATS, ...(stored.stats || {}), timezone: stored.stats?.timezone || getBrowserTimeZone() })
-      setStats(normalizedStats)
-      if (stored.pendingEstimate) {
-        setPendingEstimate(stored.pendingEstimate)
-        pendingEstimateRef.current = stored.pendingEstimate
-      }
-      if (stored.pendingMealText) {
-        setPendingMealText(stored.pendingMealText)
-        pendingMealTextRef.current = stored.pendingMealText
-      }
-      if (stored.pendingTargets) {
-        setPendingTargets(stored.pendingTargets)
-        pendingTargetsRef.current = stored.pendingTargets
-      }
-      if (stored.loggedMeals?.length) {
-        setLoggedMeals(stored.loggedMeals)
-        loggedMealsRef.current = stored.loggedMeals
-      }
-      if (stored.pendingDelete) {
-        setPendingDelete(stored.pendingDelete)
-        pendingDeleteRef.current = stored.pendingDelete
-      }
+    const stored = loadStoredState()
+    if (!stored) return
+    setMessages(stored.messages)
+    const nextProfile = Object.keys(stored.profile || {}).length ? { ...stored.profile, country: stored.profile.country || inferCountryFromBrowser() || undefined } : null
+    setProfile(nextProfile)
+    setTargets(stored.targets)
+    setActiveMealPlan(stored.activeMealPlan)
+    setActiveWorkoutPlan(stored.activeWorkoutPlan)
+    setPatterns(stored.patterns)
+    setCheckIn(calculateCheckInStatus(stored.checkIn))
+    setOnboardingComplete(stored.onboardingComplete)
+  }, [])
+
+  useEffect(() => {
+    saveStoredState(buildStoredState({
+      messages: messages.slice(-24),
+      profile: profile ?? EMPTY_PROFILE,
+      targets,
+      activeMealPlan,
+      activeWorkoutPlan,
+      patterns,
+      checkIn,
+      onboardingComplete,
+    }))
+  }, [messages, profile, targets, activeMealPlan, activeWorkoutPlan, patterns, checkIn, onboardingComplete])
+
+  function pushAssistantMessage(content: string) {
+    setMessages((prev) => [...prev, makeMessage("assistant", content)])
+  }
+
+  function buildCoachGreeting() {
+    if (!profile?.name || !targets) return "Tell George what’s going on and he’ll tell you what to do."
+    return `${profile.name}, you’re set for ${targets.protein}g protein, ${targets.carbs}g carbs, ${targets.fats}g fats, and ${targets.calories} calories.`
+  }
+
+  function sendDataChannelInstructions(instructions: string) {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== "open") return false
+    dc.send(JSON.stringify({ type: "response.create", response: { instructions } }))
+    return true
+  }
+
+  function savePatternFromInput(input: string) {
+    const candidate = extractPattern(input)
+    if (!candidate) return
+    setPatterns((prev) => (prev.items.includes(candidate) ? prev : { items: [...prev.items, candidate] }))
+  }
+
+  function completeOnboarding(nextProfile: CoachProfile) {
+    const resolvedProfile = { ...nextProfile, country: nextProfile.country || inferCountryFromBrowser() || "UK" }
+    const nextTargets = calculateTargets(resolvedProfile)
+    if (!nextTargets) return
+    const today = localDateIso()
+    const nextCheckIn = calculateCheckInStatus({ lastCheckInDate: today, nextCheckInDate: addDays(today, 7), status: "up_to_date", draft: null })
+    setProfile(resolvedProfile)
+    setTargets(nextTargets)
+    setOnboardingComplete(true)
+    setPendingProfile(null)
+    setCheckIn(nextCheckIn)
+    pushAssistantMessage(`Targets locked in. You’re set for ${nextTargets.calories} calories, ${nextTargets.protein}g protein, ${nextTargets.carbs}g carbs, and ${nextTargets.fats}g fats. Tell me what you want help with first.`)
+  }
+
+  function updateWeightAndTargets(weightKg: number) {
+    const current = profileRef.current
+    if (!current) return
+    const nextProfile = { ...current, weightKg }
+    const nextTargets = calculateTargets(nextProfile)
+    if (!nextTargets) return
+    setProfile(nextProfile)
+    setTargets(nextTargets)
+  }
+
+  function finishCheckIn(nextCheckIn: CheckInState) {
+    const today = localDateIso()
+    const completed = calculateCheckInStatus({
+      lastCheckInDate: today,
+      nextCheckInDate: addDays(today, 7),
+      status: "up_to_date",
+      draft: null,
+    })
+    if (nextCheckIn.draft?.weightKg) updateWeightAndTargets(nextCheckIn.draft.weightKg)
+    setCheckIn(completed)
+    pushAssistantMessage("Weekly check-in saved. I’ve updated your next check-in for 7 days from now and kept your coaching memory current.")
+  }
+
+  function advanceCheckIn(input: string) {
+    const current = checkInRef.current.draft ? checkInRef.current : startCheckInDraft(checkInRef.current)
+    const step = getCheckInStep(current)
+    const nextDraft = { ...(current.draft ?? {}) }
+
+    if (step === "weight") {
+      const value = parseWeightKg(input)
+      if (value) nextDraft.weightKg = value
+    } else if (step === "hunger") {
+      nextDraft.hunger = input.trim()
+    } else if (step === "energy") {
+      nextDraft.energy = input.trim()
+    } else if (step === "adherence") {
+      nextDraft.adherence = input.trim()
+    }
+
+    const nextState = calculateCheckInStatus({ ...current, draft: nextDraft })
+    setCheckIn(nextState)
+    const nextStep = getCheckInStep(nextState)
+    if (nextStep === "done") {
+      finishCheckIn(nextState)
+      return true
+    }
+    if (!sendDataChannelInstructions(nextCheckInInstruction(nextStep))) {
+      pushAssistantMessage(nextCheckInInstruction(nextStep).replace(/^.*?:\s*/, ""))
+    }
+    return true
+  }
+
+  function saveArtifact(kind: Exclude<ArtifactKind, null>, body: string) {
+    const artifact: PlanArtifact = {
+      id: uid(),
+      title: artifactTitle(kind),
+      kind,
+      body: normaliseArtifactBody(body),
+      createdAt: new Date().toISOString(),
+    }
+    if (kind === "meal_plan") {
+      setActiveMealPlan(artifact)
       return
     }
-    try {
-      const rawMessages = window.localStorage.getItem(STORAGE_KEY)
-      if (rawMessages) {
-        const parsed = JSON.parse(rawMessages)
-        if (Array.isArray(parsed?.messages)) setMessages(parsed.messages)
-      }
-    } catch {}
-    try {
-      const rawProfile = window.localStorage.getItem(PROFILE_KEY)
-      if (rawProfile) {
-        const parsed = JSON.parse(rawProfile)
-        if (parsed && typeof parsed === "object") {
-          const withCountry = { ...parsed, country: parsed.country || inferCountryFromBrowser() || undefined }
-          setProfile(withCountry)
-          onboardingProfileRef.current = { ...EMPTY_PROFILE, ...withCountry }
-        }
-      }
-    } catch {}
-    try {
-      const rawStats = window.localStorage.getItem(STATS_KEY)
-      if (rawStats) {
-        const parsed = JSON.parse(rawStats)
-        if (parsed && typeof parsed === "object") setStats(normalizeStatsForToday({ ...DEFAULT_STATS, ...parsed, timezone: parsed.timezone || getBrowserTimeZone() }))
-      }
-    } catch {}
-  }, [])
-
-  useEffect(() => {
-    saveStoredAppState({
-      messages: messages.slice(-20),
-      profile: profile ?? EMPTY_PROFILE,
-      stats,
-      pendingEstimate,
-      pendingMealText,
-      pendingTargets,
-      loggedMeals,
-      pendingDelete,
-    })
-  }, [messages, profile, stats, pendingEstimate, pendingMealText, pendingTargets, loggedMeals, pendingDelete])
-
-  useEffect(() => {
-    if (!profile) return
-    if (!(profile.goal && profile.sex && profile.age && profile.heightCm && profile.weightKg && profile.activityLevel)) return
-    if (stats.caloriesTarget > 0 && stats.proteinTarget > 0 && stats.carbsTarget > 0 && stats.fatTarget > 0) return
-    if (pendingTargetsRef.current) return
-    const targets = calculateTargets(profile)
-    const draft = { ...normalizeStatsForToday(stats), ...targets }
-    showPendingTargets(draft)
-  }, [profile, stats.caloriesTarget, stats.proteinTarget, stats.carbsTarget, stats.fatTarget])
-
-  useEffect(() => {
-    if (!profileRef.current) {
-      const inferred = inferCountryFromBrowser()
-      if (inferred) {
-        const next = { ...EMPTY_PROFILE, country: inferred }
-        setProfile(next)
-        onboardingProfileRef.current = next
-      }
-    }
-    setStats(prev => normalizeStatsForToday({ ...prev, timezone: prev.timezone || getBrowserTimeZone() }))
-  }, [])
-
-  async function cleanupConversation() {
-    dcRef.current?.close(); dcRef.current = null
-    if (pcRef.current) {
-      pcRef.current.getSenders().forEach(sender => sender.track?.stop())
-      pcRef.current.close(); pcRef.current = null
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop())
-      localStreamRef.current = null
-    }
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.srcObject = null
-      audioRef.current.remove()
-      audioRef.current = null
-    }
-    currentAssistantTextRef.current = ""
-    currentAssistantMessageIdRef.current = null
-  }
-
-  function showPendingTargets(targets: CoachStats) {
-    pendingTargetsRef.current = targets
-    setPendingTargets(targets)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: statsRef.current, pendingTargets: targets })
-  }
-
-  function clearPendingTargets() {
-    pendingTargetsRef.current = null
-    setPendingTargets(null)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: statsRef.current, pendingTargets: null })
-  }
-
-  function applyTargets(nextTargets: CoachStats) {
-    const updated = markUsage(normalizeStatsForToday({
-      ...statsRef.current,
-      caloriesTarget: nextTargets.caloriesTarget,
-      proteinTarget: nextTargets.proteinTarget,
-      carbsTarget: nextTargets.carbsTarget,
-      fatTarget: nextTargets.fatTarget,
-    }))
-    setStats(updated)
-    clearPendingTargets()
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingTargets: null })
-    pushAssistantMessage(`Targets saved. You’re set for ${updated.caloriesTarget} calories, ${updated.proteinTarget}g protein, ${updated.carbsTarget}g carbs and ${updated.fatTarget}g fat today.`)
-  }
-
-  function hydrateTargetsFromAssistant(text: string) {
-    const parsed = parseTargetsFromAssistantText(text)
-    if (!(parsed.caloriesTarget && parsed.proteinTarget && parsed.carbsTarget && parsed.fatTarget)) return
-    const nextTargets = {
-      ...normalizeStatsForToday({ ...statsRef.current, timezone: statsRef.current.timezone || getBrowserTimeZone() }),
-      caloriesTarget: parsed.caloriesTarget || statsRef.current.caloriesTarget,
-      proteinTarget: parsed.proteinTarget || statsRef.current.proteinTarget,
-      carbsTarget: parsed.carbsTarget || statsRef.current.carbsTarget,
-      fatTarget: parsed.fatTarget || statsRef.current.fatTarget,
-    }
-    showPendingTargets(nextTargets)
+    setActiveWorkoutPlan(artifact)
   }
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
@@ -913,229 +652,107 @@ export function CoachGeorgeLiveAssistant() {
       const message = makeMessage("assistant", delta)
       currentAssistantMessageIdRef.current = message.id
       currentAssistantTextRef.current = delta
-      setMessages(prev => [...prev, message])
+      setMessages((prev) => [...prev, message])
     } else {
       currentAssistantTextRef.current += delta
       const targetId = currentAssistantMessageIdRef.current
-      setMessages(prev => prev.map(m => m.id === targetId ? { ...m, content: currentAssistantTextRef.current } : m))
+      setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, content: currentAssistantTextRef.current } : m)))
     }
+
     if (isFinal) {
-      const finalText = currentAssistantTextRef.current
-      hydrateTargetsFromAssistant(finalText)
-      if (pendingEstimateRef.current && /\blogg(?:ed|ing)\b|\bsaved\b/i.test(finalText)) {
-        applyMealLog(pendingEstimateRef.current, pendingMealTextRef.current || "your meal")
+      const finalText = currentAssistantTextRef.current.trim()
+      if (pendingArtifactRef.current && finalText) {
+        saveArtifact(pendingArtifactRef.current, finalText)
       }
+      pendingArtifactRef.current = null
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
     }
   }
 
-  function persistCompletedProfile(nextProfile: CoachProfile) {
-    const targets = calculateTargets(nextProfile)
-    const targetDraft = markUsage({ ...normalizeStatsForToday(statsRef.current), ...targets, caloriesUsed: 0, proteinUsed: 0, carbsUsed: 0, fatUsed: 0, mealsToday: 0 })
+  function startOnboardingFollowUp(nextProfile: CoachProfile) {
     setProfile(nextProfile)
-    onboardingProfileRef.current = nextProfile
-    showPendingTargets(targetDraft)
-    saveStoredAppState({ profile: nextProfile, stats: statsRef.current, messages: messages.slice(-20), pendingTargets: targetDraft })
-    const dc = dcRef.current
-    if (dc?.readyState === "open") {
-      dc.send(JSON.stringify({ type: "response.create", response: { instructions: `${profileContext(nextProfile, statsRef.current)}
-Setup is complete. Briefly confirm their daily calories, protein, carbs and fats to ${nextProfile.name}, tell them to tap Save targets below to lock them in, then ask what they want help with right now.` } }))
-    } else {
-      pushAssistantMessage(`${nextProfile.name ? `${nextProfile.name}, ` : ""}I’ve worked your targets out. Tap Save targets below to lock in ${targetDraft.caloriesTarget} calories, ${targetDraft.proteinTarget}g protein, ${targetDraft.carbsTarget}g carbs and ${targetDraft.fatTarget}g fat for today.`)
+    const nextStep = getOnboardingStep(nextProfile)
+    if (!sendDataChannelInstructions(nextOnboardingInstruction(nextStep))) {
+      pushAssistantMessage(nextOnboardingInstruction(nextStep).replace(/^.*?:\s*/, ""))
     }
   }
 
+  function handleProfileUpdates(input: string) {
+    const current = profileRef.current ?? EMPTY_PROFILE
+    const next = { ...current }
+    const goal = parseGoal(input)
+    const sex = parseSex(input)
+    const age = parseAge(input)
+    const heightCm = parseHeightCm(input)
+    const weightKg = parseWeightKg(input)
+    const activity = parseActivity(input)
+    const country = parseCountry(input)
+    if (goal) next.goal = goal
+    if (sex) next.sex = sex
+    if (age) next.age = age
+    if (heightCm) next.heightCm = heightCm
+    if (weightKg) next.weightKg = weightKg
+    if (activity) next.activityLevel = activity
+    if (country) next.country = country
 
-  function pushAssistantMessage(content: string) {
-    setMessages(prev => [...prev, makeMessage("assistant", content)])
-  }
+    const lower = input.toLowerCase()
+    if (lower.includes("don't like") || lower.includes("do not like") || lower.includes("hate")) next.dislikes = parseDislikeAnswer(input)
+    if (lower.includes("allerg")) next.allergies = parseAllergyAnswer(input)
 
-  function clearPendingEstimate() {
-    pendingEstimateRef.current = null
-    pendingMealTextRef.current = null
-    setPendingEstimate(null)
-    setPendingMealText(null)
-    saveStoredAppState({
-      profile: profileRef.current ?? EMPTY_PROFILE,
-      stats: statsRef.current,
-      pendingEstimate: null,
-      pendingMealText: null,
-      pendingTargets: pendingTargetsRef.current,
-      loggedMeals: loggedMealsRef.current,
-      pendingDelete: pendingDeleteRef.current,
-    })
-  }
-
-  function clearPendingDelete() {
-    pendingDeleteRef.current = null
-    setPendingDelete(null)
-    saveStoredAppState({
-      profile: profileRef.current ?? EMPTY_PROFILE,
-      stats: statsRef.current,
-      pendingEstimate: pendingEstimateRef.current,
-      pendingMealText: pendingMealTextRef.current,
-      pendingTargets: pendingTargetsRef.current,
-      loggedMeals: loggedMealsRef.current,
-      pendingDelete: null,
-    })
-  }
-
-  function showDeleteDraft(meal: LoggedMeal) {
-    const draft: PendingDelete = {
-      mealId: meal.id,
-      text: meal.text,
-      calories: meal.calories,
-      protein: meal.protein,
-      carbs: meal.carbs,
-      fat: meal.fat,
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      setProfile(next)
+      const nextTargets = calculateTargets(next)
+      if (nextTargets) setTargets(nextTargets)
+      pushAssistantMessage("Got it — I’ve updated your saved details.")
+      return true
     }
-    pendingDeleteRef.current = draft
-    setPendingDelete(draft)
-    saveStoredAppState({
-      profile: profileRef.current ?? EMPTY_PROFILE,
-      stats: statsRef.current,
-      pendingEstimate: pendingEstimateRef.current,
-      pendingMealText: pendingMealTextRef.current,
-      pendingTargets: pendingTargetsRef.current,
-      loggedMeals: loggedMealsRef.current,
-      pendingDelete: draft,
-    })
+    return false
   }
-
-  function deleteLoggedMeal(mealId: string) {
-    const found = loggedMealsRef.current.find((meal) => meal.id === mealId)
-    if (!found) return
-    const remaining = loggedMealsRef.current.filter((meal) => meal.id !== mealId)
-    const base = normalizeStatsForToday(statsRef.current)
-    const updated: CoachStats = {
-      ...base,
-      caloriesUsed: Math.max(0, base.caloriesUsed - found.calories),
-      proteinUsed: Math.max(0, base.proteinUsed - found.protein),
-      carbsUsed: Math.max(0, base.carbsUsed - found.carbs),
-      fatUsed: Math.max(0, base.fatUsed - found.fat),
-      mealsToday: Math.max(0, base.mealsToday - (found.countedAsMeal ? 1 : 0)),
-    }
-    loggedMealsRef.current = remaining
-    setLoggedMeals(remaining)
-    setStats(updated)
-    pendingDeleteRef.current = null
-    setPendingDelete(null)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, loggedMeals: remaining, pendingDelete: null, pendingEstimate: pendingEstimateRef.current, pendingMealText: pendingMealTextRef.current, pendingTargets: pendingTargetsRef.current })
-    pushAssistantMessage(`Deleted ${found.text}. You’ve now got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`)
-  }
-
-  function applyMealLog(estimate: MacroEstimate, mealText: string) {
-    clearPendingEstimate()
-    clearPendingDelete()
-
-    const base = markUsage(normalizeStatsForToday(statsRef.current))
-    const updated: CoachStats = {
-      ...base,
-      caloriesUsed: base.caloriesUsed + estimate.calories,
-      proteinUsed: base.proteinUsed + estimate.protein,
-      carbsUsed: base.carbsUsed + estimate.carbs,
-      fatUsed: base.fatUsed + estimate.fat,
-      mealsToday: base.mealsToday + (estimate.countedAsMeal ? 1 : 0),
-    }
-
-    const loggedMeal: LoggedMeal = {
-      id: uid(),
-      text: titleMealText(mealText),
-      calories: estimate.calories,
-      protein: estimate.protein,
-      carbs: estimate.carbs,
-      fat: estimate.fat,
-      countedAsMeal: estimate.countedAsMeal,
-      createdAt: new Date().toISOString(),
-    }
-    const nextMeals = [...loggedMealsRef.current, loggedMeal]
-    loggedMealsRef.current = nextMeals
-    setLoggedMeals(nextMeals)
-    setStats(updated)
-    saveStoredAppState({ profile: profileRef.current ?? EMPTY_PROFILE, stats: updated, pendingEstimate: null, pendingMealText: null, pendingTargets: pendingTargetsRef.current, loggedMeals: nextMeals, pendingDelete: null })
-    pushAssistantMessage(
-      `Logged ${titleMealText(mealText)}. That adds roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. ` +
-      `You’ve got ${caloriesLeft(updated)} calories, ${proteinLeft(updated)}g protein, ${carbsLeft(updated)}g carbs and ${fatLeft(updated)}g fat left today.`
-    )
-  }
-
 
   function addUserTranscript(text: string) {
     const cleaned = text.trim()
     if (!cleaned) return
     setMessages((prev) => [...prev, makeMessage("user", cleaned)])
+    savePatternFromInput(cleaned)
 
-    const deleteTarget = parseDeleteIntent(cleaned)
-    if (deleteTarget) {
-      const orderedMeals = [...loggedMealsRef.current].reverse()
-      const match = deleteTarget === "__LAST__" ? orderedMeals[0] : orderedMeals.find((meal) => meal.text.toLowerCase().includes(deleteTarget.toLowerCase()))
-      if (match) {
-        showDeleteDraft(match)
-        pushAssistantMessage(`I found ${match.text}. Tap Delete to remove it or Keep to leave it in.`)
-      } else {
-        pushAssistantMessage(`I couldn’t find ${deleteTarget} in today’s logged food yet.`)
-      }
+    if (pendingProfileRef.current && isAffirmative(cleaned)) {
+      completeOnboarding(pendingProfileRef.current)
       return
     }
 
-    const ready = isProfileComplete(profileRef.current, statsRef.current)
+    if (checkInRef.current.draft || /weigh in|weigh-in|check in|check-in/i.test(cleaned)) {
+      advanceCheckIn(cleaned)
+      return
+    }
 
-    if (!ready) {
-      const currentProfile = onboardingProfileRef.current || EMPTY_PROFILE
-      const currentStep = onboardingStepRef.current || getOnboardingStep(currentProfile, statsRef.current)
-      const stepped = applyStepAnswer(currentStep, cleaned, currentProfile)
-      const applied = mergeProfileFromInput(cleaned, stepped)
-      onboardingProfileRef.current = applied.profile
-      setProfile(applied.profile)
-      if (applied.complete) {
-        persistCompletedProfile(applied.profile)
+    if (!isProfileComplete(profileRef.current ?? EMPTY_PROFILE) || !onboardingComplete) {
+      const current = profileRef.current ?? EMPTY_PROFILE
+      const step = getOnboardingStep(current)
+      const nextProfile = applyOnboardingAnswer(step, cleaned, current)
+      if (getOnboardingStep(nextProfile) === "done") {
+        const resolved = { ...nextProfile, country: nextProfile.country || inferCountryFromBrowser() || "UK" }
+        setPendingProfile(resolved)
+        pushAssistantMessage(`I’ve got your details. Confirm these and I’ll lock your targets in: ${resolved.name}, ${resolved.goal}, ${resolved.sex}, ${resolved.age}, ${resolved.heightCm}cm, ${resolved.weightKg}kg, ${resolved.activityLevel}.`)
         return
       }
-      const nextStep = getOnboardingStep(applied.profile, statsRef.current)
-      onboardingStepRef.current = nextStep
-      const dc = dcRef.current
-      if (dc?.readyState === "open") {
-        dc.send(JSON.stringify({ type: "response.create", response: { instructions: nextOnboardingInstruction(nextStep) } }))
-      } else {
-        pushAssistantMessage(nextOnboardingInstruction(nextStep).replace(/^.*?:\s*/, ""))
-      }
+      startOnboardingFollowUp(nextProfile)
       return
     }
 
-    if (pendingEstimateRef.current && isConfirmIntent(cleaned) && !looksLikeFoodInput(cleaned)) {
-      applyMealLog(pendingEstimateRef.current, pendingMealTextRef.current || "your meal")
-      return
-    }
+    if (handleProfileUpdates(cleaned)) return
 
-    const estimate = estimateFromText(cleaned)
-    if (estimate) {
-      const mealText = titleMealText(cleaned)
-      pendingEstimateRef.current = estimate
-      pendingMealTextRef.current = mealText
-      setPendingEstimate(estimate)
-      setPendingMealText(mealText)
-      clearPendingDelete()
-      pushAssistantMessage(`I’ve drafted ${mealText} at roughly ${estimate.calories} calories, ${estimate.protein}g protein, ${estimate.carbs}g carbs and ${estimate.fat}g fat. Tap Log meal below if that looks right.`)
-      return
+    if (/meal plan|full day|what should i eat|build me a plan|food plan|day of eating|swap|breakfast|lunch|dinner|snack/i.test(cleaned)) {
+      pendingArtifactRef.current = "meal_plan"
+    } else if (/workout|session|train|gym|home workout|boxing|run/i.test(cleaned)) {
+      pendingArtifactRef.current = "workout"
     }
-
-    const maybeTargets = mergeProfileFromInput(cleaned, profileRef.current || EMPTY_PROFILE)
-    if (maybeTargets.complete && !(statsRef.current.caloriesTarget > 0 && statsRef.current.proteinTarget > 0 && statsRef.current.carbsTarget > 0 && statsRef.current.fatTarget > 0)) {
-      onboardingProfileRef.current = maybeTargets.profile
-      setProfile(maybeTargets.profile)
-      persistCompletedProfile(maybeTargets.profile)
-      return
-    }
-
-    setStats((prev) => markUsage(prev))
   }
-
 
   function sendTextPrompt(prompt: string) {
     const dc = dcRef.current
     if (!dc || dc.readyState !== "open") return
-    setMessages(prev => [...prev, makeMessage("user", prompt)])
+    setMessages((prev) => [...prev, makeMessage("user", prompt)])
     dc.send(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: prompt }] } }))
     dc.send(JSON.stringify({ type: "response.create" }))
   }
@@ -1187,6 +804,19 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
     }
   }
 
+  async function cleanupConversation() {
+    try { dcRef.current?.close() } catch {}
+    try { pcRef.current?.close() } catch {}
+    try { audioRef.current?.pause() } catch {}
+    try { localStreamRef.current?.getTracks().forEach((track) => track.stop()) } catch {}
+    dcRef.current = null
+    pcRef.current = null
+    audioRef.current = null
+    localStreamRef.current = null
+    currentAssistantTextRef.current = ""
+    currentAssistantMessageIdRef.current = null
+  }
+
   async function startConversation() {
     await cleanupConversation()
     setConnectionState("connecting")
@@ -1203,7 +833,7 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
       pcRef.current = pc
       const audio = document.createElement("audio")
       audio.autoplay = true
-      audio.playsInline = true
+      ;(audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
       audioRef.current = audio
       pc.ontrack = (event) => {
         audio.srcObject = event.streams[0]
@@ -1214,21 +844,16 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 48000 } as MediaTrackConstraints,
       })
       localStreamRef.current = stream
-      stream.getTracks().forEach(track => pc.addTrack(track, stream))
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
       const dc = pc.createDataChannel("oai-events")
       dcRef.current = dc
       dc.addEventListener("open", () => {
         setConnectionState("connected")
         setStatusText("Listening…")
-        dc.send(JSON.stringify({
-          type: "session.update",
-          session: {
-            input_audio_transcription: { model: "gpt-4o-mini-transcribe" },
-          },
-        }))
+        dc.send(JSON.stringify({ type: "session.update", session: { input_audio_transcription: { model: "gpt-4o-mini-transcribe" } } }))
         window.setTimeout(() => {
-          dc.send(JSON.stringify(buildFirstResponseEvent(profileRef.current, statsRef.current)))
+          dc.send(JSON.stringify(buildFirstResponseEvent(profileRef.current, targetsRef.current, checkInRef.current)))
           if (queuedPromptRef.current) {
             const prompt = queuedPromptRef.current
             queuedPromptRef.current = null
@@ -1272,8 +897,9 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
   }
 
   function handleQuickAction(actionKey: QuickActionKey) {
-    setStats(prev => markUsage(prev))
-    const prompt = buildQuickPrompt(actionKey, profileRef.current, statsRef.current)
+    if (actionKey === "build_plan") pendingArtifactRef.current = "meal_plan"
+    if (actionKey === "workout") pendingArtifactRef.current = "workout"
+    const prompt = buildQuickPrompt(actionKey, profileRef.current, targetsRef.current, checkInRef.current)
     if (connectionState === "connected") {
       sendTextPrompt(prompt)
       return
@@ -1282,22 +908,34 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
     void startConversation()
   }
 
+  function handleStartCheckIn() {
+    const next = startCheckInDraft(checkInRef.current)
+    setCheckIn(next)
+    const prompt = nextCheckInInstruction("weight")
+    if (connectionState === "connected") {
+      sendDataChannelInstructions(prompt)
+      return
+    }
+    queuedPromptRef.current = prompt
+    void startConversation()
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#030507] text-white">
-      <style jsx>{`
+      <style>{`
         @keyframes ringPulse { 0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.02);opacity:1} }
         @keyframes coreGlow { 0%,100%{ box-shadow:0 0 35px rgba(96,165,250,.18), inset 0 0 35px rgba(96,165,250,.08)} 50%{ box-shadow:0 0 90px rgba(96,165,250,.28), inset 0 0 55px rgba(251,146,60,.10)} }
-        @keyframes shimmer { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(96,165,250,0.18),transparent_24%),radial-gradient(circle_at_80%_20%,rgba(251,146,60,0.08),transparent_20%),linear-gradient(180deg,#020406_0%,#07101a_52%,#020406_100%)]" />
         <div className="absolute left-1/2 top-24 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-blue-400/10 blur-[120px]" />
       </div>
+
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[34px] font-semibold tracking-[0.16em] text-white">GEORGE</div>
-            <div className="mt-1 text-[11px] uppercase tracking-[0.34em] text-slate-500">coach • macros • performance</div>
+            <div className="mt-1 text-[11px] uppercase tracking-[0.34em] text-slate-500">coach • meals • workouts • support</div>
           </div>
           <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.28em] text-blue-100">{connectionState === "connected" ? "Live" : "Ready"}</div>
         </div>
@@ -1308,137 +946,70 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
             <div className="absolute inset-0 rounded-full border border-blue-300/20" style={{ animation: "ringPulse 3.4s ease-in-out infinite" }} />
             <div className="absolute inset-[10px] rounded-full border border-white/10" />
             <div className="absolute inset-[18px] rounded-full border border-blue-300/22" style={{ animation: "ringPulse 2.7s ease-in-out infinite" }} />
-            <div className="absolute inset-[28px] rounded-full border border-orange-300/14" />
-            <div className="absolute inset-[18px] rounded-full bg-[conic-gradient(from_90deg_at_50%_50%,rgba(96,165,250,0.03),rgba(96,165,250,0.4),rgba(251,146,60,0.20),rgba(96,165,250,0.05),rgba(96,165,250,0.03))]" style={{ animation: "shimmer 12s linear infinite" }} />
-            <div className="absolute inset-[54px] rounded-full border border-white/6 bg-[radial-gradient(circle_at_50%_40%,rgba(96,165,250,.28),rgba(3,7,18,.96)_64%)]" style={{ animation: "coreGlow 4.3s ease-in-out infinite" }} />
-            <div className="absolute inset-[80px] rounded-full bg-[radial-gradient(circle_at_50%_32%,rgba(255,255,255,.34),rgba(15,23,42,.16)_18%,rgba(2,6,23,.96)_60%)]" />
-            <div className="absolute left-1/2 top-[88px] flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full border border-white/16 bg-white/10 shadow-[0_12px_40px_rgba(0,0,0,.35)] backdrop-blur">
-              <BarChart3 className="h-7 w-7 text-white/90" />
-            </div>
-            <div className="relative z-10 mt-16 text-center">
-              <div className="text-[46px] font-semibold tracking-tight text-white">George</div>
-              <div className="mt-2 text-[22px] text-white/82">{connectionState === "connecting" ? "Connecting…" : connectionState === "connected" ? "Live now" : "Tap to talk"}</div>
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-slate-300">live performance coach</div>
+            <div className="absolute inset-[28px] rounded-full border border-orange-300/18" />
+            <div className="absolute inset-[40px] rounded-full bg-[linear-gradient(180deg,rgba(9,18,30,.96),rgba(3,6,16,.98))]" style={{ animation: "coreGlow 4.2s ease-in-out infinite" }} />
+            <div className="relative z-10 text-center">
+              <div className="text-[13px] uppercase tracking-[0.34em] text-slate-400">Tap to talk</div>
+              <div className="mt-3 text-[56px] font-semibold leading-none text-white">George</div>
+              <div className="mt-4 text-sm text-slate-300">{statusText}</div>
             </div>
           </button>
         </div>
 
-        <p className="mt-3 text-center text-sm leading-6 text-slate-300">{latestAssistantMessage}</p>
-
-        {pendingTargets ? (
-          <div className="mt-4 rounded-[1.4rem] border border-emerald-300/20 bg-[linear-gradient(180deg,rgba(7,22,20,.96),rgba(3,10,12,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-emerald-300/70">Targets ready</div>
-              <div className="mt-2 text-base font-medium text-white">{profile?.name ? `${profile.name}, here’s your daily plan` : "Your daily plan"}</div>
-              <div className="mt-2 text-sm text-slate-300">{pendingTargets.caloriesTarget} kcal • {pendingTargets.proteinTarget}g protein • {pendingTargets.carbsTarget}g carbs • {pendingTargets.fatTarget}g fat</div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <button type="button" onClick={() => applyTargets(pendingTargets)} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100 transition hover:bg-emerald-400/15">Save targets</button>
-                <button type="button" onClick={clearPendingTargets} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Cancel</button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {pendingEstimate ? (
-          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Meal ready to log</div>
-              <div className="mt-2 text-base font-medium text-white">{pendingMealText || "Meal estimate"}</div>
-              <div className="mt-2 text-sm text-slate-300">{pendingEstimate.calories} kcal • {pendingEstimate.protein}g protein • {pendingEstimate.carbs}g carbs • {pendingEstimate.fat}g fat</div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <button type="button" onClick={() => applyMealLog(pendingEstimate, pendingMealText || "your meal")} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Log meal</button>
-                <button type="button" onClick={clearPendingEstimate} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Cancel</button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {pendingDelete ? (
-          <div className="mt-4 rounded-[1.4rem] border border-rose-300/20 bg-[linear-gradient(180deg,rgba(36,10,15,.96),rgba(18,4,10,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-rose-300/70">Delete draft</div>
-              <div className="mt-2 text-base font-medium text-white">Remove {pendingDelete.text}?</div>
-              <div className="mt-2 text-sm text-slate-300">{pendingDelete.calories} kcal • {pendingDelete.protein}g protein • {pendingDelete.carbs}g carbs • {pendingDelete.fat}g fat</div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <button type="button" onClick={() => deleteLoggedMeal(pendingDelete.mealId)} className="rounded-full border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-rose-100 transition hover:bg-rose-400/15">Delete</button>
-                <button type="button" onClick={clearPendingDelete} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep</button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          {[
-            { label: "Calories left", value: effectiveStats.caloriesTarget > 0 ? caloriesLeft(effectiveStats) : "--" },
-            { label: "Protein left", value: effectiveStats.proteinTarget > 0 ? `${proteinLeft(effectiveStats)}g` : "--" },
-            { label: "Meals today", value: effectiveStats.mealsToday },
-            { label: "Day streak", value: effectiveStats.streak },
-          ].map((item) => (
-            <div key={item.label} className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,18,28,.95),rgba(4,8,18,.98))] px-4 py-4 shadow-[0_16px_46px_rgba(0,0,0,.28)]">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{item.label}</div>
-              <div className="mt-3 text-[38px] font-semibold leading-none text-white">{item.value}</div>
-            </div>
-          ))}
-        </div>
+        <div className="mt-5 text-center text-sm leading-6 text-slate-300">{buildCoachGreeting()}</div>
 
         <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
           <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Macro progress</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">consumed / target</div>
+            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Food system loaded</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-300">ready</div>
           </div>
-          <div className="mt-4 space-y-4">
-            {macroBars.map((bar) => (
-              <div key={bar.label}>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium text-white">{bar.label}</span>
-                  <span className="text-slate-400">{bar.used} / {bar.target || "--"}g</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-white/6">
-                  <div className={`h-full rounded-full bg-gradient-to-r ${bar.color} transition-all duration-500`} style={{ width: `${progressPct(bar.used, bar.target)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 flex items-center gap-4">
-            <div className="relative h-28 w-28 shrink-0">
-              <svg viewBox="0 0 100 100" className="h-28 w-28 -rotate-90">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="12" />
-                {pie.map((seg, idx) => (
-                  <circle key={idx} cx="50" cy="50" r="42" fill="none" stroke={seg.color} strokeWidth="12" strokeDasharray={`${seg.dash} 999`} strokeDashoffset={seg.offset} strokeLinecap="round" />
-                ))}
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center text-center">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Today</div>
-                  <div className="text-lg font-semibold text-white">Macros</div>
-                </div>
-              </div>
+          <div className="mt-3 text-sm leading-6 text-slate-300">George now has your controlled food system loaded, so he builds plans from real ingredients and base recipes instead of rough guesswork.</div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Ingredients</div>
+              <div className="mt-3 text-[34px] font-semibold leading-none text-emerald-300">{foodSystemCounts.ingredientCount}</div>
             </div>
-            <div className="space-y-2 text-sm w-full">
-              <div className="flex items-center justify-between gap-3 text-white"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400" /> Protein</div><span className="text-slate-400">{macroPct.protein}%</span></div>
-              <div className="flex items-center justify-between gap-3 text-white"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Carbs</div><span className="text-slate-400">{macroPct.carbs}%</span></div>
-              <div className="flex items-center justify-between gap-3 text-white"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" /> Fats</div><span className="text-slate-400">{macroPct.fat}%</span></div>
+            <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Base recipes</div>
+              <div className="mt-3 text-[34px] font-semibold leading-none text-cyan-300">{foodSystemCounts.recipeCount}</div>
             </div>
           </div>
         </div>
 
-
-        {latestMeals.length ? (
+        {targets ? (
           <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
             <div className="flex items-center justify-between">
-              <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Today’s food</div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{loggedMeals.length} logged</div>
+              <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Your targets</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">saved to this browser</div>
             </div>
-            <div className="mt-3 space-y-2">
-              {latestMeals.map((meal) => (
-                <div key={meal.id} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-white">{meal.text}</div>
-                    <div className="mt-1 text-xs text-slate-400">{meal.calories} kcal • {meal.protein}p • {meal.carbs}c • {meal.fat}f</div>
-                  </div>
-                  <button type="button" onClick={() => showDeleteDraft(meal)} className="ml-3 rounded-full border border-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Delete</button>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[
+                { label: "Protein", value: `${targets.protein}g`, valueClass: "text-cyan-300" },
+                { label: "Carbs", value: `${targets.carbs}g`, valueClass: "text-blue-300" },
+                { label: "Fats", value: `${targets.fats}g`, valueClass: "text-orange-300" },
+                { label: "Calories", value: `${targets.calories}`, valueClass: "text-white" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">{item.label}</div>
+                  <div className={`mt-3 text-[34px] font-semibold leading-none ${item.valueClass}`}>{item.value}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        ) : null}
+
+        {pendingProfile ? (
+          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Confirm details</div>
+              <div className="mt-2 text-base font-medium text-white">Create your saved targets</div>
+              <div className="mt-3 text-sm text-slate-300">
+                {pendingProfile.name}, {pendingProfile.goal}, {pendingProfile.sex}, {pendingProfile.age}, {pendingProfile.heightCm}cm, {pendingProfile.weightKg}kg, {pendingProfile.activityLevel}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button type="button" onClick={() => completeOnboarding(pendingProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Confirm details</button>
+                <button type="button" onClick={() => setPendingProfile(null)} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -1447,7 +1018,7 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
           {QUICK_ACTIONS.map((action) => {
             const Icon = action.icon
             return (
-              <button key={action.key} type="button" onClick={() => handleQuickAction(action.key)} className={`group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.94),rgba(3,7,18,.98))] px-4 py-4 text-left shadow-[0_18px_46px_rgba(0,0,0,.24)] transition duration-200 hover:-translate-y-[1px] hover:border-white/20`}>
+              <button key={action.key} type="button" onClick={() => handleQuickAction(action.key)} className="group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.94),rgba(3,7,18,.98))] px-4 py-4 text-left shadow-[0_18px_46px_rgba(0,0,0,.24)] transition duration-200 hover:-translate-y-[1px] hover:border-white/20">
                 <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${action.accent} opacity-80`} />
                 <div className="relative z-10 flex items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white"><Icon className="h-5 w-5" /></span>
@@ -1456,6 +1027,57 @@ Setup is complete. Briefly confirm their daily calories, protein, carbs and fats
               </button>
             )
           })}
+        </div>
+
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><CalendarClock className="h-4 w-4" /> Weekly check-in</div>
+            <div className={`text-[10px] uppercase tracking-[0.3em] ${checkIn.status === "overdue" ? "text-amber-300" : checkIn.status === "due" ? "text-cyan-300" : "text-slate-500"}`}>{relativeCheckInLabel(checkIn)}</div>
+          </div>
+          <div className="mt-3 text-sm leading-6 text-slate-300">George keeps your last weigh-in date in this browser and knows when your next check-in is due or late.</div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={handleStartCheckIn} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white transition hover:bg-white/10">Start check-in</button>
+          </div>
+        </div>
+
+        {activeMealPlan ? (
+          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><UtensilsCrossed className="h-4 w-4" /> Today’s plan</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">saved</div>
+            </div>
+            <div className="mt-3 text-lg font-semibold text-white">{activeMealPlan.title}</div>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+              {renderLines(activeMealPlan.body).map((line, index) => <div key={`${activeMealPlan.id}-${index}`}>{line}</div>)}
+            </div>
+          </div>
+        ) : null}
+
+        {activeWorkoutPlan ? (
+          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Dumbbell className="h-4 w-4" /> Active workout</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">saved</div>
+            </div>
+            <div className="mt-3 text-lg font-semibold text-white">{activeWorkoutPlan.title}</div>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+              {renderLines(activeWorkoutPlan.body).map((line, index) => <div key={`${activeWorkoutPlan.id}-${index}`}>{line}</div>)}
+            </div>
+          </div>
+        ) : null}
+
+        {patterns.items.length ? (
+          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Target className="h-4 w-4" /> Coaching memory</div>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+              {patterns.items.slice(-3).map((item, index) => <div key={`${item}-${index}`} className="flex items-start gap-2"><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-500" /> <span>{item}</span></div>)}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Latest from George</div>
+          <div className="mt-3 text-sm leading-6 text-slate-300">{latestAssistantMessage}</div>
         </div>
 
         {error ? <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm leading-6 text-rose-200">{error}</div> : null}
