@@ -2241,6 +2241,37 @@ export const GEORGE_RECIPE_ROWS: RecipeRow[] = [
   },
 ]
 
+function round1(value: number) {
+  return Math.round(value * 10) / 10
+}
+
+function calculateRecipeTotals(rows: RecipeRow[]) {
+  const totals = {
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    tiers: new Set<FoodTier>(),
+  }
+
+  for (const row of rows) {
+    const ingredient = GEORGE_INGREDIENTS.find((item) => item.ingredient_name === row.ingredient)
+    if (!ingredient) {
+      throw new Error(`Unknown ingredient in recipe: ${row.ingredient}`)
+    }
+
+    const factor = row.grams / 100
+    totals.calories += ingredient.calories_per_100g * factor
+    totals.protein += ingredient.protein_per_100g * factor
+    totals.carbs += ingredient.carbs_per_100g * factor
+    totals.fat += ingredient.fat_per_100g * factor
+    totals.tiers.add(ingredient.food_tier)
+  }
+
+  return totals
+}
+
+
 export const GEORGE_RECIPES: RecipeSummary[] = Array.from(
   GEORGE_RECIPE_ROWS.reduce((map, row) => {
     const existing = map.get(row.meal_name) ?? []
