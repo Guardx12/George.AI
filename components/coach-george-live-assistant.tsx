@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CalendarClock, ChevronRight, Dumbbell, Flame, PhoneOff, Salad, Target, UtensilsCrossed } from "lucide-react"
+import { Dumbbell, Flame, PhoneOff, Salad, UtensilsCrossed } from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -699,49 +699,6 @@ export function CoachGeorgeLiveAssistant() {
     setPendingArtifactPreview(null)
   }
 
-  function renderProfilePreviewCard(currentProfile: CoachProfile | null) {
-    if (!currentProfile) return null
-    const entries = [
-      ["Name", currentProfile.name],
-      ["Goal", currentProfile.goal],
-      ["Sex", currentProfile.sex],
-      ["Age", currentProfile.age ? String(currentProfile.age) : undefined],
-      ["Height", currentProfile.heightCm ? `${currentProfile.heightCm} cm` : undefined],
-      ["Weight", currentProfile.weightKg ? `${currentProfile.weightKg} kg` : undefined],
-      ["Activity", currentProfile.activityLevel],
-      ["Plan style", currentProfile.planStyle],
-      ["Meals", currentProfile.mealsPerDay ? `${currentProfile.mealsPerDay} meals` : undefined],
-      ["Allergies", currentProfile.allergies ? (currentProfile.allergies.length ? currentProfile.allergies.join(", ") : "None") : undefined],
-      ["Dislikes", currentProfile.dislikes ? (currentProfile.dislikes.length ? currentProfile.dislikes.join(", ") : "None") : undefined],
-    ].filter((entry) => entry[1]) as Array<[string, string]>
-
-    if (!entries.length) return null
-
-    const ready = isProfileComplete(currentProfile)
-    return (
-      <div className="mt-5 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Live setup preview</div>
-        <div className="mt-2 text-sm leading-6 text-slate-300">As you talk, George fills this in. When it looks right, save it.</div>
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {entries.map(([label, value]) => (
-            <div key={label} className="rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-3">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{label}</div>
-              <div className="mt-2 text-sm text-white">{value}</div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {ready ? (
-            <button type="button" onClick={() => completeOnboarding(currentProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Save targets</button>
-          ) : (
-            <div className="text-xs text-slate-400">George is still collecting the missing details.</div>
-          )}
-          {ready ? <button type="button" onClick={() => setPendingProfile(null)} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button> : null}
-        </div>
-      </div>
-    )
-  }
-
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
     if (!currentAssistantMessageIdRef.current) {
@@ -1058,64 +1015,81 @@ export function CoachGeorgeLiveAssistant() {
           </button>
         </div>
 
-        <div className="mt-5 text-center text-sm leading-6 text-slate-300">{buildCoachGreeting()}</div>
+        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Conversation</div>
+          <div className="mt-3 text-sm leading-6 text-slate-300 whitespace-pre-wrap">{latestAssistantMessage}</div>
 
-        {renderProfilePreviewCard(!onboardingComplete ? (pendingProfile ?? profile) : pendingProfile)}
-
-        {pendingArtifactPreview ? (
-          <div className="mt-5 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Action ready</div>
-            <div className="mt-2 text-sm leading-6 text-slate-300">George has prepared this. Review it, then confirm it.</div>
-            <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-              {renderLines(pendingArtifactPreview.body).slice(0, 12).map((line, index) => <div key={`${pendingArtifactPreview.kind}-${index}`}>{line}</div>)}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={confirmPendingArtifact} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">{pendingArtifactPreview.buttonLabel}</button>
-              <button type="button" onClick={clearPendingArtifact} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
-            </div>
-          </div>
-        ) : null}
-
-        {targets ? (
-          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-            <div className="flex items-center justify-between">
-              <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Your targets</div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Current weight {profile?.weightKg ? `${profile.weightKg}kg` : "—"}</div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {[
-                { label: "Protein", value: `${targets.protein}g`, valueClass: "text-cyan-300" },
-                { label: "Carbs", value: `${targets.carbs}g`, valueClass: "text-blue-300" },
-                { label: "Fats", value: `${targets.fats}g`, valueClass: "text-orange-300" },
-                { label: "Calories", value: `${targets.calories}`, valueClass: "text-white" },
-              ].map((item) => (
-                <div key={item.label} className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">{item.label}</div>
-                  <div className={`mt-3 text-[34px] font-semibold leading-none ${item.valueClass}`}>{item.value}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
-              <span className="text-slate-500">Plan style:</span> <span className="ml-2 text-white capitalize">{profile?.planStyle ?? "balanced"}</span>
-            </div>
-          </div>
-        ) : null}
-
-        {pendingProfile ? (
-          <div className="mt-4 rounded-[1.4rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,20,31,.96),rgba(3,7,18,.98))] px-4 py-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Confirm details</div>
-              <div className="mt-2 text-base font-medium text-white">Create your saved targets</div>
-              <div className="mt-3 text-sm text-slate-300">
-                {pendingProfile.name}, {pendingProfile.goal}, {pendingProfile.sex}, {pendingProfile.age}, {pendingProfile.heightCm}cm, {pendingProfile.weightKg}kg, {pendingProfile.activityLevel}, {pendingProfile.planStyle}
+          {(!onboardingComplete && (pendingProfile ?? profile)) ? (
+            <div className="mt-4 rounded-[1.2rem] border border-cyan-300/20 bg-cyan-400/5 px-4 py-4">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Ready to confirm</div>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm">
+                {[
+                  ["Name", (pendingProfile ?? profile)?.name],
+                  ["Goal", (pendingProfile ?? profile)?.goal],
+                  ["Sex", (pendingProfile ?? profile)?.sex],
+                  ["Age", (pendingProfile ?? profile)?.age ? String((pendingProfile ?? profile)?.age) : undefined],
+                  ["Height", (pendingProfile ?? profile)?.heightCm ? `${(pendingProfile ?? profile)?.heightCm} cm` : undefined],
+                  ["Weight", (pendingProfile ?? profile)?.weightKg ? `${(pendingProfile ?? profile)?.weightKg} kg` : undefined],
+                  ["Activity", (pendingProfile ?? profile)?.activityLevel],
+                  ["Plan style", (pendingProfile ?? profile)?.planStyle],
+                  ["Meals", (pendingProfile ?? profile)?.mealsPerDay ? `${(pendingProfile ?? profile)?.mealsPerDay} meals` : undefined],
+                ].filter((entry) => entry[1]).map(([label, value]) => (
+                  <div key={String(label)} className="rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{label}</div>
+                    <div className="mt-1 text-white">{value}</div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <button type="button" onClick={() => completeOnboarding(pendingProfile)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Confirm details</button>
-                <button type="button" onClick={() => setPendingProfile(null)} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {isProfileComplete((pendingProfile ?? profile) ?? EMPTY_PROFILE) ? (
+                  <button type="button" onClick={() => completeOnboarding((pendingProfile ?? profile)!)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">Save targets</button>
+                ) : (
+                  <div className="text-xs text-slate-400">George is still collecting the missing details.</div>
+                )}
               </div>
             </div>
+          ) : null}
+
+          {pendingArtifactPreview ? (
+            <div className="mt-4 rounded-[1.2rem] border border-cyan-300/20 bg-cyan-400/5 px-4 py-4">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/70">Ready to confirm</div>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {renderLines(pendingArtifactPreview.body).slice(0, 12).map((line, index) => <div key={`${pendingArtifactPreview.kind}-${index}`}>{line}</div>)}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={confirmPendingArtifact} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:bg-cyan-400/15">{pendingArtifactPreview.buttonLabel}</button>
+                <button type="button" onClick={clearPendingArtifact} className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/5">Keep talking</button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Macros</div>
+            {targets ? (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {[
+                  { label: "Protein", value: `${targets.protein}g`, valueClass: "text-cyan-300" },
+                  { label: "Carbs", value: `${targets.carbs}g`, valueClass: "text-blue-300" },
+                  { label: "Fats", value: `${targets.fats}g`, valueClass: "text-orange-300" },
+                  { label: "Calories", value: `${targets.calories}`, valueClass: "text-white" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{item.label}</div>
+                    <div className={`mt-2 text-2xl font-semibold leading-none ${item.valueClass}`}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="mt-3 text-sm leading-6 text-slate-300">No saved targets yet — talk to George, then hit Save targets when the button appears.</div>}
           </div>
-        ) : null}
+          <div className="rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
+            <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Current weight</div>
+            {profile?.weightKg ? (
+              <div className="mt-4 text-[40px] font-semibold leading-none text-white">{profile.weightKg}<span className="ml-2 text-lg text-slate-400">kg</span></div>
+            ) : <div className="mt-3 text-sm leading-6 text-slate-300">No weight saved yet — it will appear here after you save your targets or update your stats.</div>}
+          </div>
+        </div>
 
         <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><UtensilsCrossed className="h-4 w-4" /> Current meal plan</div>
@@ -1145,22 +1119,9 @@ export function CoachGeorgeLiveAssistant() {
           )}
         </div>
 
-        {targets ? (
-          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><CalendarClock className="h-4 w-4" /> Weekly check-in</div>
-              <div className={`text-[10px] uppercase tracking-[0.3em] ${checkIn.status === "overdue" ? "text-amber-300" : checkIn.status === "due" ? "text-cyan-300" : "text-slate-500"}`}>{relativeCheckInLabel(checkIn)}</div>
-            </div>
-            <div className="mt-3 text-sm leading-6 text-slate-300">Keep your weight and weekly feedback current so George can adjust your targets and plans when needed.</div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" onClick={handleStartCheckIn} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white transition hover:bg-white/10">Start check-in</button>
-            </div>
-          </div>
-        ) : null}
-
         <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
           <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Try asking George</div>
-          <div className="mt-2 text-sm leading-6 text-slate-300">These are just prompts to get George going. The real save buttons appear when something is ready to confirm.</div>
+          <div className="mt-2 text-sm leading-6 text-slate-300">Talk to George normally. These prompts just help get him moving.</div>
           <div className="mt-3 grid grid-cols-1 gap-2">
             {[
               { key: "build_plan", label: "Build me a plan" },
@@ -1173,20 +1134,6 @@ export function CoachGeorgeLiveAssistant() {
               </button>
             ))}
           </div>
-        </div>
-
-        {patterns.items.length ? (
-          <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.34em] text-slate-500"><Target className="h-4 w-4" /> Coaching memory</div>
-            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-              {patterns.items.slice(-3).map((item, index) => <div key={`${item}-${index}`} className="flex items-start gap-2"><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-500" /> <span>{item}</span></div>)}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,20,31,.92),rgba(3,7,18,.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,.28)]">
-          <div className="text-[10px] uppercase tracking-[0.34em] text-slate-500">Latest from George</div>
-          <div className="mt-3 text-sm leading-6 text-slate-300">{latestAssistantMessage}</div>
         </div>
 
         {error ? <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm leading-6 text-rose-200">{error}</div> : null}
