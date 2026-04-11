@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { CalendarClock, ChevronRight, Dumbbell, Flame, PhoneOff, Salad, Target, UtensilsCrossed } from "lucide-react"
 
 type LiveMessage = {
