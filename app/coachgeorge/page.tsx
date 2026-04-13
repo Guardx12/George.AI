@@ -1,28 +1,49 @@
 import type { Metadata } from "next"
-import { CoachGeorgeLiveAssistant } from "@/components/coach-george-live-assistant"
+import { PlacesForPeopleGeorgeLiveAssistant } from "@/components/placesforpeople-george-live-assistant"
 
 export const metadata: Metadata = {
-  title: "Coach George",
-  description: "Coach George is a premium voice-first fitness coach for meals, workouts, support, and staying on track.",
+  title: "Steyning Leisure Centre | George",
+  description: "Talk to George about memberships, the live timetable, classes, swimming and centre questions.",
   alternates: { canonical: "https://askgeorge.app/coachgeorge" },
   openGraph: {
-    title: "Coach George",
-    description: "A premium voice-first fitness coach for meals, workouts, support, and staying on track.",
+    title: "Steyning Leisure Centre | George",
+    description: "Talk to George about memberships, the live timetable, classes, swimming and centre questions.",
     url: "https://askgeorge.app/coachgeorge",
-    siteName: "Coach George",
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Coach George",
-    description: "A premium voice-first fitness coach for meals, workouts, support, and staying on track.",
   },
 }
 
 export default function CoachGeorgePage() {
   return (
-    <main className="min-h-screen bg-[#030507] text-white">
-      <CoachGeorgeLiveAssistant />
+    <main className="min-h-screen bg-[#efefef] text-[#394553]">
+      <header className="bg-[#394553] text-white">
+        <div className="mx-auto flex max-w-[1240px] items-center px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+          <a href="https://www.placesleisure.org/" className="inline-flex items-center" aria-label="Places Leisure homepage">
+            <img
+              src="/places-leisure-logo.jpg"
+              alt="Places Leisure"
+              className="block h-[56px] w-auto object-contain sm:h-[72px]"
+            />
+          </a>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-[960px] px-4 sm:px-6 lg:px-8">
+        <PlacesForPeopleGeorgeLiveAssistant />
+      </div>
+
+      <footer className="mt-10 bg-black text-white">
+        <div className="mx-auto max-w-[960px] px-4 py-6 text-center sm:px-6 lg:px-8">
+          <a
+            href="https://askgeorge.app"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm font-semibold tracking-[0.12em] text-white/90 transition hover:text-white"
+          >
+            GetGeorge.app
+          </a>
+        </div>
+      </footer>
     </main>
   )
 }
