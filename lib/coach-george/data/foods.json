@@ -1,0 +1,14 @@
+[
+  { "id": "chicken_breast", "name": "Chicken breast", "allergens": [], "dietaryTags": ["high-protein"], "nutritionPer100g": { "calories": 165, "protein": 31, "carbs": 0, "fat": 3.6 } },
+  { "id": "salmon", "name": "Salmon", "allergens": ["fish"], "dietaryTags": ["omega-3"], "nutritionPer100g": { "calories": 208, "protein": 20, "carbs": 0, "fat": 13 } },
+  { "id": "tofu", "name": "Firm tofu", "allergens": ["soy"], "dietaryTags": ["vegetarian"], "nutritionPer100g": { "calories": 144, "protein": 17, "carbs": 3, "fat": 8.7 } },
+  { "id": "greek_yogurt", "name": "Greek yogurt 0%", "allergens": ["milk"], "dietaryTags": ["vegetarian"], "nutritionPer100g": { "calories": 59, "protein": 10, "carbs": 3.6, "fat": 0.4 } },
+  { "id": "rice_cooked", "name": "Cooked rice", "allergens": [], "dietaryTags": ["carb"], "nutritionPer100g": { "calories": 130, "protein": 2.7, "carbs": 28, "fat": 0.3 } },
+  { "id": "oats", "name": "Rolled oats", "allergens": ["gluten"], "dietaryTags": ["vegetarian"], "nutritionPer100g": { "calories": 389, "protein": 16.9, "carbs": 66.3, "fat": 6.9 } },
+  { "id": "egg", "name": "Egg", "allergens": ["egg"], "dietaryTags": ["high-protein"], "nutritionPer100g": { "calories": 143, "protein": 12.6, "carbs": 1.1, "fat": 9.5 } },
+  { "id": "broccoli", "name": "Broccoli", "allergens": [], "dietaryTags": ["vegetable"], "nutritionPer100g": { "calories": 34, "protein": 2.8, "carbs": 6.6, "fat": 0.4 } },
+  { "id": "sweet_potato", "name": "Sweet potato", "allergens": [], "dietaryTags": ["carb"], "nutritionPer100g": { "calories": 86, "protein": 1.6, "carbs": 20.1, "fat": 0.1 } },
+  { "id": "olive_oil", "name": "Olive oil", "allergens": [], "dietaryTags": ["fat"], "nutritionPer100g": { "calories": 884, "protein": 0, "carbs": 0, "fat": 100 } },
+  { "id": "banana", "name": "Banana", "allergens": [], "dietaryTags": ["fruit"], "nutritionPer100g": { "calories": 89, "protein": 1.1, "carbs": 22.8, "fat": 0.3 } },
+  { "id": "berries", "name": "Mixed berries", "allergens": [], "dietaryTags": ["fruit"], "nutritionPer100g": { "calories": 57, "protein": 0.7, "carbs": 14.5, "fat": 0.3 } }
+]
