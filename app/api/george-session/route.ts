@@ -138,7 +138,7 @@ ${structuredSystem}`
 }
 
 export async function GET() {
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.OPENAI_API_KEY
 
   if (!apiKey) {
     return Response.json({ error: "OPENAI_API_KEY is missing on the server." }, { status: 500 })

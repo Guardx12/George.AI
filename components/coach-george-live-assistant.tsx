@@ -454,7 +454,7 @@ export function CoachGeorgeLiveAssistant() {
 
       const remoteAudio = document.createElement("audio")
       remoteAudio.autoplay = true
-      remoteAudio.playsInline = true
+      ;(remoteAudio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
       audioRef.current = remoteAudio
 
       pc.ontrack = (event) => {
