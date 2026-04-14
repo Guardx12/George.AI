@@ -21,19 +21,6 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
-type PartialProfile = Partial<Profile>
-type OnboardingStep = keyof Profile
-
-type QuickReply = {
-  label: string
-  value: string
-}
-
-type PendingConfirmation = {
-  step: OnboardingStep
-  candidate: Goal | Sex | ActivityLevel | 3 | 4 | 5 | DietaryPreference
-  prompt: string
-}
 
 type StatsState = {
   currentWeightKg: number
@@ -45,7 +32,7 @@ type StatsState = {
 }
 
 type CoachState = {
-  profile: PartialProfile
+  profile: Profile | null
   profileComplete: boolean
   targets: Nutrition
   stats: StatsState
@@ -53,70 +40,36 @@ type CoachState = {
   messages: LiveMessage[]
   weightInput: string
   lastActiveDate: string | null
-  lockedSteps: OnboardingStep[]
-  pendingConfirmation: PendingConfirmation | null
-  activeStep: OnboardingStep | null
-  quickReplies: QuickReply[]
 }
 
-const SESSION_KEY = "coach-george-session-v5"
+type SetupFormState = {
+  goal: Goal
+  sex: Sex
+  age: string
+  heightCm: string
+  currentWeightKg: string
+  activityLevel: ActivityLevel
+  allergies: string
+  dislikedFoods: string
+  mealsPerDay: "3" | "4" | "5"
+  dietaryPreference: DietaryPreference
+}
+
+const SESSION_KEY = "coach-george-session-v6"
 
 const ZERO_TARGETS: Nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
 const ZERO_STATS: StatsState = { currentWeightKg: 0, dayStreak: 0, totalCalories: 0, protein: 0, carbs: 0, fats: 0 }
-
-const STEP_ORDER: OnboardingStep[] = [
-  "goal",
-  "sex",
-  "age",
-  "heightCm",
-  "currentWeightKg",
-  "activityLevel",
-  "allergies",
-  "dislikedFoods",
-  "mealsPerDay",
-  "dietaryPreference",
-]
-
-const STEP_QUICK_REPLIES: Partial<Record<OnboardingStep, QuickReply[]>> = {
-  goal: [
-    { label: "Lose fat", value: "lose fat" },
-    { label: "Recomp", value: "recomp" },
-    { label: "Gain muscle", value: "gain muscle" },
-  ],
-  sex: [
-    { label: "Male", value: "male" },
-    { label: "Female", value: "female" },
-  ],
-  activityLevel: [
-    { label: "Sedentary", value: "sedentary" },
-    { label: "Light", value: "light" },
-    { label: "Moderate", value: "moderate" },
-    { label: "Active", value: "active" },
-    { label: "Very active", value: "very active" },
-  ],
-  mealsPerDay: [
-    { label: "3", value: "3" },
-    { label: "4", value: "4" },
-    { label: "5", value: "5" },
-  ],
-  dietaryPreference: [
-    { label: "I eat everything", value: "normal" },
-    { label: "Vegetarian", value: "vegetarian" },
-    { label: "Pescatarian", value: "pescatarian" },
-    { label: "Vegan", value: "vegan" },
-  ],
-}
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "assistant",
-    content: "Hi — I’m Coach George. Let’s set your basics quickly. What’s your main goal: lose fat, recomp, or gain muscle?",
+    content: "Welcome — complete your quick setup and I’ll take it from there.",
   },
 ]
 
 const INITIAL_STATE: CoachState = {
-  profile: {},
+  profile: null,
   profileComplete: false,
   targets: ZERO_TARGETS,
   stats: ZERO_STATS,
@@ -124,10 +77,19 @@ const INITIAL_STATE: CoachState = {
   messages: INITIAL_MESSAGES,
   weightInput: "",
   lastActiveDate: null,
-  lockedSteps: [],
-  pendingConfirmation: null,
-  activeStep: "goal",
-  quickReplies: STEP_QUICK_REPLIES.goal || [],
+}
+
+const DEFAULT_SETUP_FORM: SetupFormState = {
+  goal: "lose-fat",
+  sex: "male",
+  age: "",
+  heightCm: "",
+  currentWeightKg: "",
+  activityLevel: "moderate",
+  allergies: "",
+  dislikedFoods: "",
+  mealsPerDay: "3",
+  dietaryPreference: "omnivore",
 }
 
 function makeMessage(role: LiveMessage["role"], content: string) {
@@ -143,232 +105,6 @@ function makeMessage(role: LiveMessage["role"], content: string) {
 
 function trimMessagesForStorage(messages: LiveMessage[]) {
   return messages.slice(-80)
-}
-
-function hasValue(step: OnboardingStep, value: PartialProfile[OnboardingStep]) {
-  if (step === "allergies" || step === "dislikedFoods") return Array.isArray(value)
-  return value !== undefined && value !== null && value !== ""
-}
-
-function isProfileComplete(profile: PartialProfile): profile is Profile {
-  return STEP_ORDER.every((step) => hasValue(step, profile[step]))
-}
-
-function getNextStep(profile: PartialProfile, lockedSteps: OnboardingStep[]) {
-  return STEP_ORDER.find((step) => !lockedSteps.includes(step) && !hasValue(step, profile[step])) || null
-}
-
-function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachState, "targets" | "stats"> {
-  const targets = getDailyTargets(profile)
-  return {
-    targets,
-    stats: {
-      currentWeightKg: profile.currentWeightKg,
-      dayStreak,
-      totalCalories: targets.calories,
-      protein: targets.protein,
-      carbs: targets.carbs,
-      fats: targets.fat,
-    },
-  }
-}
-
-function onboardingPrompt(field: OnboardingStep | null) {
-  switch (field) {
-    case "goal":
-      return "What’s your main goal right now: lose fat, recomp, or gain muscle?"
-    case "sex":
-      return "What sex should I use for your calorie calculation: male or female?"
-    case "age":
-      return "How old are you?"
-    case "heightCm":
-      return "What is your height? You can say 196 cm or 6 foot 5."
-    case "currentWeightKg":
-      return "What is your current body weight in kg?"
-    case "activityLevel":
-      return "What is your activity level: sedentary, light, moderate, active, or very active?"
-    case "allergies":
-      return "Do you have any allergies? Say none if not."
-    case "dislikedFoods":
-      return "Any foods you dislike or want me to avoid? Say none if not."
-    case "mealsPerDay":
-      return "How many meals per day do you want: 3, 4, or 5?"
-    case "dietaryPreference":
-      return "What dietary preference should I use: omnivore, vegetarian, pescatarian, or vegan?"
-    default:
-      return "Let’s set your basics first so I can do this properly."
-  }
-}
-
-function parseListValue(raw: string) {
-  if (/\bnone\b|\bno\b/i.test(raw)) return []
-  return raw
-    .split(/,| and /i)
-    .map((v) => v.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-function parseYesNo(raw: string): "yes" | "no" | null {
-  const text = raw.toLowerCase().trim()
-  if (/\b(yes|yeah|yep|correct|right|exactly|confirm)\b/.test(text)) return "yes"
-  if (/\b(no|nope|nah|wrong|incorrect)\b/.test(text)) return "no"
-  return null
-}
-
-function wordToDigit(raw: string) {
-  if (raw === "three") return 3
-  if (raw === "four") return 4
-  if (raw === "five") return 5
-  return Number(raw)
-}
-
-function parseHeightCm(text: string): number | null {
-  const cm = text.match(/(\d{2,3}(?:\.\d+)?)\s*cm\b/)
-  if (cm) return Math.round(Number(cm[1]))
-
-  const feetInches = text.match(/(\d)\s*(?:foot|feet|ft|')\s*(\d{1,2})?\s*(?:inches|inch|in|\")?\b/)
-  if (feetInches) {
-    const feet = Number(feetInches[1])
-    const inches = Number(feetInches[2] || 0)
-    return Math.round((feet * 12 + inches) * 2.54)
-  }
-
-  const compact = text.match(/\b(\d)'(\d{1,2})\b/)
-  if (compact) {
-    const feet = Number(compact[1])
-    const inches = Number(compact[2])
-    return Math.round((feet * 12 + inches) * 2.54)
-  }
-
-  return null
-}
-
-function parseGoal(text: string): Goal | null {
-  const raw = text.toLowerCase()
-  if (/\b(recomp)\b/.test(raw)) return "recomp"
-  if (/\b(lose fat|fat loss|weight loss|cut|cutting)\b/.test(raw)) return "lose-fat"
-  if (/\b(gain muscle|build muscle|bulk|bulking)\b/.test(raw)) return "gain-muscle"
-  return null
-}
-
-function parseSex(text: string): Sex | null {
-  const raw = text.toLowerCase()
-  if (/\bfemale\b/.test(raw)) return "female"
-  if (/\bmale\b/.test(raw)) return "male"
-  return null
-}
-
-function parseActivity(text: string): ActivityLevel | null {
-  const raw = text.toLowerCase()
-  if (/\bvery\s*active\b/.test(raw)) return "very-active"
-  if (/\bsedentary\b/.test(raw)) return "sedentary"
-  if (/\blight\b/.test(raw)) return "light"
-  if (/\bmoderate\b/.test(raw)) return "moderate"
-  if (/\bactive\b/.test(raw)) return "active"
-  return null
-}
-
-function parseMealsPerDay(text: string): 3 | 4 | 5 | null {
-  const raw = text.toLowerCase()
-  const match = raw.match(/\b(3|4|5|three|four|five)\b/)
-  if (!match) return null
-  const value = wordToDigit(match[1])
-  if (value === 3 || value === 4 || value === 5) return value
-  return null
-}
-
-function parseDietaryPreference(text: string): DietaryPreference | null {
-  const raw = text.toLowerCase()
-  if (/\b(omnivore|normal|just normal|eat everything|i eat everything)\b/.test(raw)) return "omnivore"
-  if (/\bvegetarian\b/.test(raw)) return "vegetarian"
-  if (/\bpescatarian\b/.test(raw)) return "pescatarian"
-  if (/\bvegan\b/.test(raw)) return "vegan"
-  return null
-}
-
-function inferCandidateForConfirmation(step: OnboardingStep, text: string): PendingConfirmation["candidate"] | null {
-  const raw = text.toLowerCase()
-  if (step === "goal") {
-    if (/\b(lose|cut)\b/.test(raw)) return "lose-fat"
-    if (/\b(gain|bulk|muscle)\b/.test(raw)) return "gain-muscle"
-    if (/\brecomp\b/.test(raw)) return "recomp"
-  }
-
-  if (step === "sex") {
-    if (raw.includes("fem")) return "female"
-    if (raw.includes("mal")) return "male"
-  }
-
-  if (step === "activityLevel") {
-    if (raw.includes("very")) return "very-active"
-    if (raw.includes("sed")) return "sedentary"
-    if (raw.includes("light")) return "light"
-    if (raw.includes("mod")) return "moderate"
-    if (raw.includes("act")) return "active"
-  }
-
-  if (step === "mealsPerDay") {
-    if (raw.includes("3") || raw.includes("three")) return 3
-    if (raw.includes("4") || raw.includes("four")) return 4
-    if (raw.includes("5") || raw.includes("five")) return 5
-  }
-
-  if (step === "dietaryPreference") {
-    if (raw.includes("omni") || raw.includes("normal") || raw.includes("everything")) return "omnivore"
-    if (raw.includes("vegetarian")) return "vegetarian"
-    if (raw.includes("pesc")) return "pescatarian"
-    if (raw.includes("vegan")) return "vegan"
-  }
-
-  return null
-}
-
-function parseStepValue(step: OnboardingStep, text: string) {
-  switch (step) {
-    case "goal": {
-      const parsed = parseGoal(text)
-      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
-    }
-    case "sex": {
-      const parsed = parseSex(text)
-      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
-    }
-    case "age": {
-      const parsed = text.toLowerCase().match(/\b(\d{1,2})\b/)
-      if (!parsed) return { status: "unclear" as const }
-      const age = Number(parsed[1])
-      if (age < 13 || age > 95) return { status: "unclear" as const }
-      return { status: "ok" as const, value: age }
-    }
-    case "heightCm": {
-      const heightCm = parseHeightCm(text.toLowerCase())
-      if (!heightCm || heightCm < 120 || heightCm > 230) return { status: "unclear" as const }
-      return { status: "ok" as const, value: heightCm }
-    }
-    case "currentWeightKg": {
-      const parsed = text.toLowerCase().match(/\b(\d{2,3}(?:\.\d+)?)\s*(kg)?\b/)
-      if (!parsed) return { status: "unclear" as const }
-      const weight = Number(parsed[1])
-      if (weight < 35 || weight > 350) return { status: "unclear" as const }
-      return { status: "ok" as const, value: Math.round(weight * 10) / 10 }
-    }
-    case "activityLevel": {
-      const parsed = parseActivity(text)
-      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
-    }
-    case "allergies":
-      return { status: "ok" as const, value: parseListValue(text) }
-    case "dislikedFoods":
-      return { status: "ok" as const, value: parseListValue(text) }
-    case "mealsPerDay": {
-      const parsed = parseMealsPerDay(text)
-      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
-    }
-    case "dietaryPreference": {
-      const parsed = parseDietaryPreference(text)
-      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
-    }
-  }
 }
 
 function formatTargetSummary(targets: Nutrition) {
@@ -392,8 +128,47 @@ function formatMealPlan(profile: Profile) {
   return lines.join("\n").trim()
 }
 
+function parseListValue(raw: string) {
+  if (!raw.trim()) return []
+  if (/\bnone\b|\bno\b/i.test(raw)) return []
+  return raw
+    .split(/,| and /i)
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachState, "targets" | "stats"> {
+  const targets = getDailyTargets(profile)
+  return {
+    targets,
+    stats: {
+      currentWeightKg: profile.currentWeightKg,
+      dayStreak,
+      totalCalories: targets.calories,
+      protein: targets.protein,
+      carbs: targets.carbs,
+      fats: targets.fat,
+    },
+  }
+}
+
+function toIsoDate(input: Date) {
+  return input.toISOString().slice(0, 10)
+}
+
+function computeNextStreak(lastActiveDate: string | null, previousStreak: number) {
+  const today = toIsoDate(new Date())
+  if (!lastActiveDate) return previousStreak > 0 ? previousStreak : 1
+  if (lastActiveDate === today) return previousStreak > 0 ? previousStreak : 1
+
+  const yesterday = toIsoDate(new Date(Date.now() - 86400000))
+  if (lastActiveDate === yesterday) return Math.max(1, previousStreak) + 1
+  return 1
+}
+
 export function CoachGeorgeLiveAssistant() {
   const [state, setState] = useState<CoachState>(INITIAL_STATE)
+  const [setupForm, setSetupForm] = useState<SetupFormState>(DEFAULT_SETUP_FORM)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [error, setError] = useState<string | null>(null)
 
@@ -406,6 +181,7 @@ export function CoachGeorgeLiveAssistant() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
+  const showSetupModal = !state.profileComplete
 
   const appendAssistantMessage = (content: string) => {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
@@ -426,33 +202,42 @@ export function CoachGeorgeLiveAssistant() {
       const raw = window.localStorage.getItem(SESSION_KEY)
       if (!raw) return
       const stored = JSON.parse(raw) as CoachState
-      const today = new Date().toISOString().slice(0, 10)
-      const last = stored.lastActiveDate
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-      const dayStreak = last ? (last === today ? stored.stats.dayStreak : last === yesterday ? stored.stats.dayStreak + 1 : 1) : 1
+      const hasProfile = Boolean(stored.profileComplete && stored.profile)
 
-      const lockedSteps = stored.lockedSteps || STEP_ORDER.filter((step) => hasValue(step, stored.profile?.[step]))
-      const activeStep = stored.profileComplete ? null : getNextStep(stored.profile || {}, lockedSteps)
-      const quickReplies = stored.pendingConfirmation
-        ? [
-            { label: "Yes", value: "yes" },
-            { label: "No", value: "no" },
-          ]
-        : activeStep
-          ? (STEP_QUICK_REPLIES[activeStep] ?? [])
-          : []
+      if (!hasProfile) {
+        setState({ ...INITIAL_STATE, messages: trimMessagesForStorage(stored.messages || INITIAL_MESSAGES) })
+        return
+      }
 
+      const nextStreak = computeNextStreak(stored.lastActiveDate, stored.stats?.dayStreak || 0)
+      const latestMessage = stored.messages?.[stored.messages.length - 1]?.content || ""
+      const needsWelcomeBack = !latestMessage.toLowerCase().includes("welcome back")
+      const restoredMessages = trimMessagesForStorage(stored.messages || [])
+
+      const calculated = buildTargetsAndStats(stored.profile as Profile, nextStreak)
       setState({
         ...INITIAL_STATE,
         ...stored,
-        lockedSteps,
-        activeStep,
-        quickReplies,
-        messages: stored.profileComplete
-          ? [...trimMessagesForStorage(stored.messages || []), makeMessage("assistant", "Welcome back — pick up where you left off.")]
-          : trimMessagesForStorage(stored.messages || INITIAL_MESSAGES),
-        stats: { ...stored.stats, dayStreak },
-        weightInput: stored.weightInput ?? (stored.profileComplete ? String(stored.profile.currentWeightKg ?? "") : ""),
+        profile: stored.profile,
+        profileComplete: true,
+        targets: calculated.targets,
+        stats: calculated.stats,
+        weightInput: String((stored.profile as Profile).currentWeightKg || ""),
+        messages: needsWelcomeBack
+          ? [...restoredMessages, makeMessage("assistant", "Welcome back — ready to carry on?")]
+          : restoredMessages,
+      })
+      setSetupForm({
+        goal: (stored.profile as Profile).goal,
+        sex: (stored.profile as Profile).sex,
+        age: String((stored.profile as Profile).age),
+        heightCm: String((stored.profile as Profile).heightCm),
+        currentWeightKg: String((stored.profile as Profile).currentWeightKg),
+        activityLevel: (stored.profile as Profile).activityLevel,
+        allergies: (stored.profile as Profile).allergies.join(", "),
+        dislikedFoods: (stored.profile as Profile).dislikedFoods.join(", "),
+        mealsPerDay: String((stored.profile as Profile).mealsPerDay) as "3" | "4" | "5",
+        dietaryPreference: (stored.profile as Profile).dietaryPreference,
       })
     } catch {
       // ignore corrupted storage
@@ -464,7 +249,7 @@ export function CoachGeorgeLiveAssistant() {
       const payload: CoachState = {
         ...state,
         messages: trimMessagesForStorage(state.messages),
-        lastActiveDate: new Date().toISOString().slice(0, 10),
+        lastActiveDate: toIsoDate(new Date()),
       }
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload))
     } catch {
@@ -511,134 +296,10 @@ export function CoachGeorgeLiveAssistant() {
     }
   }
 
-  function completeOnboardingWithProfile(profile: Profile, lockedSteps: OnboardingStep[]) {
-    const dayStreak = state.stats.dayStreak > 0 ? state.stats.dayStreak : 1
-    const calculated = buildTargetsAndStats(profile, dayStreak)
-    const targetLine = formatTargetSummary(calculated.targets)
-    const shortSummary = "Profile complete. Targets are set — tell me when to build your plan."
-
-    setState((prev) => ({
-      ...prev,
-      profile,
-      profileComplete: true,
-      targets: calculated.targets,
-      stats: calculated.stats,
-      lockedSteps,
-      activeStep: null,
-      quickReplies: [],
-      pendingConfirmation: null,
-      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", shortSummary)],
-    }))
-    speakIfConnected(shortSummary)
-  }
-
-  function moveToNextStep(profile: PartialProfile, lockedSteps: OnboardingStep[]) {
-    if (isProfileComplete(profile)) {
-      completeOnboardingWithProfile(profile, lockedSteps)
-      return
-    }
-
-    const nextStep = getNextStep(profile, lockedSteps)
-    const prompt = onboardingPrompt(nextStep)
-    const quickReplies = nextStep ? (STEP_QUICK_REPLIES[nextStep] ?? []) : []
-
-    setState((prev) => ({
-      ...prev,
-      profile,
-      lockedSteps,
-      activeStep: nextStep,
-      quickReplies,
-      pendingConfirmation: null,
-      messages: [...prev.messages, makeMessage("assistant", prompt)],
-    }))
-    speakIfConnected(prompt)
-  }
-
-  function askForConfirmation(step: OnboardingStep, candidate: PendingConfirmation["candidate"], prompt: string) {
-    setState((prev) => ({
-      ...prev,
-      pendingConfirmation: { step, candidate, prompt },
-      quickReplies: [
-        { label: "Yes", value: "yes" },
-        { label: "No", value: "no" },
-      ],
-      messages: [...prev.messages, makeMessage("assistant", prompt)],
-    }))
-    speakIfConnected(prompt)
-  }
-
-  function lockAndAdvance(step: OnboardingStep, value: PartialProfile[OnboardingStep]) {
-    if (state.profileComplete) return
-    const nextProfile = { ...state.profile, [step]: value }
-    const nextLocked = state.lockedSteps.includes(step) ? state.lockedSteps : [...state.lockedSteps, step]
-    moveToNextStep(nextProfile, nextLocked)
-  }
-
-  function processOnboardingInput(rawInput: string) {
-    const input = rawInput.trim()
-    if (!input) return
-
-    const pending = state.pendingConfirmation
-    if (pending) {
-      const yesNo = parseYesNo(input)
-      const explicit = parseStepValue(pending.step, input)
-
-      if (yesNo === "yes") {
-        lockAndAdvance(pending.step, pending.candidate)
-        return
-      }
-
-      if (explicit.status === "ok") {
-        lockAndAdvance(pending.step, explicit.value)
-        return
-      }
-
-      const retry = `No problem — ${onboardingPrompt(pending.step)}`
-      setState((prev) => ({
-        ...prev,
-        pendingConfirmation: null,
-        quickReplies: STEP_QUICK_REPLIES[pending.step] ?? [],
-        messages: [...prev.messages, makeMessage("assistant", retry)],
-      }))
-      speakIfConnected(retry)
-      return
-    }
-
-    const currentStep = state.activeStep || getNextStep(state.profile, state.lockedSteps)
-    if (!currentStep) return
-
-    const parsed = parseStepValue(currentStep, input)
-    if (parsed.status !== "ok") {
-      if (["goal", "sex", "activityLevel", "mealsPerDay", "dietaryPreference"].includes(currentStep)) {
-        const candidate = inferCandidateForConfirmation(currentStep, input)
-        if (candidate) {
-          const confirmPrompt = `Just to confirm — do you mean ${String(candidate).replace("-", " ")}?`
-          askForConfirmation(currentStep, candidate, confirmPrompt)
-          return
-        }
-      }
-
-      const prompt = onboardingPrompt(currentStep)
-      setState((prev) => ({
-        ...prev,
-        quickReplies: STEP_QUICK_REPLIES[currentStep] ?? [],
-        messages: [...prev.messages, makeMessage("assistant", `I didn’t catch that. ${prompt}`)],
-      }))
-      speakIfConnected(prompt)
-      return
-    }
-
-    lockAndAdvance(currentStep, parsed.value)
-  }
-
   function handleUserTranscript(text: string) {
     const cleaned = text.trim()
     if (!cleaned) return
     appendUserMessage(cleaned)
-
-    if (!state.profileComplete) {
-      processOnboardingInput(cleaned)
-    }
   }
 
   function handleRealtimeEvent(event: any) {
@@ -742,7 +403,7 @@ export function CoachGeorgeLiveAssistant() {
         setConnectionState("connected")
         const intro = state.profileComplete
           ? "You are Coach George. User is returning. Keep spoken replies short and practical."
-          : `You are Coach George. Ask one onboarding question at a time. Start with: ${onboardingPrompt(state.activeStep)}`
+          : "You are Coach George. User is completing setup with the on-screen form. Keep spoken replies short and practical while setup is pending."
         dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
@@ -783,26 +444,69 @@ export function CoachGeorgeLiveAssistant() {
     setConnectionState("idle")
   }
 
+  function saveTargetsFromSetup() {
+    const age = Number(setupForm.age)
+    const heightCm = Number(setupForm.heightCm)
+    const currentWeightKg = Number(setupForm.currentWeightKg)
+
+    if (!Number.isFinite(age) || age < 13 || age > 95) return setError("Please enter a valid age.")
+    if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) return setError("Please enter a valid height in cm.")
+    if (!Number.isFinite(currentWeightKg) || currentWeightKg < 35 || currentWeightKg > 350) return setError("Please enter a valid current weight in kg.")
+
+    setError(null)
+    const dayStreak = state.stats.dayStreak > 0 ? state.stats.dayStreak : 1
+    const profile: Profile = {
+      goal: setupForm.goal,
+      sex: setupForm.sex,
+      age,
+      heightCm,
+      currentWeightKg,
+      activityLevel: setupForm.activityLevel,
+      allergies: parseListValue(setupForm.allergies),
+      dislikedFoods: parseListValue(setupForm.dislikedFoods),
+      mealsPerDay: Number(setupForm.mealsPerDay) as 3 | 4 | 5,
+      dietaryPreference: setupForm.dietaryPreference,
+    }
+
+    const calculated = buildTargetsAndStats(profile, dayStreak)
+    const summary = `Profile saved: goal ${profile.goal.replace("-", " ")}, ${profile.currentWeightKg}kg, ${profile.mealsPerDay} meals/day, ${profile.dietaryPreference}.`
+    const georgeLine = "Nice — I’ve got your targets set. I can build your plan now."
+
+    setState((prev) => ({
+      ...prev,
+      profile,
+      profileComplete: true,
+      targets: calculated.targets,
+      stats: calculated.stats,
+      weightInput: String(profile.currentWeightKg),
+      messages: [...prev.messages, makeMessage("assistant", formatTargetSummary(calculated.targets)), makeMessage("assistant", summary), makeMessage("assistant", georgeLine)],
+    }))
+    speakIfConnected(georgeLine)
+  }
+
   function buildMyPlan() {
     appendUserMessage("Build My Plan")
-    if (!state.profileComplete || !isProfileComplete(state.profile)) {
-      const gate = "Please finish onboarding first so I can build this correctly."
+    if (!state.profileComplete || !state.profile) {
+      const gate = "Please complete setup first so I can build this correctly."
       appendAssistantMessage(gate)
       speakIfConnected(gate)
       return
     }
 
     const planText = formatMealPlan(state.profile)
-    setState((prev) => ({ ...prev, latestPlan: planText, messages: [...prev.messages, makeMessage("assistant", planText)] }))
     const spoken = "I’ve built your plan. Have a look below and tell me what you want to change."
-    appendAssistantMessage(spoken)
+    setState((prev) => ({
+      ...prev,
+      latestPlan: planText,
+      messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", spoken)],
+    }))
     speakIfConnected(spoken)
   }
 
   function updateWeight() {
     appendUserMessage("Update Weight")
-    if (!state.profileComplete || !isProfileComplete(state.profile)) {
-      const gate = "Finish onboarding first — weight updates are for returning users."
+    if (!state.profileComplete || !state.profile) {
+      const gate = "Finish setup first — weight updates are for after setup."
       appendAssistantMessage(gate)
       speakIfConnected(gate)
       return
@@ -818,50 +522,35 @@ export function CoachGeorgeLiveAssistant() {
     const nextProfile: Profile = { ...state.profile, currentWeightKg: value }
     const calculated = buildTargetsAndStats(nextProfile, state.stats.dayStreak || 1)
     const targetLine = `Weight updated to ${value}kg. ${formatTargetSummary(calculated.targets)}`
+    const confirm = "Done — your weight and targets are updated."
 
     setState((prev) => ({
       ...prev,
       profile: nextProfile,
       targets: calculated.targets,
       stats: calculated.stats,
-      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", "Done — your stats are refreshed.")],
+      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", confirm)],
     }))
 
-    speakIfConnected("Done — your stats are refreshed.")
+    speakIfConnected(confirm)
   }
 
   function resetGoalsAndStats() {
     appendUserMessage("Reset Goals & Stats")
-    const next: CoachState = {
+    const resetLine = makeMessage("assistant", "Everything is cleared. Complete setup to continue.")
+    setState({
       ...INITIAL_STATE,
-      messages: [...INITIAL_MESSAGES, makeMessage("assistant", onboardingPrompt("goal"))],
-      stats: { ...ZERO_STATS, dayStreak: 0 },
-      targets: ZERO_TARGETS,
-      weightInput: "",
-      profile: {},
-      profileComplete: false,
-      latestPlan: null,
-      lockedSteps: [],
-      activeStep: "goal",
-      pendingConfirmation: null,
-      quickReplies: STEP_QUICK_REPLIES.goal || [],
-      lastActiveDate: null,
-    }
-    setState(next)
+      messages: [resetLine],
+    })
+    setSetupForm(DEFAULT_SETUP_FORM)
     window.localStorage.removeItem(SESSION_KEY)
-    speakIfConnected("I’ve reset everything. Let’s restart onboarding. What’s your main goal?")
-  }
-
-  function handleQuickReply(value: string) {
-    appendUserMessage(value)
-    if (!state.profileComplete) {
-      processOnboardingInput(value)
-    }
+    setError(null)
+    speakIfConnected("I’ve reset everything. Complete your setup form when you’re ready.")
   }
 
   return (
     <section className="bg-[#060a12] px-3 py-4 text-white sm:px-4 sm:py-8">
-      <div className="mx-auto w-full max-w-[860px] rounded-[28px] border border-white/10 bg-gradient-to-b from-[#101b31] via-[#0b1323] to-[#090f1a] p-4 shadow-[0_20px_100px_rgba(72,132,255,0.2)] sm:p-5">
+      <div className="relative mx-auto w-full max-w-[860px] rounded-[28px] border border-white/10 bg-gradient-to-b from-[#101b31] via-[#0b1323] to-[#090f1a] p-4 shadow-[0_20px_100px_rgba(72,132,255,0.2)] sm:p-5">
         <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4 shadow-[inset_0_0_40px_rgba(123,166,255,0.15)]">
           <button
             type="button"
@@ -911,20 +600,6 @@ export function CoachGeorgeLiveAssistant() {
         <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3 shadow-[inset_0_0_35px_rgba(105,154,255,0.08)]">
           <div className="mb-3 flex items-center gap-2 px-1"><MessageSquareText className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Conversation</p></div>
 
-          {state.quickReplies.length ? (
-            <div className="mb-2 flex flex-wrap gap-2">
-              {state.quickReplies.map((reply) => (
-                <button
-                  key={`${reply.label}-${reply.value}`}
-                  onClick={() => handleQuickReply(reply.value)}
-                  className="rounded-full border border-[#8ab0ff]/40 bg-[#21385e] px-3 py-1 text-xs text-[#d9e7ff]"
-                >
-                  {reply.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <div ref={chatScrollRef} className="h-[360px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:h-[440px]">
             {state.messages.map((message) => {
               const isUser = message.role === "user"
@@ -940,6 +615,77 @@ export function CoachGeorgeLiveAssistant() {
         </div>
 
         {error ? <p className="mt-3 text-sm text-[#ff8892]">{error}</p> : null}
+
+        {showSetupModal ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[28px] bg-[#02050c]/75 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-3xl border border-[#8fb4ff]/20 bg-gradient-to-b from-[#0f1a2d] to-[#0a1222] p-5 shadow-[0_30px_100px_rgba(40,90,220,0.45)] sm:p-6">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9fb4dc]">Quick setup</p>
+                <h2 className="mt-1 text-xl font-semibold text-white">Set your targets</h2>
+                <p className="mt-1 text-sm text-[#a9bcdf]">Fast profile setup so George can coach you properly.</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm text-[#d4e3ff]">Goal
+                  <select value={setupForm.goal} onChange={(e) => setSetupForm((prev) => ({ ...prev, goal: e.target.value as Goal }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                    <option value="lose-fat">Lose fat</option>
+                    <option value="recomp">Recomp</option>
+                    <option value="gain-muscle">Gain muscle</option>
+                  </select>
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Sex
+                  <select value={setupForm.sex} onChange={(e) => setSetupForm((prev) => ({ ...prev, sex: e.target.value as Sex }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Age
+                  <input value={setupForm.age} onChange={(e) => setSetupForm((prev) => ({ ...prev, age: e.target.value }))} type="number" min={13} max={95} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Height (cm)
+                  <input value={setupForm.heightCm} onChange={(e) => setSetupForm((prev) => ({ ...prev, heightCm: e.target.value }))} type="number" min={120} max={230} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Current weight (kg)
+                  <input value={setupForm.currentWeightKg} onChange={(e) => setSetupForm((prev) => ({ ...prev, currentWeightKg: e.target.value }))} type="number" min={35} max={350} step="0.1" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Activity level
+                  <select value={setupForm.activityLevel} onChange={(e) => setSetupForm((prev) => ({ ...prev, activityLevel: e.target.value as ActivityLevel }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                    <option value="sedentary">Sedentary</option>
+                    <option value="light">Light</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="active">Active</option>
+                    <option value="very-active">Very active</option>
+                  </select>
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Allergies
+                  <input value={setupForm.allergies} onChange={(e) => setSetupForm((prev) => ({ ...prev, allergies: e.target.value }))} placeholder="e.g. nuts, shellfish or none" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Disliked foods
+                  <input value={setupForm.dislikedFoods} onChange={(e) => setSetupForm((prev) => ({ ...prev, dislikedFoods: e.target.value }))} placeholder="e.g. mushrooms, olives or none" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Meals per day
+                  <select value={setupForm.mealsPerDay} onChange={(e) => setSetupForm((prev) => ({ ...prev, mealsPerDay: e.target.value as "3" | "4" | "5" }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                    <option value="3">3 meals</option>
+                    <option value="4">4 meals</option>
+                    <option value="5">5 meals</option>
+                  </select>
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Dietary preference
+                  <select value={setupForm.dietaryPreference} onChange={(e) => setSetupForm((prev) => ({ ...prev, dietaryPreference: e.target.value as DietaryPreference }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                    <option value="omnivore">Omnivore</option>
+                    <option value="vegetarian">Vegetarian</option>
+                    <option value="pescatarian">Pescatarian</option>
+                    <option value="vegan">Vegan</option>
+                  </select>
+                </label>
+              </div>
+
+              <button onClick={saveTargetsFromSetup} className="mt-5 w-full rounded-xl border border-[#8eb2ff]/40 bg-[#2b4f89] px-4 py-3 font-semibold text-white shadow-[0_12px_30px_rgba(79,131,255,0.4)] hover:bg-[#355f9f]">
+                Save Targets
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   )
