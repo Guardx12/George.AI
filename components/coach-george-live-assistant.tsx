@@ -1,7 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Loader2, MessageSquareText, Mic } from "lucide-react"
+import { Flame, Loader2, MessageSquareText, Mic, Weight } from "lucide-react"
+import {
+  buildMealPlan,
+  foods,
+  type ActivityLevel,
+  type DietaryPreference,
+  type Goal,
+  type Profile,
+  type Sex,
+} from "@/lib/coach-george/coach-george-nutrition"
 
 type LiveMessage = {
   id: string
@@ -10,21 +19,47 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
+type CoachingStyle = "supportive" | "balanced" | "strict"
 
-const STORAGE_KEY = "coach-george-session-v1"
-
-const INITIAL_MESSAGES: LiveMessage[] = [
-  {
-    id: "intro",
-    role: "system",
-    content: "Hi — I'm George, your coach. Tap to talk whenever you're ready.",
-  },
-]
+type StatsState = {
+  caloriesLeft: number
+  proteinLeft: number
+  currentWeightKg: number
+  mealsToday: number
+  dayStreak: number
+}
 
 type StoredSession = {
   messages: LiveMessage[]
   visitorName: string | null
   updatedAt: number
+  profile: Profile
+  coachingStyle: CoachingStyle
+  stats: StatsState
+  lastActiveDate: string
+}
+
+const SESSION_KEY = "coach-george-session-v2"
+
+const INITIAL_MESSAGES: LiveMessage[] = [
+  {
+    id: "intro",
+    role: "assistant",
+    content: "Hi — I'm Coach George. Complete your profile, then tap to talk and I'll coach your meals and training.",
+  },
+]
+
+const DEFAULT_PROFILE: Profile = {
+  goal: "lose-fat",
+  sex: "male",
+  age: 30,
+  heightCm: 178,
+  currentWeightKg: 82,
+  activityLevel: "moderate",
+  allergies: [],
+  dislikedFoods: [],
+  mealsPerDay: 4,
+  dietaryPreference: "omnivore",
 }
 
 function makeMessage(role: LiveMessage["role"], content: string) {
@@ -36,10 +71,6 @@ function makeMessage(role: LiveMessage["role"], content: string) {
     role,
     content,
   }
-}
-
-function trimMessagesForStorage(messages: LiveMessage[]) {
-  return messages.slice(-24)
 }
 
 function detectVisitorName(messages: LiveMessage[]) {
@@ -60,15 +91,8 @@ function detectVisitorName(messages: LiveMessage[]) {
   return null
 }
 
-function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
-  const instructions = hasStoredSession
-    ? `Introduce yourself as George in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Keep it short and helpful. Ask one short question about what they want help with next.`
-    : "Introduce yourself as George in warm, natural British English. Keep it short, welcoming and practical. Ask one short question about what they want help with first."
-
-  return {
-    type: "response.create",
-    response: { instructions },
-  }
+function trimMessagesForStorage(messages: LiveMessage[]) {
+  return messages.slice(-36)
 }
 
 export function CoachGeorgeLiveAssistant() {
@@ -77,9 +101,18 @@ export function CoachGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null)
   const [hasStoredSession, setHasStoredSession] = useState(false)
   const [visitorName, setVisitorName] = useState<string | null>(null)
+  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE)
+  const [coachingStyle, setCoachingStyle] = useState<CoachingStyle>("balanced")
+  const [planSummary, setPlanSummary] = useState<string>("No plan built yet.")
+  const [latestWeightInput, setLatestWeightInput] = useState<string>(DEFAULT_PROFILE.currentWeightKg.toString())
 
-  const sessionStartedAtRef = useRef<number | null>(null)
-  const usageLoggedRef = useRef(false)
+  const [stats, setStats] = useState<StatsState>({
+    caloriesLeft: 0,
+    proteinLeft: 0,
+    currentWeightKg: DEFAULT_PROFILE.currentWeightKg,
+    mealsToday: 0,
+    dayStreak: 1,
+  })
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -92,21 +125,36 @@ export function CoachGeorgeLiveAssistant() {
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (!raw) return
-      const stored = JSON.parse(raw) as StoredSession
-      if (Array.isArray(stored?.messages) && stored.messages.length > 1) {
-        setMessages(stored.messages)
-        setHasStoredSession(true)
-        setVisitorName(stored.visitorName || detectVisitorName(stored.messages))
-      }
-    } catch {}
-  }, [])
+    const computed = buildMealPlan(profile)
+    setStats((prev) => ({
+      ...prev,
+      caloriesLeft: Math.max(0, computed.targets.calories - computed.totals.calories),
+      proteinLeft: Math.max(0, computed.targets.protein - computed.totals.protein),
+      currentWeightKg: profile.currentWeightKg,
+    }))
+  }, [profile])
 
   useEffect(() => {
-    return () => {
-      void cleanupConversation(false)
+    try {
+      const raw = window.localStorage.getItem(SESSION_KEY)
+      if (!raw) return
+      const stored = JSON.parse(raw) as StoredSession
+      if (!Array.isArray(stored.messages)) return
+      setMessages(stored.messages.length ? stored.messages : INITIAL_MESSAGES)
+      setProfile(stored.profile ?? DEFAULT_PROFILE)
+      setCoachingStyle(stored.coachingStyle ?? "balanced")
+      setStats(stored.stats)
+      setLatestWeightInput((stored.profile?.currentWeightKg ?? DEFAULT_PROFILE.currentWeightKg).toString())
+      setHasStoredSession(true)
+      setVisitorName(stored.visitorName || detectVisitorName(stored.messages))
+
+      const today = new Date().toISOString().slice(0, 10)
+      if (stored.lastActiveDate !== today) {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+        setStats((prev) => ({ ...prev, mealsToday: 0, dayStreak: stored.lastActiveDate === yesterday ? prev.dayStreak + 1 : 1 }))
+      }
+    } catch {
+      // ignore corrupted storage
     }
   }, [])
 
@@ -115,75 +163,33 @@ export function CoachGeorgeLiveAssistant() {
       const trimmed = trimMessagesForStorage(messages)
       const detectedName = visitorName || detectVisitorName(trimmed)
       if (detectedName && detectedName !== visitorName) setVisitorName(detectedName)
-      if (trimmed.length <= 1) {
-        window.localStorage.removeItem(STORAGE_KEY)
-        setHasStoredSession(false)
-        return
-      }
+      if (!trimmed.length) return
       const payload: StoredSession = {
         messages: trimmed,
         visitorName: detectedName,
         updatedAt: Date.now(),
+        profile,
+        coachingStyle,
+        stats,
+        lastActiveDate: new Date().toISOString().slice(0, 10),
       }
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload))
       setHasStoredSession(true)
-    } catch {}
-  }, [messages, visitorName])
-
-  async function logUsageIfNeeded() {
-    if (usageLoggedRef.current || sessionStartedAtRef.current === null) return
-
-    const elapsedMs = Date.now() - sessionStartedAtRef.current
-    const minutes = Math.max(0.1, Math.round((elapsedMs / 60000) * 10) / 10)
-    usageLoggedRef.current = true
-
-    try {
-      await fetch("/api/placesforpeople-usage", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store",
-        },
-        body: JSON.stringify({ minutes }),
-        cache: "no-store",
-        keepalive: true,
-      })
-    } catch (err) {
-      console.error("Could not log Places for People usage", err)
-      usageLoggedRef.current = false
+    } catch {
+      // ignore storage errors
     }
-  }
+  }, [messages, visitorName, profile, coachingStyle, stats])
 
-  async function cleanupConversation(logUsage = true) {
-    if (logUsage) {
-      await logUsageIfNeeded()
+  useEffect(() => {
+    return () => {
+      void cleanupConversation()
     }
+  }, [])
 
-    dcRef.current?.close()
-    dcRef.current = null
-
-    if (pcRef.current) {
-      pcRef.current.getSenders().forEach((sender) => sender.track?.stop())
-      pcRef.current.close()
-      pcRef.current = null
-    }
-
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop())
-      localStreamRef.current = null
-    }
-
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.srcObject = null
-      audioRef.current.remove()
-      audioRef.current = null
-    }
-
-    currentAssistantTextRef.current = ""
-    currentAssistantMessageIdRef.current = null
-    sessionStartedAtRef.current = null
-  }
+  useEffect(() => {
+    if (!chatScrollRef.current) return
+    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+  }, [messages])
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
@@ -243,45 +249,76 @@ export function CoachGeorgeLiveAssistant() {
         if (transcript) appendOrUpdateAssistantPartial(transcript, true)
         break
       }
-      case "error": {
-        const message = event?.error?.message || "George hit a voice error."
-        if (connectionState === "connected") {
-          setError(message)
-        } else {
-          void cleanupConversation()
-          setConnectionState("error")
-          setError(message)
-        }
+      case "error":
+        setError(event?.error?.message || "George hit a voice error.")
         break
-      }
       default:
         break
     }
   }
 
+  async function cleanupConversation() {
+    dcRef.current?.close()
+    dcRef.current = null
+
+    if (pcRef.current) {
+      pcRef.current.getSenders().forEach((sender) => sender.track?.stop())
+      pcRef.current.close()
+      pcRef.current = null
+    }
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop())
+      localStreamRef.current = null
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.srcObject = null
+      audioRef.current.remove()
+      audioRef.current = null
+    }
+
+    currentAssistantTextRef.current = ""
+    currentAssistantMessageIdRef.current = null
+  }
+
+  function sendTextToCoach(text: string) {
+    const channel = dcRef.current
+    if (!channel || channel.readyState !== "open") {
+      setMessages((prev) => [
+        ...prev,
+        makeMessage("assistant", "Connect voice first, then I'll answer and coach this live in chat too."),
+      ])
+      return
+    }
+
+    channel.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: { type: "message", role: "user", content: [{ type: "input_text", text }] },
+      }),
+    )
+    channel.send(JSON.stringify({ type: "response.create" }))
+  }
+
   async function startConversation() {
     if (!canStart) return
-
-    await cleanupConversation(false)
+    await cleanupConversation()
     setConnectionState("connecting")
     setError(null)
-    usageLoggedRef.current = false
-    sessionStartedAtRef.current = null
-    setMessages((prev) => (hasStoredSession && prev.length > 1 ? prev : INITIAL_MESSAGES))
 
     try {
-      const tokenResponse = await fetch("/api/placesforpeople-session", {
+      const tokenResponse = await fetch("/api/george-session", {
         method: "GET",
         cache: "no-store",
       })
 
       const tokenData = await tokenResponse.json().catch(() => null)
-      if (!tokenResponse.ok) {
-        throw new Error(typeof tokenData?.error === "string" ? tokenData.error : "Could not create a secure live session.")
-      }
+      if (!tokenResponse.ok) throw new Error(tokenData?.error || "Could not create a secure live session.")
 
-      const ephemeralKey = tokenData?.value
-      if (typeof ephemeralKey !== "string" || !ephemeralKey) throw new Error("Live voice token was missing.")
+      const ephemeralKey = tokenData?.client_secret?.value || tokenData?.value
+      if (!ephemeralKey) throw new Error("Live voice token was missing.")
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
@@ -305,21 +342,20 @@ export function CoachGeorgeLiveAssistant() {
 
       const dataChannel = pc.createDataChannel("oai-events")
       dcRef.current = dataChannel
-
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
-        sessionStartedAtRef.current = Date.now()
-        const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? null
-        const event = buildFirstResponseEvent(visitorName, hasStoredSession && messages.length > 1, lastUserMessage)
-        window.setTimeout(() => {
-          dataChannel.send(JSON.stringify(event))
-        }, 150)
+        const intro = hasStoredSession
+          ? `Welcome back${visitorName ? ` ${visitorName}` : ""}. Continue coaching me in a ${coachingStyle} style. My goal is ${profile.goal}.`
+          : `Introduce yourself as Coach George and ask one question so we can start the fitness session.`
+        dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
       dataChannel.addEventListener("message", (event) => {
         try {
           handleRealtimeEvent(JSON.parse(event.data))
-        } catch {}
+        } catch {
+          // ignore bad payloads
+        }
       })
 
       const offer = await pc.createOffer()
@@ -327,30 +363,16 @@ export function CoachGeorgeLiveAssistant() {
 
       const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${ephemeralKey}`,
-          "Content-Type": "application/sdp",
-        },
+        headers: { Authorization: `Bearer ${ephemeralKey}`, "Content-Type": "application/sdp" },
         body: offer.sdp,
       })
 
       const answer = await sdpResponse.text()
-      if (!sdpResponse.ok) {
-        let message = "Could not connect George."
-        try {
-          const parsed = JSON.parse(answer)
-          if (typeof parsed?.error?.message === "string") message = parsed.error.message
-        } catch {
-          if (answer.trim()) message = answer.trim()
-        }
-        throw new Error(message)
-      }
+      if (!sdpResponse.ok) throw new Error(answer || "Could not connect George.")
 
       await pc.setRemoteDescription({ type: "answer", sdp: answer })
       pc.addEventListener("connectionstatechange", () => {
-        if (pc.connectionState === "failed" || pc.connectionState === "disconnected" || pc.connectionState === "closed") {
-          setConnectionState("error")
-        }
+        if (["failed", "disconnected", "closed"].includes(pc.connectionState)) setConnectionState("error")
       })
     } catch (err) {
       await cleanupConversation()
@@ -360,131 +382,144 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   async function stopConversation() {
-    await cleanupConversation(true)
+    await cleanupConversation()
     setError(null)
     setConnectionState("idle")
   }
 
-  useEffect(() => {
-    if (!chatScrollRef.current) return
-    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
-  }, [messages])
+  function buildMyPlan() {
+    const result = buildMealPlan(profile)
+    const summary = [
+      `Target: ${result.targets.calories} kcal | ${result.targets.protein}g protein`,
+      ...result.plan.map(
+        (meal, index) =>
+          `${index + 1}. ${meal.name} (${meal.nutrition.calories} kcal, ${meal.nutrition.protein}g protein) - ${meal.ingredients
+            .map((i) => `${foods.find((f) => f.id === i.foodId)?.name || i.foodId} ${i.grams}g`)
+            .join(", ")}`,
+      ),
+    ].join("\n")
+
+    setPlanSummary(summary)
+    setStats((prev) => ({
+      ...prev,
+      caloriesLeft: Math.max(0, result.targets.calories - result.totals.calories),
+      proteinLeft: Math.max(0, result.targets.protein - result.totals.protein),
+      mealsToday: result.plan.length,
+    }))
+
+    const coachingPrompt = `Build my daily plan from this profile: ${JSON.stringify(profile)}. Keep coaching style ${coachingStyle}.`
+    setMessages((prev) => [...prev, makeMessage("user", "Build my plan from my saved profile."), makeMessage("assistant", summary)])
+    sendTextToCoach(coachingPrompt)
+  }
+
+  function updateWeight() {
+    const value = Number(latestWeightInput)
+    if (!Number.isFinite(value) || value < 35 || value > 350) {
+      setError("Please enter a valid weight in kg.")
+      return
+    }
+    setError(null)
+    setProfile((prev) => ({ ...prev, currentWeightKg: value }))
+    setStats((prev) => ({ ...prev, currentWeightKg: value }))
+    setMessages((prev) => [...prev, makeMessage("assistant", `Weight updated to ${value}kg. Targets refreshed.`)])
+  }
+
+  function resetGoalsAndStats() {
+    setProfile(DEFAULT_PROFILE)
+    setCoachingStyle("balanced")
+    setStats({ caloriesLeft: 0, proteinLeft: 0, currentWeightKg: DEFAULT_PROFILE.currentWeightKg, mealsToday: 0, dayStreak: 1 })
+    setPlanSummary("No plan built yet.")
+    setMessages(INITIAL_MESSAGES)
+    window.localStorage.removeItem(SESSION_KEY)
+    setHasStoredSession(false)
+  }
 
   return (
-    <section className="bg-[#060a12] px-4 py-6 text-white sm:py-8">
-      <div className="mx-auto w-full max-w-[430px] rounded-[30px] border border-white/10 bg-gradient-to-b from-[#0f1727] to-[#090f1a] p-4 shadow-[0_0_80px_rgba(93,123,255,0.12)] sm:p-5">
-        <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-          <button
-            type="button"
-            onClick={connectionState === "connected" ? stopConversation : startConversation}
-            disabled={connectionState === "connecting"}
-            aria-label={connectionState === "connected" ? "End conversation with George" : "Tap to talk"}
-            className={`group relative mx-auto flex h-[170px] w-[170px] items-center justify-center rounded-full transition duration-300 ${
-              connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.015]"
-            } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
-            style={{
-              background: "radial-gradient(circle at 32% 26%, #284775 0%, #1a2e52 52%, #0d1a33 100%)",
-              boxShadow:
-                connectionState === "connected" || connectionState === "connecting"
-                  ? "0 0 0 6px rgba(93,123,255,0.2), 0 0 0 16px rgba(93,123,255,0.08), 0 22px 44px rgba(0,0,0,0.45), inset 0 8px 18px rgba(255,255,255,0.12), inset 0 -8px 18px rgba(0,0,0,0.25)"
-                  : "0 0 0 6px rgba(93,123,255,0.28), 0 20px 40px rgba(0,0,0,0.4), inset 0 8px 18px rgba(255,255,255,0.12), inset 0 -8px 18px rgba(0,0,0,0.25)",
-            }}
-          >
-            <span className="absolute inset-[12px] rounded-full border border-white/15" />
-            <span className="absolute inset-x-[23%] top-[12%] h-6 rounded-full bg-white/10 blur-md" />
-            <div className="relative z-10 flex items-center justify-center text-white">
-              {connectionState === "connecting" ? <Loader2 className="h-10 w-10 animate-spin" /> : <Mic className="h-10 w-10" />}
-            </div>
-          </button>
-          <p className="mt-4 text-center text-lg font-semibold tracking-wide text-white">Tap to Talk</p>
-        </div>
-
-        <div className="mt-4 rounded-3xl border border-white/10 bg-[#0c1424] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9fb4dc]">Stats</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-2xl bg-white/5 p-3">
-              <p className="text-[#8ea5cc]">Calories</p>
-              <p className="mt-1 text-xl font-semibold">—</p>
-            </div>
-            <div className="rounded-2xl bg-white/5 p-3">
-              <p className="text-[#8ea5cc]">Weight</p>
-              <p className="mt-1 text-xl font-semibold">—</p>
-            </div>
-            <div className="col-span-2 space-y-2 rounded-2xl bg-white/5 p-3">
-              <div>
-                <div className="mb-1 flex items-center justify-between text-[#8ea5cc]">
-                  <span>Protein</span>
-                  <span>—</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div className="h-2 w-0 rounded-full bg-[#66d0ff]" />
-                </div>
-              </div>
-              <div>
-                <div className="mb-1 flex items-center justify-between text-[#8ea5cc]">
-                  <span>Carbs</span>
-                  <span>—</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div className="h-2 w-0 rounded-full bg-[#7f92ff]" />
-                </div>
-              </div>
-              <div>
-                <div className="mb-1 flex items-center justify-between text-[#8ea5cc]">
-                  <span>Fats</span>
-                  <span>—</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div className="h-2 w-0 rounded-full bg-[#9d7cff]" />
-                </div>
-              </div>
-            </div>
+    <section className="bg-[#060a12] px-3 py-4 text-white sm:px-4 sm:py-8">
+      <div className="mx-auto grid w-full max-w-[1080px] gap-4 lg:grid-cols-[350px,1fr]">
+        <aside className="rounded-[28px] border border-white/10 bg-gradient-to-b from-[#0f1727] to-[#090f1a] p-4 shadow-[0_0_80px_rgba(93,123,255,0.12)] sm:p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Profile</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <label className="col-span-2">Goal
+              <select value={profile.goal} onChange={(e) => setProfile((p) => ({ ...p, goal: e.target.value as Goal }))} className="mt-1 w-full rounded-xl bg-white/5 p-2">
+                <option value="lose-fat">Lose fat</option><option value="recomp">Recomp</option><option value="gain-muscle">Gain muscle</option>
+              </select>
+            </label>
+            <label>Sex<select value={profile.sex} onChange={(e) => setProfile((p) => ({ ...p, sex: e.target.value as Sex }))} className="mt-1 w-full rounded-xl bg-white/5 p-2"><option value="male">Male</option><option value="female">Female</option></select></label>
+            <label>Age<input value={profile.age} onChange={(e) => setProfile((p) => ({ ...p, age: Number(e.target.value) || 0 }))} type="number" className="mt-1 w-full rounded-xl bg-white/5 p-2" /></label>
+            <label>Height (cm)<input value={profile.heightCm} onChange={(e) => setProfile((p) => ({ ...p, heightCm: Number(e.target.value) || 0 }))} type="number" className="mt-1 w-full rounded-xl bg-white/5 p-2" /></label>
+            <label>Weight (kg)<input value={profile.currentWeightKg} onChange={(e) => setProfile((p) => ({ ...p, currentWeightKg: Number(e.target.value) || 0 }))} type="number" className="mt-1 w-full rounded-xl bg-white/5 p-2" /></label>
+            <label className="col-span-2">Activity<select value={profile.activityLevel} onChange={(e) => setProfile((p) => ({ ...p, activityLevel: e.target.value as ActivityLevel }))} className="mt-1 w-full rounded-xl bg-white/5 p-2"><option value="sedentary">Sedentary</option><option value="light">Light</option><option value="moderate">Moderate</option><option value="active">Active</option><option value="very-active">Very active</option></select></label>
+            <label className="col-span-2">Allergies (comma separated)<input value={profile.allergies.join(", ")} onChange={(e) => setProfile((p) => ({ ...p, allergies: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) }))} className="mt-1 w-full rounded-xl bg-white/5 p-2" /></label>
+            <label className="col-span-2">Disliked foods<input value={profile.dislikedFoods.join(", ")} onChange={(e) => setProfile((p) => ({ ...p, dislikedFoods: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) }))} className="mt-1 w-full rounded-xl bg-white/5 p-2" /></label>
+            <label>Meals/day<select value={profile.mealsPerDay} onChange={(e) => setProfile((p) => ({ ...p, mealsPerDay: Number(e.target.value) as 3 | 4 | 5 }))} className="mt-1 w-full rounded-xl bg-white/5 p-2"><option value={3}>3</option><option value={4}>4</option><option value={5}>5</option></select></label>
+            <label>Diet<select value={profile.dietaryPreference} onChange={(e) => setProfile((p) => ({ ...p, dietaryPreference: e.target.value as DietaryPreference }))} className="mt-1 w-full rounded-xl bg-white/5 p-2"><option value="omnivore">Omnivore</option><option value="vegetarian">Vegetarian</option><option value="pescatarian">Pescatarian</option><option value="vegan">Vegan</option></select></label>
+            <label className="col-span-2">Coaching style<select value={coachingStyle} onChange={(e) => setCoachingStyle(e.target.value as CoachingStyle)} className="mt-1 w-full rounded-xl bg-white/5 p-2"><option value="supportive">Supportive</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></label>
           </div>
-        </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {["Log a Meal", "What Should I Eat", "Went Off Track", "Give Me a Workout"].map((label) => (
+          <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
+            <button onClick={buildMyPlan} type="button" className="rounded-2xl border border-white/20 bg-[#17325b] px-3 py-2 font-semibold">Build My Plan</button>
+            <div className="flex gap-2"><input value={latestWeightInput} onChange={(e) => setLatestWeightInput(e.target.value)} placeholder="Weight kg" className="min-w-0 flex-1 rounded-2xl bg-white/5 px-3 py-2" />
+              <button onClick={updateWeight} type="button" className="rounded-2xl border border-white/20 bg-white/10 px-3"><Weight className="h-4 w-4"/></button></div>
+            <button onClick={resetGoalsAndStats} type="button" className="rounded-2xl border border-red-300/30 bg-red-950/20 px-3 py-2">Reset Goals / Stats</button>
+          </div>
+        </aside>
+
+        <div className="rounded-[28px] border border-white/10 bg-gradient-to-b from-[#0f1727] to-[#090f1a] p-4 shadow-[0_0_80px_rgba(93,123,255,0.12)] sm:p-5">
+          <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4">
             <button
-              key={label}
               type="button"
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium text-[#d5e3ff] transition hover:bg-white/10"
+              onClick={connectionState === "connected" ? stopConversation : startConversation}
+              disabled={connectionState === "connecting"}
+              className={`mx-auto flex h-[150px] w-[150px] items-center justify-center rounded-full ${connectionState === "connected" ? "animate-pulse" : ""}`}
+              style={{ background: "radial-gradient(circle at 32% 26%, #284775 0%, #1a2e52 52%, #0d1a33 100%)" }}
             >
-              {label}
+              {connectionState === "connecting" ? <Loader2 className="h-10 w-10 animate-spin" /> : <Mic className="h-10 w-10" />}
             </button>
-          ))}
-        </div>
-
-        <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3">
-          <div className="mb-3 flex items-center gap-2 px-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#1b2a44] text-[#9cb7e4]">
-              <MessageSquareText className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Chat</p>
+            <p className="mt-3 text-center text-lg font-semibold">Tap to Talk</p>
           </div>
-          <div ref={chatScrollRef} className="h-[400px] space-y-3 overflow-y-auto rounded-2xl bg-white/[0.03] p-3">
-            {messages
-              .filter((message) => message.role !== "system")
-              .map((message) => {
+
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Calories left</p><p className="text-xl font-semibold">{stats.caloriesLeft}</p></div>
+            <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Protein left</p><p className="text-xl font-semibold">{stats.proteinLeft}g</p></div>
+            <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Current weight</p><p className="text-xl font-semibold">{stats.currentWeightKg}kg</p></div>
+            <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Meals today</p><p className="text-xl font-semibold">{stats.mealsToday}</p></div>
+            <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Day streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{stats.dayStreak}</p></div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+            <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff]">Build My Plan</button>
+            <button onClick={updateWeight} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff]">Update Weight</button>
+            <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff]">Reset Goals / Stats</button>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-white/10 bg-[#0a1222] p-3 text-xs text-[#c9d9f8] whitespace-pre-wrap">{planSummary}</div>
+
+          <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3">
+            <div className="mb-3 flex items-center gap-2 px-1"><MessageSquareText className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Live Chat</p></div>
+            <div ref={chatScrollRef} className="h-[320px] sm:h-[400px] space-y-3 overflow-y-auto rounded-2xl bg-white/[0.03] p-3">
+              {messages.map((message) => {
                 const isUser = message.role === "user"
                 return (
                   <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-6 ${
-                        isUser ? "bg-[#365fa5] text-white" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"
-                      }`}
-                    >
+                    <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${isUser ? "bg-[#365fa5] text-white" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"}`}>
                       {message.content}
                     </div>
                   </div>
                 )
               })}
-            {messages.filter((message) => message.role !== "system").length === 0 ? (
-              <p className="px-1 py-2 text-sm text-[#93a6ca]">Your conversation will appear here.</p>
-            ) : null}
+            </div>
           </div>
-        </div>
 
-        {error ? <p className="mt-4 text-center text-sm font-medium text-[#ff8892]">{error}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <button onClick={() => sendTextToCoach("Build me a training plan for 45 minutes today.")} className="rounded-xl border border-white/10 bg-white/5 px-2 py-1">Workout now</button>
+            <button onClick={() => sendTextToCoach("I went off track. Help me reset today.")} className="rounded-xl border border-white/10 bg-white/5 px-2 py-1">Went off track</button>
+            <button onClick={() => sendTextToCoach("What should I eat for my next meal based on my plan?")} className="rounded-xl border border-white/10 bg-white/5 px-2 py-1">What should I eat</button>
+          </div>
+
+          {error ? <p className="mt-3 text-sm text-[#ff8892]">{error}</p> : null}
+          {hasStoredSession ? <p className="mt-2 text-[11px] text-[#8ea5cc]">Session restored from this device.</p> : null}
+        </div>
       </div>
     </section>
   )

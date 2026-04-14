@@ -1,0 +1,70 @@
+[
+  {
+    "id": "oats-protein-bowl",
+    "name": "Protein oats bowl",
+    "mealType": "breakfast",
+    "dietary": ["omnivore", "vegetarian"],
+    "ingredients": [
+      { "foodId": "oats", "grams": 70 },
+      { "foodId": "greek_yogurt", "grams": 200 },
+      { "foodId": "banana", "grams": 100 },
+      { "foodId": "berries", "grams": 80 }
+    ]
+  },
+  {
+    "id": "chicken-rice-broccoli",
+    "name": "Chicken rice broccoli",
+    "mealType": "lunch",
+    "dietary": ["omnivore"],
+    "ingredients": [
+      { "foodId": "chicken_breast", "grams": 180 },
+      { "foodId": "rice_cooked", "grams": 200 },
+      { "foodId": "broccoli", "grams": 150 },
+      { "foodId": "olive_oil", "grams": 8 }
+    ]
+  },
+  {
+    "id": "salmon-sweet-potato",
+    "name": "Salmon sweet potato plate",
+    "mealType": "dinner",
+    "dietary": ["omnivore", "pescatarian"],
+    "ingredients": [
+      { "foodId": "salmon", "grams": 170 },
+      { "foodId": "sweet_potato", "grams": 250 },
+      { "foodId": "broccoli", "grams": 120 }
+    ]
+  },
+  {
+    "id": "tofu-rice-bowl",
+    "name": "Tofu rice bowl",
+    "mealType": "lunch",
+    "dietary": ["vegetarian", "vegan"],
+    "ingredients": [
+      { "foodId": "tofu", "grams": 200 },
+      { "foodId": "rice_cooked", "grams": 220 },
+      { "foodId": "broccoli", "grams": 180 },
+      { "foodId": "olive_oil", "grams": 8 }
+    ]
+  },
+  {
+    "id": "yogurt-fruit-snack",
+    "name": "Greek yogurt fruit snack",
+    "mealType": "snack",
+    "dietary": ["omnivore", "vegetarian", "pescatarian"],
+    "ingredients": [
+      { "foodId": "greek_yogurt", "grams": 220 },
+      { "foodId": "berries", "grams": 120 }
+    ]
+  },
+  {
+    "id": "egg-oats-scramble",
+    "name": "Egg and oats scramble",
+    "mealType": "breakfast",
+    "dietary": ["omnivore", "vegetarian"],
+    "ingredients": [
+      { "foodId": "egg", "grams": 160 },
+      { "foodId": "oats", "grams": 45 },
+      { "foodId": "berries", "grams": 100 }
+    ]
+  }
+]
