@@ -1,7 +1,7 @@
 "use client"
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowRight, Loader2, MessageSquareText, Mic } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Dumbbell, Loader2, MessageSquareText, Mic, RotateCcw, Scale } from "lucide-react"
 
 type LiveMessage = {
   id: string
@@ -11,29 +11,41 @@ type LiveMessage = {
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
 
-type QuickLink = {
-  label: string
-  href: string
-  prompt: string
-  description: string
+type DailyIntake = {
+  date: string
+  calories: number
+  protein: number
+  meals: string[]
 }
 
-const STORAGE_KEY = "placesforpeople-george-session-v2"
-const RETAINED_RATE = 0.4
+type CoachProfile = {
+  onboardingComplete: boolean
+  currentWeight: number | null
+  calorieTarget: number | null
+  proteinTarget: number | null
+  dailyLoggedIntake: DailyIntake
+  dayStreak: number
+  lastActiveDate: string | null
+  dislikes: string[]
+  allergies: string[]
+  preferences: string[]
+}
+
+type PendingCoachPrompt = {
+  visibleMessage: string
+  prompt: string
+}
+
+const STORAGE_KEY = "coach-george-session-v1"
+const PROFILE_STORAGE_KEY = "coach-george-profile-v1"
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "system",
-    content:
-      "Hi — I'm George for Steyning Leisure Centre. I can help you choose the right membership, check the live timetable, answer centre questions, and guide you through joining step by step.",
+    content: "Hi — I'm George, your coach. Tap to talk whenever you're ready.",
   },
 ]
-
-type PlacesForPeopleStats = {
-  total: number
-  minutes: number
-}
 
 type StoredSession = {
   messages: LiveMessage[]
@@ -52,29 +64,70 @@ function makeMessage(role: LiveMessage["role"], content: string) {
   }
 }
 
-function formatHours(totalMinutes: number) {
-  return (totalMinutes / 60).toFixed(1)
-}
-
-function formatRetained(totalVisitors: number) {
-  return Math.round(totalVisitors * RETAINED_RATE)
-}
-
-function formatMinutesSaved(totalMinutes: number) {
-  if (totalMinutes < 1) {
-    const seconds = Math.max(1, Math.round(totalMinutes * 60))
-    return `${seconds}s`
-  }
-
-  if (totalMinutes < 10) {
-    return totalMinutes.toFixed(1)
-  }
-
-  return Math.round(totalMinutes).toString()
-}
-
 function trimMessagesForStorage(messages: LiveMessage[]) {
   return messages.slice(-24)
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function estimateTargetsForWeight(weightKg: number) {
+  const calorieTarget = Math.round(weightKg * 30)
+  const proteinTarget = Math.round(weightKg * 2)
+  return { calorieTarget, proteinTarget }
+}
+
+function ensureDailyIntakeForToday(profile: CoachProfile): CoachProfile {
+  const today = todayKey()
+  if (profile.dailyLoggedIntake.date === today) return profile
+
+  return {
+    ...profile,
+    dailyLoggedIntake: {
+      date: today,
+      calories: 0,
+      protein: 0,
+      meals: [],
+    },
+  }
+}
+
+function bumpStreak(profile: CoachProfile): CoachProfile {
+  const today = todayKey()
+  if (profile.lastActiveDate === today) return ensureDailyIntakeForToday(profile)
+
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayKey = yesterday.toISOString().slice(0, 10)
+
+  const nextStreak = profile.lastActiveDate === yesterdayKey ? profile.dayStreak + 1 : 1
+
+  return ensureDailyIntakeForToday({
+    ...profile,
+    dayStreak: nextStreak,
+    lastActiveDate: today,
+  })
+}
+
+function createDefaultProfile(): CoachProfile {
+  return {
+    onboardingComplete: false,
+    currentWeight: null,
+    calorieTarget: null,
+    proteinTarget: null,
+    dailyLoggedIntake: {
+      date: todayKey(),
+      calories: 0,
+      protein: 0,
+      meals: [],
+    },
+    dayStreak: 1,
+    lastActiveDate: todayKey(),
+    dislikes: [],
+    allergies: [],
+    preferences: [],
+  }
 }
 
 function detectVisitorName(messages: LiveMessage[]) {
@@ -95,10 +148,27 @@ function detectVisitorName(messages: LiveMessage[]) {
   return null
 }
 
+function extractMealLogFromText(text: string) {
+  const caloriesMatch = text.match(/(\d{2,4})\s*(kcal|calories|cal)/i)
+  const proteinMatch = text.match(/(\d{1,3}(?:\.\d+)?)\s*g\s*(protein)?/i)
+
+  if (!caloriesMatch || !proteinMatch) return null
+
+  const calories = Number(caloriesMatch[1])
+  const protein = Number(proteinMatch[1])
+  if (Number.isNaN(calories) || Number.isNaN(protein)) return null
+
+  return {
+    calories,
+    protein,
+    label: text.length > 80 ? `${text.slice(0, 77)}...` : text,
+  }
+}
+
 function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: boolean, lastUserMessage: string | null) {
   const instructions = hasStoredSession
-    ? `Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Keep it short and helpful. Ask one short question about what they want help with next.`
-    : "Introduce yourself as George for Steyning Leisure Centre in warm, natural British English. Keep it short, welcoming and practical. Make it clear you can recommend memberships, check the live timetable, answer centre questions, and guide people through joining step by step. Ask one short question about what they want help with first."
+    ? `Introduce yourself as George in warm, natural British English. This visitor has an ongoing conversation with you on this device, so welcome them back briefly and continue naturally instead of restarting. ${visitorName ? `Their name is ${visitorName}. Use it lightly.` : ""} ${lastUserMessage ? `The last thing they said was: ${lastUserMessage}` : ""} Keep it short and helpful. Ask one short question about what they want help with next.`
+    : "Introduce yourself as George in warm, natural British English. Keep it short, welcoming and practical. Ask one short question about what they want help with first."
 
   return {
     type: "response.create",
@@ -106,112 +176,17 @@ function buildFirstResponseEvent(visitorName: string | null, hasStoredSession: b
   }
 }
 
-const quickLinks: QuickLink[] = [
-  { label: "Join now", href: "https://placesleisure.gladstonego.cloud/memberships?siteId=7", prompt: "Help me join", description: "Direct Steyning memberships" },
-  { label: "View timetable", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "What is on today? Use the swimming timetable link for swim bookings, classes, kids sessions and tours.", description: "Live classes, swimming, kids sessions and tours" },
-  { label: "Swimming & Lessons", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable", prompt: "Show me swimming and lessons", description: "Swimming, lessons, classes, kids sessions and tours" },
-  { label: "Fitness & Health", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/fitness-health/", prompt: "Show me gym and fitness", description: "Gym, classes, PT, support and junior fitness" },
-  { label: "Sports", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/#timetable", prompt: "Show me sports", description: "Badminton, basketball, table tennis and squash bookings" },
-  { label: "Family & Kids", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/family-kids/", prompt: "Show me family activities", description: "Active Reality, parties and family activities" },
-  { label: "More", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/more/", prompt: "Show me more centre activities", description: "Travel, parking, facility hire and shop" },
-  { label: "Centre info", href: "https://www.placesleisure.org/centres/steyning-leisure-centrex/", prompt: "Show me centre information", description: "Opening times, facilities and accessibility" },
-  { label: "Contact us", href: "https://www.placesleisure.org/contact-us/", prompt: "How do I contact the centre?", description: "Centre contact and support options" },
-]
-
-function getQuickLinkAnchorText(link: QuickLink) {
-  switch (link.label) {
-    case "Join now":
-      return "join here"
-    case "View timetable":
-      return "view the timetable here"
-    case "Sports":
-      return "book here"
-    case "Swimming & Lessons":
-      return "book swimming here"
-    case "Family & Kids":
-      return "find out more here"
-    default:
-      return "find out more here"
-  }
-}
-
-function applyQuickLinkToTranscript(text: string, link: QuickLink | null) {
-  if (!link) return text
-  const anchorText = getQuickLinkAnchorText(link)
-  const escapedAnchor = anchorText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const patterns = [
-    new RegExp(`\\b${escapedAnchor}\\b`, "i"),
-    /\bclick here\b/i,
-    /\bhere\b/i,
-  ]
-
-  for (const pattern of patterns) {
-    if (pattern.test(text)) {
-      return text.replace(pattern, `[${anchorText}](${link.href})`)
-    }
-  }
-
-  return `${text} [${anchorText}](${link.href})`
-}
-
-
-function splitTextWithUrls(text: string) {
-  let autoLinkedText = text
-
-  const phraseLinks: Array<[RegExp, string]> = [
-    [/\bjoin here\b/gi, "https://placesleisure.gladstonego.cloud/memberships?siteId=7"],
-    [/\bview the timetable here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook swimming here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook a swim here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook your swim here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook a swim session here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook swimming lessons here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook swim classes here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook kids sessions here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook a tour here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/swimming-lessons/#timetable"],
-    [/\bbook active reality here\b/gi, "https://ecom.roller.app/activerealitysteyning/checkout/en/home"],
-    [/\bdownload the party booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
-    [/\bbook a kids'? party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
-    [/\bbook a party here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
-    [/\bparty booking form here\b/gi, "https://www.placesleisure.org/media/gaxhgqlv/new-party-booking-form.pdf"],
-    [/\bbook here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/centre-activities/sports/#timetable"],
-    [/\bfind out more here\b/gi, "https://www.placesleisure.org/centres/steyning-leisure-centrex/"],
-  ]
-
-  for (const [pattern, href] of phraseLinks) {
-    autoLinkedText = autoLinkedText.replace(pattern, (match) => `[${match}](${href})`)
-  }
-
-  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
-  const parts: Array<{ value: string; href?: string; isLink: boolean }> = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
-  while ((match = linkRegex.exec(autoLinkedText)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ value: autoLinkedText.slice(lastIndex, match.index), isLink: false })
-    }
-    parts.push({ value: match[1], href: match[2], isLink: true })
-    lastIndex = linkRegex.lastIndex
-  }
-
-  if (lastIndex < autoLinkedText.length) {
-    parts.push({ value: autoLinkedText.slice(lastIndex), isLink: false })
-  }
-
-  return parts.filter((part) => part.value)
-}
-
-export function PlacesForPeopleGeorgeLiveAssistant() {
+export function CoachGeorgeLiveAssistant() {
   const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [error, setError] = useState<string | null>(null)
   const [hasStoredSession, setHasStoredSession] = useState(false)
   const [visitorName, setVisitorName] = useState<string | null>(null)
-  const [stats, setStats] = useState<PlacesForPeopleStats>({ total: 0, minutes: 0 })
+  const [profile, setProfile] = useState<CoachProfile>(createDefaultProfile())
 
   const sessionStartedAtRef = useRef<number | null>(null)
   const usageLoggedRef = useRef(false)
+  const pendingPromptRef = useRef<PendingCoachPrompt | null>(null)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -219,34 +194,33 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
   const localStreamRef = useRef<MediaStream | null>(null)
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
-  const pendingQuickLinkRef = useRef<QuickLink | null>(null)
-  const activeQuickLinkRef = useRef<QuickLink | null>(null)
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
+
+  const caloriesLeft = Math.max(0, (profile.calorieTarget || 0) - profile.dailyLoggedIntake.calories)
+  const proteinLeft = Math.max(0, (profile.proteinTarget || 0) - profile.dailyLoggedIntake.protein)
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (!raw) return
-      const stored = JSON.parse(raw) as StoredSession
-      if (Array.isArray(stored?.messages) && stored.messages.length > 1) {
-        setMessages(stored.messages)
-        setHasStoredSession(true)
-        setVisitorName(stored.visitorName || detectVisitorName(stored.messages))
+      if (raw) {
+        const stored = JSON.parse(raw) as StoredSession
+        if (Array.isArray(stored?.messages) && stored.messages.length > 1) {
+          setMessages(stored.messages)
+          setHasStoredSession(true)
+          setVisitorName(stored.visitorName || detectVisitorName(stored.messages))
+        }
+      }
+
+      const rawProfile = window.localStorage.getItem(PROFILE_STORAGE_KEY)
+      if (rawProfile) {
+        const storedProfile = JSON.parse(rawProfile) as CoachProfile
+        setProfile(bumpStreak(ensureDailyIntakeForToday(storedProfile)))
+      } else {
+        setProfile(bumpStreak(createDefaultProfile()))
       }
     } catch {}
-  }, [])
-
-  useEffect(() => {
-    void refreshStats()
-    const interval = window.setInterval(() => {
-      void refreshStats()
-    }, 10000)
-
-    return () => {
-      window.clearInterval(interval)
-      void cleanupConversation(false)
-    }
   }, [])
 
   useEffect(() => {
@@ -269,51 +243,26 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     } catch {}
   }, [messages, visitorName])
 
-  async function refreshStats() {
+  useEffect(() => {
     try {
-      const response = await fetch("/api/placesforpeople-stats", { cache: "no-store" })
-      if (!response.ok) return
-      const data = (await response.json()) as Partial<PlacesForPeopleStats>
-      setStats({
-        total: Number(data?.total || 0),
-        minutes: Number(data?.minutes || 0),
-      })
-    } catch (err) {
-      console.error("Could not refresh Places for People stats", err)
+      window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile))
+    } catch {}
+  }, [profile])
+
+  useEffect(() => {
+    return () => {
+      void cleanupConversation(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!chatScrollRef.current) return
+    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+  }, [messages])
 
   async function logUsageIfNeeded() {
     if (usageLoggedRef.current || sessionStartedAtRef.current === null) return
-
-    const elapsedMs = Date.now() - sessionStartedAtRef.current
-    const minutes = Math.max(0.1, Math.round((elapsedMs / 60000) * 10) / 10)
     usageLoggedRef.current = true
-
-    try {
-      await fetch("/api/placesforpeople-usage", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store",
-        },
-        body: JSON.stringify({ minutes }),
-        cache: "no-store",
-        keepalive: true,
-      })
-
-      setStats((existing) => ({
-        total: existing.total + 1,
-        minutes: existing.minutes + minutes,
-      }))
-
-      window.setTimeout(() => {
-        void refreshStats()
-      }, 1500)
-    } catch (err) {
-      console.error("Could not log Places for People usage", err)
-      usageLoggedRef.current = false
-    }
   }
 
   async function cleanupConversation(logUsage = true) {
@@ -347,94 +296,89 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     sessionStartedAtRef.current = null
   }
 
-  function clearSavedSession() {
-    void cleanupConversation()
-    setMessages(INITIAL_MESSAGES)
-    setVisitorName(null)
-    setHasStoredSession(false)
-    setError(null)
-    setConnectionState("idle")
-    try {
-      window.localStorage.removeItem(STORAGE_KEY)
-    } catch {}
+  function sendPromptToGeorge(visibleMessage: string, prompt: string) {
+    const channel = dcRef.current
+    if (!channel || channel.readyState !== "open") return false
+
+    setMessages((prev) => [...prev, makeMessage("user", visibleMessage)])
+
+    channel.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: prompt }],
+        },
+      }),
+    )
+
+    channel.send(
+      JSON.stringify({
+        type: "response.create",
+        response: { instructions: "Reply as Coach George. Be concise, practical, and action-focused." },
+      }),
+    )
+
+    return true
+  }
+
+  async function triggerCoachAction(action: PendingCoachPrompt) {
+    if (connectionState === "connected") {
+      if (sendPromptToGeorge(action.visibleMessage, action.prompt)) return
+    }
+
+    pendingPromptRef.current = action
+    if (connectionState === "idle" || connectionState === "error") {
+      await startConversation()
+    }
   }
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
 
-    const applyFinalFormatting = (text: string) =>
-      isFinal ? applyQuickLinkToTranscript(text, activeQuickLinkRef.current) : text
-
     if (!currentAssistantMessageIdRef.current) {
-      const finalContent = applyFinalFormatting(delta)
-      const message = makeMessage("assistant", finalContent)
+      const message = makeMessage("assistant", delta)
       currentAssistantMessageIdRef.current = message.id
-      currentAssistantTextRef.current = finalContent
+      currentAssistantTextRef.current = delta
       setMessages((prev) => [...prev, message])
       if (isFinal) {
         currentAssistantMessageIdRef.current = null
         currentAssistantTextRef.current = ""
-        activeQuickLinkRef.current = null
       }
       return
     }
 
     currentAssistantTextRef.current += delta
-    if (isFinal) {
-      currentAssistantTextRef.current = applyQuickLinkToTranscript(currentAssistantTextRef.current, activeQuickLinkRef.current)
-    }
     const targetId = currentAssistantMessageIdRef.current
     setMessages((prev) => prev.map((message) => (message.id === targetId ? { ...message, content: currentAssistantTextRef.current } : message)))
 
     if (isFinal) {
       currentAssistantMessageIdRef.current = null
       currentAssistantTextRef.current = ""
-      activeQuickLinkRef.current = null
     }
   }
 
   function addUserTranscript(text: string) {
     const cleaned = text.trim()
     if (!cleaned) return
+
     setMessages((prev) => [...prev, makeMessage("user", cleaned)])
-  }
 
-  function sendQuickLinkPrompt(link: QuickLink) {
-    const channel = dcRef.current
-    if (!channel || channel.readyState !== "open") return false
-
-    const userPrompt = `${link.prompt}. Say only the visible clickable phrase and never the hidden destination behind it. Do not say any URL, site ID, parameter, domain, or web address. After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Then end naturally with a short line like "If you need anything else, just ask."`
-    setMessages((prev) => [...prev, makeMessage("user", link.label)])
-
-    channel.send(JSON.stringify({
-      type: "conversation.item.create",
-      item: {
-        type: "message",
-        role: "user",
-        content: [{ type: "input_text", text: userPrompt }],
-      },
-    }))
-
-    channel.send(JSON.stringify({
-      type: "response.create",
-      response: {
-        instructions: `Reply as George for Steyning Leisure Centre. Be warm, natural and action-focused. Say only the visible clickable phrase and never the hidden destination behind it. Do not say, read out, display, or hint at any URL, domain, web address, site ID, query string, or parameter. After the clickable phrase, add one short practical sentence explaining what to do when they land on that page. Finish with a short helpful follow-up.`,
-      },
-    }))
-
-    return true
-  }
-
-  async function handleQuickLink(link: QuickLink) {
-    pendingQuickLinkRef.current = link
-
-    if (connectionState === "connected") {
-      if (sendQuickLinkPrompt(link)) return
-      return
-    }
-
-    if (connectionState === "idle" || connectionState === "error") {
-      await startConversation()
+    const meal = extractMealLogFromText(cleaned)
+    if (meal) {
+      setProfile((existing) => {
+        const next = ensureDailyIntakeForToday(existing)
+        return {
+          ...next,
+          dailyLoggedIntake: {
+            ...next.dailyLoggedIntake,
+            calories: next.dailyLoggedIntake.calories + meal.calories,
+            protein: next.dailyLoggedIntake.protein + meal.protein,
+            meals: [...next.dailyLoggedIntake.meals, meal.label],
+          },
+        }
+      })
     }
   }
 
@@ -492,7 +436,7 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     setMessages((prev) => (hasStoredSession && prev.length > 1 ? prev : INITIAL_MESSAGES))
 
     try {
-      const tokenResponse = await fetch("/api/placesforpeople-session", {
+      const tokenResponse = await fetch("/api/george-session", {
         method: "GET",
         cache: "no-store",
       })
@@ -538,11 +482,12 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
         }, 150)
 
         window.setTimeout(() => {
-          if (pendingQuickLinkRef.current) {
-            const pending = pendingQuickLinkRef.current
-            if (sendQuickLinkPrompt(pending)) pendingQuickLinkRef.current = null
+          if (!pendingPromptRef.current) return
+          const pending = pendingPromptRef.current
+          if (sendPromptToGeorge(pending.visibleMessage, pending.prompt)) {
+            pendingPromptRef.current = null
           }
-        }, 900)
+        }, 650)
       })
 
       dataChannel.addEventListener("message", (event) => {
@@ -594,116 +539,214 @@ export function PlacesForPeopleGeorgeLiveAssistant() {
     setConnectionState("idle")
   }
 
-  const teaserMessage = [...messages]
-    .reverse()
-    .find((message) => message.role === "assistant" || message.role === "user")
-  const teaserLabel = teaserMessage?.role === "user" ? "You" : "George"
-  const teaserText = teaserMessage?.content || INITIAL_MESSAGES[0].content
+  async function handleBuildMyPlan() {
+    setProfile((existing) => bumpStreak(existing))
+
+    const missing = []
+    if (!profile.currentWeight) missing.push("current weight")
+    if (!profile.calorieTarget) missing.push("calorie target")
+    if (!profile.proteinTarget) missing.push("protein target")
+
+    const profileSummary = `
+Profile snapshot:
+- onboardingComplete: ${profile.onboardingComplete}
+- currentWeightKg: ${profile.currentWeight ?? "unknown"}
+- calorieTarget: ${profile.calorieTarget ?? "unknown"}
+- proteinTarget: ${profile.proteinTarget ?? "unknown"}
+- dislikes: ${profile.dislikes.join(", ") || "none"}
+- allergies: ${profile.allergies.join(", ") || "none"}
+- preferences: ${profile.preferences.join(", ") || "none"}
+- dailyCaloriesConsumed: ${profile.dailyLoggedIntake.calories}
+- dailyProteinConsumed: ${profile.dailyLoggedIntake.protein}
+- mealsToday: ${profile.dailyLoggedIntake.meals.length}
+    `.trim()
+
+    const prompt = missing.length
+      ? `Start a plan-building flow. First complete missing onboarding fields (${missing.join(", ")}) one by one. After missing onboarding is completed, build a food plan using the structured recipe and food databases, with calories/protein targets, allergies, dislikes, and preferences. ${profileSummary}`
+      : `Build my plan now using the structured recipe and food databases. Use calorie and protein targets, dislikes, allergies, preferences, and current intake to produce a practical meal plan for today. ${profileSummary}`
+
+    await triggerCoachAction({
+      visibleMessage: "Build My Plan",
+      prompt,
+    })
+  }
+
+  async function handleUpdateWeight() {
+    const raw = window.prompt("Enter your new current weight in kg:")
+    if (!raw) return
+
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) {
+      window.alert("Please enter a valid weight in kg.")
+      return
+    }
+
+    const roundedWeight = Math.round(value * 10) / 10
+    const updatedTargets = estimateTargetsForWeight(roundedWeight)
+
+    setProfile((existing) => ({
+      ...bumpStreak(existing),
+      onboardingComplete: true,
+      currentWeight: roundedWeight,
+      calorieTarget: updatedTargets.calorieTarget,
+      proteinTarget: updatedTargets.proteinTarget,
+    }))
+
+    await triggerCoachAction({
+      visibleMessage: `Update Weight: ${roundedWeight} kg`,
+      prompt: `My current weight is now ${roundedWeight} kg. Update my targets if needed, then coach me on what to do next this week. Also remind me to weigh every 7 days, first thing in the morning, after the toilet, before eating or drinking.`,
+    })
+  }
+
+  async function handleResetGoalsStats() {
+    const proceed = window.confirm("Reset Goals / Stats? This action cannot be undone.")
+    if (!proceed) return
+
+    const resetFull = window.confirm("Press OK for FULL reset (goals/profile/onboarding). Press Cancel for DAILY STATS reset only.")
+
+    if (resetFull) {
+      const fresh = createDefaultProfile()
+      setProfile(bumpStreak(fresh))
+      await triggerCoachAction({
+        visibleMessage: "Reset Full Goals/Profile",
+        prompt: "I reset my full goals/profile/onboarding. Start onboarding again from the beginning, one question at a time.",
+      })
+      return
+    }
+
+    setProfile((existing) => ({
+      ...bumpStreak(existing),
+      dailyLoggedIntake: {
+        date: todayKey(),
+        calories: 0,
+        protein: 0,
+        meals: [],
+      },
+    }))
+
+    await triggerCoachAction({
+      visibleMessage: "Reset Daily Stats",
+      prompt: "I reset daily stats only. Keep my goals/profile, and ask me what I have eaten today so we can restart tracking.",
+    })
+  }
 
   return (
-    <section className="py-8 text-center sm:py-10">
-      <div className="mx-auto grid max-w-[980px] gap-5 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start">
-        <aside className="order-2 mx-auto w-full max-w-[180px] rounded-[18px] border border-[#d8dde3] bg-white/95 px-3 py-4 text-left shadow-[0_10px_24px_rgba(57,69,83,0.08)] lg:order-1 lg:sticky lg:top-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#f47c00]">George Live Impact</p>
-          <div className="mt-3 space-y-3 text-[#394553]">
-            <div>
-              <div className="text-2xl font-black leading-none">{stats.total}</div>
-              <p className="mt-1 text-[12px] leading-4">visitors helped — instead of leaving</p>
+    <section className="bg-[#050910] px-3 py-4 text-white sm:px-4 sm:py-6">
+      <div className="mx-auto w-full max-w-[460px] rounded-[30px] border border-white/10 bg-gradient-to-b from-[#101a2e] to-[#0a1220] p-3 shadow-[0_0_80px_rgba(93,123,255,0.12)] sm:p-4">
+        <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <button
+            type="button"
+            onClick={connectionState === "connected" ? stopConversation : startConversation}
+            disabled={connectionState === "connecting"}
+            aria-label={connectionState === "connected" ? "End conversation with George" : "Tap to talk"}
+            className={`group relative mx-auto flex h-[166px] w-[166px] items-center justify-center rounded-full transition duration-300 ${
+              connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.015]"
+            } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
+            style={{
+              background: "radial-gradient(circle at 32% 26%, #284775 0%, #1a2e52 52%, #0d1a33 100%)",
+              boxShadow:
+                connectionState === "connected" || connectionState === "connecting"
+                  ? "0 0 0 6px rgba(93,123,255,0.2), 0 0 0 16px rgba(93,123,255,0.08), 0 22px 44px rgba(0,0,0,0.45), inset 0 8px 18px rgba(255,255,255,0.12), inset 0 -8px 18px rgba(0,0,0,0.25)"
+                  : "0 0 0 6px rgba(93,123,255,0.28), 0 20px 40px rgba(0,0,0,0.4), inset 0 8px 18px rgba(255,255,255,0.12), inset 0 -8px 18px rgba(0,0,0,0.25)",
+            }}
+          >
+            <span className="absolute inset-[12px] rounded-full border border-white/15" />
+            <span className="absolute inset-x-[23%] top-[12%] h-6 rounded-full bg-white/10 blur-md" />
+            <div className="relative z-10 flex items-center justify-center text-white">
+              {connectionState === "connecting" ? <Loader2 className="h-10 w-10 animate-spin" /> : <Mic className="h-10 w-10" />}
             </div>
-            <div>
-              <div className="text-2xl font-black leading-none">{formatMinutesSaved(stats.minutes)}</div>
-              <p className="mt-1 text-[12px] leading-4">minutes saved from answering questions &amp; calls</p>
+          </button>
+          <p className="mt-4 text-center text-lg font-semibold tracking-wide text-white">Tap to Talk</p>
+        </div>
+
+        <div className="mt-3 rounded-3xl border border-white/10 bg-[#0c1424] p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9fb4dc]">Daily Stats</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-2xl bg-white/5 p-3">
+              <p className="text-[#8ea5cc]">Calories Left</p>
+              <p className="mt-1 text-xl font-semibold">{profile.calorieTarget ? caloriesLeft : "—"}</p>
             </div>
-            <div>
-              <div className="text-2xl font-black leading-none">≈ {formatHours(stats.minutes)}</div>
-              <p className="mt-1 text-[12px] leading-4">hours of support delivered</p>
+            <div className="rounded-2xl bg-white/5 p-3">
+              <p className="text-[#8ea5cc]">Protein Left</p>
+              <p className="mt-1 text-xl font-semibold">{profile.proteinTarget ? `${proteinLeft}g` : "—"}</p>
             </div>
-            <div>
-              <div className="text-2xl font-black leading-none">{formatRetained(stats.total)}</div>
-              <p className="mt-1 text-[12px] leading-4">
-                + extra visitors who would have otherwise left <span className="text-[#6b7480]">(estimated)</span>
-              </p>
+            <div className="rounded-2xl bg-white/5 p-3">
+              <p className="text-[#8ea5cc]">Current Weight</p>
+              <p className="mt-1 text-xl font-semibold">{profile.currentWeight ? `${profile.currentWeight} kg` : "—"}</p>
+            </div>
+            <div className="rounded-2xl bg-white/5 p-3">
+              <p className="text-[#8ea5cc]">Meals Today</p>
+              <p className="mt-1 text-xl font-semibold">{profile.dailyLoggedIntake.meals.length}</p>
+            </div>
+            <div className="col-span-2 rounded-2xl bg-white/5 p-3">
+              <p className="text-[#8ea5cc]">Day Streak</p>
+              <p className="mt-1 text-xl font-semibold">{profile.dayStreak} days</p>
             </div>
           </div>
-        </aside>
+        </div>
 
-        <div className="order-1 mx-auto w-full max-w-[760px] lg:order-2">
-        <button
-          type="button"
-          onClick={connectionState === "connected" ? stopConversation : startConversation}
-          disabled={connectionState === "connecting"}
-          aria-label={connectionState === "connected" ? "End conversation with George" : "Talk to George"}
-          className={`group relative mx-auto flex h-[112px] w-[112px] items-center justify-center rounded-full transition duration-300 sm:h-[128px] sm:w-[128px] ${
-            connectionState === "connecting" ? "cursor-wait" : "hover:scale-[1.02]"
-          } ${connectionState === "connected" || connectionState === "connecting" ? "animate-[pulse_2.2s_ease-in-out_infinite]" : ""}`}
-          style={{
-            background: "radial-gradient(circle at 30% 28%, #6c7580 0%, #59616b 48%, #414951 100%)",
-            boxShadow:
-              connectionState === "connected" || connectionState === "connecting"
-                ? "0 0 0 4px rgba(244,124,0,0.22), 0 0 0 10px rgba(244,124,0,0.09), 0 16px 28px rgba(57,69,83,0.20), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)"
-                : "0 0 0 4px rgba(244,124,0,0.82), 0 14px 24px rgba(57,69,83,0.14), inset 0 8px 16px rgba(255,255,255,0.16), inset 0 -8px 16px rgba(0,0,0,0.16)",
-          }}
-        >
-          <span className="absolute inset-[10px] rounded-full border border-white/15" />
-          <span className="absolute inset-x-[24%] top-[14%] h-5 rounded-full bg-white/10 blur-md" />
-          <div className="relative z-10 flex items-center justify-center text-white">
-            {connectionState === "connecting" ? <Loader2 className="h-8 w-8 animate-spin sm:h-9 sm:w-9" /> : <Mic className="h-8 w-8 sm:h-9 sm:w-9" />}
+        <div className="mt-3 rounded-3xl border border-white/10 bg-[#0b1322] p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Actions</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => void handleBuildMyPlan()}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium text-[#d5e3ff] transition hover:bg-white/10"
+            >
+              <Dumbbell className="h-4 w-4" />
+              Build My Plan
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleUpdateWeight()}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium text-[#d5e3ff] transition hover:bg-white/10"
+            >
+              <Scale className="h-4 w-4" />
+              Update Weight
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleResetGoalsStats()}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium text-[#d5e3ff] transition hover:bg-white/10"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset Goals / Stats
+            </button>
           </div>
-        </button>
+        </div>
 
-        <h2 className="mt-6 text-[28px] font-black tracking-tight text-[#394553] sm:text-[34px]">Talk to George</h2>
-        <p className="mx-auto mt-3 max-w-[680px] text-[16px] leading-8 text-[#394553] sm:text-[18px]">
-          George can recommend the right membership, check the live timetable, answer any questions, and help you get signed up.
-        </p>
-
-        <div className="mx-auto mt-5 max-w-[560px] rounded-[20px] border border-[#d8dde3] bg-white px-4 py-3 text-left shadow-[0_12px_28px_rgba(57,69,83,0.08)] sm:px-5">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#f47c00]/10 text-[#f47c00]">
+        <div className="mt-3 rounded-3xl border border-white/10 bg-[#0a1222] p-3">
+          <div className="mb-3 flex items-center gap-2 px-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#1b2a44] text-[#9cb7e4]">
               <MessageSquareText className="h-4 w-4" />
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#f47c00]">{teaserLabel}</p>
-              <div className="mt-1 text-[14px] leading-6 text-[#394553] sm:text-[15px]">
-                {splitTextWithUrls(teaserText).map((part, index) => (
-                  <Fragment key={`${part.value}-${index}`}>
-                    {part.isLink && part.href ? (
-                      <a
-                        href={part.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="break-all font-semibold text-[#f47c00] underline underline-offset-2"
-                      >
-                        {part.value}
-                      </a>
-                    ) : (
-                      part.value
-                    )}
-                  </Fragment>
-                ))}
-              </div>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Chat</p>
+          </div>
+          <div ref={chatScrollRef} className="h-[380px] space-y-3 overflow-y-auto rounded-2xl bg-white/[0.03] p-3">
+            {messages
+              .filter((message) => message.role !== "system")
+              .map((message) => {
+                const isUser = message.role === "user"
+                return (
+                  <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${
+                        isUser ? "bg-[#365fa5] text-white" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                  </div>
+                )
+              })}
+            {messages.filter((message) => message.role !== "system").length === 0 ? (
+              <p className="px-1 py-2 text-sm text-[#93a6ca]">Your conversation will appear here.</p>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          {quickLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center rounded-full border border-[#cfd5dc] bg-white px-4 py-2 text-sm font-semibold text-[#394553] transition hover:border-[#f47c00] hover:text-[#f47c00]"
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
-
-
-        {error ? <p className="mt-5 text-sm font-medium text-[#b42318]">{error}</p> : null}
-        </div>
+        {error ? <p className="mt-3 text-center text-sm font-medium text-[#ff8892]">{error}</p> : null}
       </div>
     </section>
   )
-
 }

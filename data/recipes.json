@@ -1,0 +1,64 @@
+[
+  {
+    "mealName": "High Protein Oats Bowl",
+    "ingredients": [
+      { "name": "Oats", "grams": 60 },
+      { "name": "Whey Protein", "grams": 30 },
+      { "name": "Greek Yogurt 0%", "grams": 100 },
+      { "name": "Blueberries", "grams": 80 }
+    ]
+  },
+  {
+    "mealName": "Chicken Rice Bowl",
+    "ingredients": [
+      { "name": "Chicken Breast (Cooked)", "grams": 180 },
+      { "name": "White Rice (Cooked)", "grams": 180 },
+      { "name": "Broccoli", "grams": 120 },
+      { "name": "Olive Oil", "grams": 8 }
+    ]
+  },
+  {
+    "mealName": "Salmon Sweet Potato Plate",
+    "ingredients": [
+      { "name": "Salmon Fillet", "grams": 170 },
+      { "name": "Sweet Potato (Cooked)", "grams": 250 },
+      { "name": "Mixed Salad", "grams": 120 },
+      { "name": "Olive Oil", "grams": 6 }
+    ]
+  },
+  {
+    "mealName": "Turkey Wrap",
+    "ingredients": [
+      { "name": "Wrap (Whole Wheat)", "grams": 70 },
+      { "name": "Turkey Breast (Cooked)", "grams": 150 },
+      { "name": "Mixed Salad", "grams": 80 },
+      { "name": "Avocado", "grams": 60 }
+    ]
+  },
+  {
+    "mealName": "Beef Pasta Prep",
+    "ingredients": [
+      { "name": "Lean Beef Mince 5%", "grams": 170 },
+      { "name": "Pasta (Cooked)", "grams": 200 },
+      { "name": "Tomato Passata", "grams": 150 },
+      { "name": "Cheddar (Reduced Fat)", "grams": 20 }
+    ]
+  },
+  {
+    "mealName": "Egg White Breakfast Plate",
+    "ingredients": [
+      { "name": "Egg Whites", "grams": 220 },
+      { "name": "Egg", "grams": 60 },
+      { "name": "Wholemeal Bread", "grams": 70 },
+      { "name": "Spinach", "grams": 80 }
+    ]
+  },
+  {
+    "mealName": "Cottage Cheese Fruit Snack",
+    "ingredients": [
+      { "name": "Cottage Cheese (Low Fat)", "grams": 200 },
+      { "name": "Apple", "grams": 180 },
+      { "name": "Almonds", "grams": 15 }
+    ]
+  }
+]
