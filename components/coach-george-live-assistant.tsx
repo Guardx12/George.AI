@@ -55,10 +55,18 @@ type SetupFormState = {
   dietaryPreference: DietaryPreference
 }
 
-const SESSION_KEY = "coach-george-session-v6"
+const SESSION_KEY = "coach-george-session-v7"
+const SETUP_DRAFT_KEY = "coach-george-setup-draft-v1"
 
 const ZERO_TARGETS: Nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
-const ZERO_STATS: StatsState = { currentWeightKg: 0, dayStreak: 0, totalCalories: 0, protein: 0, carbs: 0, fats: 0 }
+const ZERO_STATS: StatsState = {
+  currentWeightKg: 0,
+  dayStreak: 0,
+  totalCalories: 0,
+  protein: 0,
+  carbs: 0,
+  fats: 0,
+}
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
@@ -92,7 +100,7 @@ const DEFAULT_SETUP_FORM: SetupFormState = {
   dietaryPreference: "omnivore",
 }
 
-function makeMessage(role: LiveMessage["role"], content: string) {
+function makeMessage(role: LiveMessage["role"], content: string): LiveMessage {
   return {
     id:
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -107,27 +115,6 @@ function trimMessagesForStorage(messages: LiveMessage[]) {
   return messages.slice(-80)
 }
 
-function formatTargetSummary(targets: Nutrition) {
-  return `Targets updated: ${targets.calories} kcal | Protein ${targets.protein}g | Carbs ${targets.carbs}g | Fats ${targets.fat}g.`
-}
-
-function formatMealPlan(profile: Profile) {
-  const result = buildMealPlan(profile)
-  const lines = [formatTargetSummary(result.targets), ""]
-
-  result.plan.forEach((meal, index) => {
-    lines.push(`Meal ${index + 1}: ${meal.name}`)
-    meal.ingredients.forEach((ingredient) => {
-      const food = foods.find((entry) => entry.id === ingredient.foodId)
-      lines.push(`- ${food?.name || ingredient.foodId}: ${ingredient.grams}g`)
-    })
-    lines.push(`Macros: ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`)
-    lines.push("")
-  })
-
-  return lines.join("\n").trim()
-}
-
 function parseListValue(raw: string) {
   if (!raw.trim()) return []
   if (/\bnone\b|\bno\b/i.test(raw)) return []
@@ -135,6 +122,10 @@ function parseListValue(raw: string) {
     .split(/,| and /i)
     .map((v) => v.trim().toLowerCase())
     .filter(Boolean)
+}
+
+function formatTargetSummary(targets: Nutrition) {
+  return `Targets updated: ${targets.calories} kcal | Protein ${targets.protein}g | Carbs ${targets.carbs}g | Fats ${targets.fat}g.`
 }
 
 function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachState, "targets" | "stats"> {
@@ -150,6 +141,25 @@ function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachSt
       fats: targets.fat,
     },
   }
+}
+
+function formatMealPlan(profile: Profile) {
+  const result = buildMealPlan(profile)
+  const lines = [formatTargetSummary(result.targets), ""]
+
+  result.plan.forEach((meal, index) => {
+    lines.push(`Meal ${index + 1}: ${meal.name}`)
+    meal.ingredients.forEach((ingredient) => {
+      const food = foods.find((entry) => entry.id === ingredient.foodId)
+      lines.push(`- ${food?.name || ingredient.foodId}: ${ingredient.grams}g`)
+    })
+    lines.push(
+      `Macros: ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`,
+    )
+    lines.push("")
+  })
+
+  return lines.join("\n").trim()
 }
 
 function toIsoDate(input: Date) {
@@ -179,6 +189,7 @@ export function CoachGeorgeLiveAssistant() {
   const currentAssistantTextRef = useRef("")
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
+  const responseInFlightRef = useRef(false)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
   const showSetupModal = !state.profileComplete
@@ -193,28 +204,49 @@ export function CoachGeorgeLiveAssistant() {
 
   const speakIfConnected = (instructions: string) => {
     const channel = dcRef.current
-    if (!channel || channel.readyState !== "open") return
-    channel.send(JSON.stringify({ type: "response.create", response: { instructions } }))
+    if (!channel || channel.readyState !== "open") return false
+    if (responseInFlightRef.current) return false
+
+    responseInFlightRef.current = true
+    channel.send(
+      JSON.stringify({
+        type: "response.create",
+        response: { instructions },
+      }),
+    )
+    return true
   }
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(SESSION_KEY)
+      const savedDraft = window.localStorage.getItem(SETUP_DRAFT_KEY)
+
+      if (savedDraft) {
+        const parsedDraft = JSON.parse(savedDraft) as Partial<SetupFormState>
+        setSetupForm((prev) => ({ ...prev, ...parsedDraft }))
+      }
+
       if (!raw) return
+
       const stored = JSON.parse(raw) as CoachState
       const hasProfile = Boolean(stored.profileComplete && stored.profile)
 
       if (!hasProfile) {
-        setState({ ...INITIAL_STATE, messages: trimMessagesForStorage(stored.messages || INITIAL_MESSAGES) })
+        setState({
+          ...INITIAL_STATE,
+          messages: trimMessagesForStorage(stored.messages || INITIAL_MESSAGES),
+        })
         return
       }
 
       const nextStreak = computeNextStreak(stored.lastActiveDate, stored.stats?.dayStreak || 0)
-      const latestMessage = stored.messages?.[stored.messages.length - 1]?.content || ""
-      const needsWelcomeBack = !latestMessage.toLowerCase().includes("welcome back")
       const restoredMessages = trimMessagesForStorage(stored.messages || [])
+      const latestAssistant = [...restoredMessages].reverse().find((m) => m.role === "assistant")?.content?.toLowerCase() || ""
+      const shouldAppendWelcomeBack = !latestAssistant.includes("welcome back")
 
       const calculated = buildTargetsAndStats(stored.profile as Profile, nextStreak)
+
       setState({
         ...INITIAL_STATE,
         ...stored,
@@ -222,11 +254,13 @@ export function CoachGeorgeLiveAssistant() {
         profileComplete: true,
         targets: calculated.targets,
         stats: calculated.stats,
-        weightInput: String((stored.profile as Profile).currentWeightKg || ""),
-        messages: needsWelcomeBack
-          ? [...restoredMessages, makeMessage("assistant", "Welcome back — ready to carry on?")]
+        latestPlan: stored.latestPlan ?? null,
+        weightInput: "",
+        messages: shouldAppendWelcomeBack
+          ? [...restoredMessages, makeMessage("assistant", "Welcome back — I’ve still got your stats here. Ready to carry on?")]
           : restoredMessages,
       })
+
       setSetupForm({
         goal: (stored.profile as Profile).goal,
         sex: (stored.profile as Profile).sex,
@@ -249,13 +283,25 @@ export function CoachGeorgeLiveAssistant() {
       const payload: CoachState = {
         ...state,
         messages: trimMessagesForStorage(state.messages),
-        lastActiveDate: toIsoDate(new Date()),
+        lastActiveDate: state.profileComplete ? toIsoDate(new Date()) : state.lastActiveDate,
       }
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload))
     } catch {
       // ignore
     }
   }, [state])
+
+  useEffect(() => {
+    try {
+      if (state.profileComplete) {
+        window.localStorage.removeItem(SETUP_DRAFT_KEY)
+      } else {
+        window.localStorage.setItem(SETUP_DRAFT_KEY, JSON.stringify(setupForm))
+      }
+    } catch {
+      // ignore
+    }
+  }, [setupForm, state.profileComplete])
 
   useEffect(() => {
     return () => {
@@ -307,6 +353,12 @@ export function CoachGeorgeLiveAssistant() {
     if (!type) return
 
     switch (type) {
+      case "response.created":
+        responseInFlightRef.current = true
+        break
+      case "response.done":
+        responseInFlightRef.current = false
+        break
       case "response.output_audio_transcript.delta":
         appendOrUpdateAssistantPartial(typeof event.delta === "string" ? event.delta : "")
         break
@@ -330,6 +382,7 @@ export function CoachGeorgeLiveAssistant() {
         break
       }
       case "error":
+        responseInFlightRef.current = false
         setError(event?.error?.message || "George hit a voice error.")
         break
       default:
@@ -359,6 +412,7 @@ export function CoachGeorgeLiveAssistant() {
       audioRef.current = null
     }
 
+    responseInFlightRef.current = false
     currentAssistantTextRef.current = ""
     currentAssistantMessageIdRef.current = null
   }
@@ -401,9 +455,32 @@ export function CoachGeorgeLiveAssistant() {
       dcRef.current = dataChannel
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
-        const intro = state.profileComplete
-          ? "You are Coach George. User is returning. Keep spoken replies short and practical."
-          : "You are Coach George. User is completing setup with the on-screen form. Keep spoken replies short and practical while setup is pending."
+
+        const intro = state.profileComplete && state.profile
+          ? `You are Coach George. The user has already completed setup. Their saved profile is:
+goal=${state.profile.goal}
+sex=${state.profile.sex}
+age=${state.profile.age}
+height_cm=${state.profile.heightCm}
+weight_kg=${state.profile.currentWeightKg}
+activity=${state.profile.activityLevel}
+meals_per_day=${state.profile.mealsPerDay}
+diet=${state.profile.dietaryPreference}
+allergies=${state.profile.allergies.join(", ") || "none"}
+disliked_foods=${state.profile.dislikedFoods.join(", ") || "none"}
+targets=${state.targets.calories} kcal / ${state.targets.protein}g protein / ${state.targets.carbs}g carbs / ${state.targets.fat}g fats
+
+Speak naturally as a returning coach.
+Do NOT restart onboarding.
+Do NOT invent random gym, adventure, workout, or motivational scenarios.
+Keep it short.
+Say something like: "Welcome back — I’ve got your stats here. How can I help? I can build your first plan if you want."`
+          : `You are Coach George. The user has not completed setup yet.
+Tell them briefly to complete the quick setup form on screen first.
+Do NOT start asking onboarding questions by voice.
+Keep it short and practical.`
+
+        responseInFlightRef.current = true
         dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
@@ -429,7 +506,10 @@ export function CoachGeorgeLiveAssistant() {
 
       await pc.setRemoteDescription({ type: "answer", sdp: answer })
       pc.addEventListener("connectionstatechange", () => {
-        if (["failed", "disconnected", "closed"].includes(pc.connectionState)) setConnectionState("error")
+        if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+          setConnectionState("error")
+          responseInFlightRef.current = false
+        }
       })
     } catch (err) {
       await cleanupConversation()
@@ -454,6 +534,7 @@ export function CoachGeorgeLiveAssistant() {
     if (!Number.isFinite(currentWeightKg) || currentWeightKg < 35 || currentWeightKg > 350) return setError("Please enter a valid current weight in kg.")
 
     setError(null)
+
     const dayStreak = state.stats.dayStreak > 0 ? state.stats.dayStreak : 1
     const profile: Profile = {
       goal: setupForm.goal,
@@ -478,14 +559,22 @@ export function CoachGeorgeLiveAssistant() {
       profileComplete: true,
       targets: calculated.targets,
       stats: calculated.stats,
-      weightInput: String(profile.currentWeightKg),
-      messages: [...prev.messages, makeMessage("assistant", formatTargetSummary(calculated.targets)), makeMessage("assistant", summary), makeMessage("assistant", georgeLine)],
+      latestPlan: null,
+      weightInput: "",
+      messages: [
+        ...prev.messages,
+        makeMessage("assistant", formatTargetSummary(calculated.targets)),
+        makeMessage("assistant", summary),
+        makeMessage("assistant", georgeLine),
+      ],
     }))
-    speakIfConnected(georgeLine)
+
+    speakIfConnected("Nice — I’ve got your targets set. I can build your plan now.")
   }
 
   function buildMyPlan() {
     appendUserMessage("Build My Plan")
+
     if (!state.profileComplete || !state.profile) {
       const gate = "Please complete setup first so I can build this correctly."
       appendAssistantMessage(gate)
@@ -495,16 +584,19 @@ export function CoachGeorgeLiveAssistant() {
 
     const planText = formatMealPlan(state.profile)
     const spoken = "I’ve built your plan. Have a look below and tell me what you want to change."
+
     setState((prev) => ({
       ...prev,
       latestPlan: planText,
       messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", spoken)],
     }))
+
     speakIfConnected(spoken)
   }
 
   function updateWeight() {
     appendUserMessage("Update Weight")
+
     if (!state.profileComplete || !state.profile) {
       const gate = "Finish setup first — weight updates are for after setup."
       appendAssistantMessage(gate)
@@ -512,13 +604,14 @@ export function CoachGeorgeLiveAssistant() {
       return
     }
 
-    const value = Number(state.weightInput)
+    const value = Number(String(state.weightInput).replace(",", "."))
     if (!Number.isFinite(value) || value < 35 || value > 350) {
       setError("Please enter a valid weight in kg.")
       return
     }
 
     setError(null)
+
     const nextProfile: Profile = { ...state.profile, currentWeightKg: value }
     const calculated = buildTargetsAndStats(nextProfile, state.stats.dayStreak || 1)
     const targetLine = `Weight updated to ${value}kg. ${formatTargetSummary(calculated.targets)}`
@@ -529,14 +622,15 @@ export function CoachGeorgeLiveAssistant() {
       profile: nextProfile,
       targets: calculated.targets,
       stats: calculated.stats,
+      weightInput: "",
       messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", confirm)],
     }))
 
+    setSetupForm((prev) => ({ ...prev, currentWeightKg: String(value) }))
     speakIfConnected(confirm)
   }
 
   function resetGoalsAndStats() {
-    appendUserMessage("Reset Goals & Stats")
     const resetLine = makeMessage("assistant", "Everything is cleared. Complete setup to continue.")
     setState({
       ...INITIAL_STATE,
@@ -544,6 +638,7 @@ export function CoachGeorgeLiveAssistant() {
     })
     setSetupForm(DEFAULT_SETUP_FORM)
     window.localStorage.removeItem(SESSION_KEY)
+    window.localStorage.removeItem(SETUP_DRAFT_KEY)
     setError(null)
     speakIfConnected("I’ve reset everything. Complete your setup form when you’re ready.")
   }
@@ -565,47 +660,94 @@ export function CoachGeorgeLiveAssistant() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Total Calories</p><p className="text-xl font-semibold">{state.stats.totalCalories}</p></div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Current Weight</p><p className="text-xl font-semibold">{state.stats.currentWeightKg}kg</p></div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Day Streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{state.stats.dayStreak}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]">
+            <p className="text-xs text-[#8ea5cc]">Total Calories</p>
+            <p className="text-xl font-semibold">{state.stats.totalCalories}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]">
+            <p className="text-xs text-[#8ea5cc]">Current Weight</p>
+            <p className="text-xl font-semibold">{state.stats.currentWeightKg}kg</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]">
+            <p className="text-xs text-[#8ea5cc]">Day Streak</p>
+            <p className="inline-flex items-center gap-1 text-xl font-semibold">
+              <Flame className="h-4 w-4 text-orange-300" />
+              {state.stats.dayStreak}
+            </p>
+          </div>
         </div>
 
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Protein</p><p className="text-lg font-semibold">{state.stats.protein}g</p></div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Carbs</p><p className="text-lg font-semibold">{state.stats.carbs}g</p></div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{state.stats.fats}g</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]">
+            <p className="text-xs text-[#8ea5cc]">Protein</p>
+            <p className="text-lg font-semibold">{state.stats.protein}g</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]">
+            <p className="text-xs text-[#8ea5cc]">Carbs</p>
+            <p className="text-lg font-semibold">{state.stats.carbs}g</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]">
+            <p className="text-xs text-[#8ea5cc]">Fats</p>
+            <p className="text-lg font-semibold">{state.stats.fats}g</p>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-          <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Build My Plan</button>
-          <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
+          <button
+            type="button"
+            onClick={buildMyPlan}
+            className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]"
+          >
+            Build My Plan
+          </button>
+
+          <div className="relative z-10 flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
             <input
               value={state.weightInput}
               onChange={(e) => setState((prev) => ({ ...prev, weightInput: e.target.value }))}
               placeholder="kg"
-              type="number"
+              type="text"
               inputMode="decimal"
-              pattern="[0-9]*[.,]?[0-9]*"
-              min={35}
-              max={350}
-              step="0.1"
+              enterKeyHint="done"
+              autoComplete="off"
+              spellCheck={false}
               disabled={!state.profileComplete}
-              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-sm disabled:opacity-50"
+              className="pointer-events-auto min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-sm text-white placeholder:text-white/45 disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <button onClick={updateWeight} className="rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-xs font-medium">Update Weight</button>
+            <button
+              type="button"
+              onClick={updateWeight}
+              className="rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-xs font-medium"
+            >
+              Update Weight
+            </button>
           </div>
-          <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Reset Goals & Stats</button>
+
+          <button
+            type="button"
+            onClick={resetGoalsAndStats}
+            className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]"
+          >
+            Reset Goals & Stats
+          </button>
         </div>
 
         <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3 shadow-[inset_0_0_35px_rgba(105,154,255,0.08)]">
-          <div className="mb-3 flex items-center gap-2 px-1"><MessageSquareText className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Conversation</p></div>
+          <div className="mb-3 flex items-center gap-2 px-1">
+            <MessageSquareText className="h-4 w-4" />
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Conversation</p>
+          </div>
 
           <div ref={chatScrollRef} className="h-[360px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:h-[440px]">
             {state.messages.map((message) => {
               const isUser = message.role === "user"
               return (
                 <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${isUser ? "bg-[#365fa5] text-white" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"}`}>
+                  <div
+                    className={`max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
+                      isUser ? "bg-[#365fa5] text-white" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"
+                    }`}
+                  >
                     {message.content}
                   </div>
                 </div>
@@ -626,30 +768,71 @@ export function CoachGeorgeLiveAssistant() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm text-[#d4e3ff]">Goal
-                  <select value={setupForm.goal} onChange={(e) => setSetupForm((prev) => ({ ...prev, goal: e.target.value as Goal }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                <label className="text-sm text-[#d4e3ff]">
+                  Goal
+                  <select
+                    value={setupForm.goal}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, goal: e.target.value as Goal }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  >
                     <option value="lose-fat">Lose fat</option>
                     <option value="recomp">Recomp</option>
                     <option value="gain-muscle">Gain muscle</option>
                   </select>
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Sex
-                  <select value={setupForm.sex} onChange={(e) => setSetupForm((prev) => ({ ...prev, sex: e.target.value as Sex }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Sex
+                  <select
+                    value={setupForm.sex}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, sex: e.target.value as Sex }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  >
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Age
-                  <input value={setupForm.age} onChange={(e) => setSetupForm((prev) => ({ ...prev, age: e.target.value }))} type="number" min={13} max={95} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Age
+                  <input
+                    value={setupForm.age}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, age: e.target.value }))}
+                    type="text"
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  />
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Height (cm)
-                  <input value={setupForm.heightCm} onChange={(e) => setSetupForm((prev) => ({ ...prev, heightCm: e.target.value }))} type="number" min={120} max={230} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Height (cm)
+                  <input
+                    value={setupForm.heightCm}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, heightCm: e.target.value }))}
+                    type="text"
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  />
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Current weight (kg)
-                  <input value={setupForm.currentWeightKg} onChange={(e) => setSetupForm((prev) => ({ ...prev, currentWeightKg: e.target.value }))} type="number" min={35} max={350} step="0.1" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Current weight (kg)
+                  <input
+                    value={setupForm.currentWeightKg}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, currentWeightKg: e.target.value }))}
+                    type="text"
+                    inputMode="decimal"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  />
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Activity level
-                  <select value={setupForm.activityLevel} onChange={(e) => setSetupForm((prev) => ({ ...prev, activityLevel: e.target.value as ActivityLevel }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Activity level
+                  <select
+                    value={setupForm.activityLevel}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, activityLevel: e.target.value as ActivityLevel }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  >
                     <option value="sedentary">Sedentary</option>
                     <option value="light">Light</option>
                     <option value="moderate">Moderate</option>
@@ -657,21 +840,47 @@ export function CoachGeorgeLiveAssistant() {
                     <option value="very-active">Very active</option>
                   </select>
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Allergies
-                  <input value={setupForm.allergies} onChange={(e) => setSetupForm((prev) => ({ ...prev, allergies: e.target.value }))} placeholder="e.g. nuts, shellfish or none" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Allergies
+                  <input
+                    value={setupForm.allergies}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, allergies: e.target.value }))}
+                    placeholder="e.g. nuts, shellfish or none"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  />
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Disliked foods
-                  <input value={setupForm.dislikedFoods} onChange={(e) => setSetupForm((prev) => ({ ...prev, dislikedFoods: e.target.value }))} placeholder="e.g. mushrooms, olives or none" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2" />
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Disliked foods
+                  <input
+                    value={setupForm.dislikedFoods}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, dislikedFoods: e.target.value }))}
+                    placeholder="e.g. mushrooms, olives or none"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  />
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Meals per day
-                  <select value={setupForm.mealsPerDay} onChange={(e) => setSetupForm((prev) => ({ ...prev, mealsPerDay: e.target.value as "3" | "4" | "5" }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Meals per day
+                  <select
+                    value={setupForm.mealsPerDay}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, mealsPerDay: e.target.value as "3" | "4" | "5" }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  >
                     <option value="3">3 meals</option>
                     <option value="4">4 meals</option>
                     <option value="5">5 meals</option>
                   </select>
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Dietary preference
-                  <select value={setupForm.dietaryPreference} onChange={(e) => setSetupForm((prev) => ({ ...prev, dietaryPreference: e.target.value as DietaryPreference }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+
+                <label className="text-sm text-[#d4e3ff]">
+                  Dietary preference
+                  <select
+                    value={setupForm.dietaryPreference}
+                    onChange={(e) => setSetupForm((prev) => ({ ...prev, dietaryPreference: e.target.value as DietaryPreference }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2"
+                  >
                     <option value="omnivore">Omnivore</option>
                     <option value="vegetarian">Vegetarian</option>
                     <option value="pescatarian">Pescatarian</option>
@@ -680,7 +889,11 @@ export function CoachGeorgeLiveAssistant() {
                 </label>
               </div>
 
-              <button onClick={saveTargetsFromSetup} className="mt-5 w-full rounded-xl border border-[#8eb2ff]/40 bg-[#2b4f89] px-4 py-3 font-semibold text-white shadow-[0_12px_30px_rgba(79,131,255,0.4)] hover:bg-[#355f9f]">
+              <button
+                type="button"
+                onClick={saveTargetsFromSetup}
+                className="mt-5 w-full rounded-xl border border-[#8eb2ff]/40 bg-[#2b4f89] px-4 py-3 font-semibold text-white shadow-[0_12px_30px_rgba(79,131,255,0.4)] hover:bg-[#355f9f]"
+              >
                 Save Targets
               </button>
             </div>
