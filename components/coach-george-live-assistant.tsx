@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Flame, Loader2, MessageSquareText, Mic } from "lucide-react"
-import { buildMealPlan, foods, getDailyTargets, type Profile } from "@/lib/coach-george/coach-george-nutrition"
+import {
+  buildMealPlan,
+  foods,
+  getDailyTargets,
+  type Nutrition,
+  type Profile,
+} from "@/lib/coach-george/coach-george-nutrition"
 
 type LiveMessage = {
   id: string
@@ -11,45 +17,64 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
-type CoachingStyle = "supportive" | "balanced" | "strict"
-type ContextAction = { id: string; label: string; prompt: string }
+
+type PartialProfile = Partial<Profile>
 
 type StatsState = {
   currentWeightKg: number
   dayStreak: number
+  totalCalories: number
+  protein: number
+  carbs: number
+  fats: number
 }
 
-type StoredSession = {
-  messages: LiveMessage[]
-  visitorName: string | null
-  updatedAt: number
-  profile: Profile
-  coachingStyle: CoachingStyle
+type CoachState = {
+  profile: PartialProfile
+  profileComplete: boolean
+  targets: Nutrition
   stats: StatsState
-  lastActiveDate: string
+  latestPlan: string | null
+  messages: LiveMessage[]
+  weightInput: string
+  lastActiveDate: string | null
 }
 
-const SESSION_KEY = "coach-george-session-v3"
+const SESSION_KEY = "coach-george-session-v4"
 
-const DEFAULT_PROFILE: Profile = {
-  goal: "lose-fat",
-  sex: "male",
-  age: 30,
-  heightCm: 178,
-  currentWeightKg: 82,
-  activityLevel: "moderate",
-  allergies: [],
-  dislikedFoods: [],
-  mealsPerDay: 4,
-  dietaryPreference: "omnivore",
-}
+const ZERO_TARGETS: Nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
+const ZERO_STATS: StatsState = { currentWeightKg: 0, dayStreak: 0, totalCalories: 0, protein: 0, carbs: 0, fats: 0 }
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "assistant",
-    content: "Hi — I’m Coach George. Tap the round button and talk to me. I’ll coach your onboarding, plan, and updates right here.",
+    content: "Hi — I’m Coach George. Tap the round button and we’ll set your basics together, then build your plan.",
   },
+]
+
+const INITIAL_STATE: CoachState = {
+  profile: {},
+  profileComplete: false,
+  targets: ZERO_TARGETS,
+  stats: ZERO_STATS,
+  latestPlan: null,
+  messages: INITIAL_MESSAGES,
+  weightInput: "",
+  lastActiveDate: null,
+}
+
+const REQUIRED_FIELDS: Array<keyof Profile> = [
+  "goal",
+  "sex",
+  "age",
+  "heightCm",
+  "currentWeightKg",
+  "activityLevel",
+  "allergies",
+  "dislikedFoods",
+  "mealsPerDay",
+  "dietaryPreference",
 ]
 
 function makeMessage(role: LiveMessage["role"], content: string) {
@@ -64,33 +89,79 @@ function makeMessage(role: LiveMessage["role"], content: string) {
 }
 
 function trimMessagesForStorage(messages: LiveMessage[]) {
-  return messages.slice(-48)
+  return messages.slice(-80)
 }
 
-function formatMealPlan(profile: Profile) {
-  const result = buildMealPlan(profile)
-  const targets = getDailyTargets(profile)
-  const lines = [
-    `Here’s your plan. Daily target: ${targets.calories} kcal | Protein ${targets.protein}g | Carbs ${targets.carbs}g | Fats ${targets.fat}g.`,
-  ]
-
-  result.plan.forEach((meal, index) => {
-    lines.push(`Meal ${index + 1}: ${meal.name}`)
-    meal.ingredients.forEach((ingredient) => {
-      const food = foods.find((entry) => entry.id === ingredient.foodId)
-      lines.push(`- ${food?.name || ingredient.foodId}: ${ingredient.grams}g`)
-    })
-    lines.push(
-      `Macros: ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`,
-    )
+function isProfileComplete(profile: PartialProfile): profile is Profile {
+  return REQUIRED_FIELDS.every((key) => {
+    const value = profile[key]
+    if (Array.isArray(value)) return true
+    return value !== undefined && value !== null && value !== ""
   })
-
-  return lines.join("\n")
 }
 
-function inferProfileUpdate(input: string, profile: Profile): Profile | null {
+function getMissingField(profile: PartialProfile): keyof Profile | null {
+  for (const key of REQUIRED_FIELDS) {
+    const value = profile[key]
+    if (Array.isArray(value)) continue
+    if (value === undefined || value === null || value === "") return key
+  }
+  return null
+}
+
+function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachState, "targets" | "stats"> {
+  const targets = getDailyTargets(profile)
+  return {
+    targets,
+    stats: {
+      currentWeightKg: profile.currentWeightKg,
+      dayStreak,
+      totalCalories: targets.calories,
+      protein: targets.protein,
+      carbs: targets.carbs,
+      fats: targets.fat,
+    },
+  }
+}
+
+function onboardingPrompt(field: keyof Profile | null) {
+  switch (field) {
+    case "goal":
+      return "What’s your main goal right now: lose fat, recomp, or gain muscle?"
+    case "sex":
+      return "What sex should I use for your calorie calculation: male or female?"
+    case "age":
+      return "How old are you?"
+    case "heightCm":
+      return "What is your height in cm?"
+    case "currentWeightKg":
+      return "What is your current body weight in kg?"
+    case "activityLevel":
+      return "What is your activity level: sedentary, light, moderate, active, or very active?"
+    case "allergies":
+      return "Do you have any allergies? Say none if not."
+    case "dislikedFoods":
+      return "Any foods you dislike or want me to avoid? Say none if not."
+    case "mealsPerDay":
+      return "How many meals per day do you want: 3, 4, or 5?"
+    case "dietaryPreference":
+      return "What dietary preference should I use: omnivore, vegetarian, pescatarian, or vegan?"
+    default:
+      return "Let’s set your basics first so I can do this properly."
+  }
+}
+
+function parseListValue(raw: string) {
+  if (/\bnone\b|\bno\b/i.test(raw)) return []
+  return raw
+    .split(/,| and /i)
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+function inferProfileUpdate(input: string, profile: PartialProfile): PartialProfile | null {
   const text = input.toLowerCase()
-  let next = { ...profile }
+  const next = { ...profile }
   let changed = false
 
   const age = text.match(/(?:age\s*(?:is|=)?\s*|i(?:'| a)?m\s*)(\d{1,2})\b/)
@@ -155,33 +226,54 @@ function inferProfileUpdate(input: string, profile: Profile): Profile | null {
 
   const allergies = text.match(/allerg(?:y|ies)\s*(?:to|:)?\s*([^.;]+)/)
   if (allergies) {
-    next.allergies = allergies[1].split(/,| and /).map((v) => v.trim()).filter(Boolean)
+    next.allergies = parseListValue(allergies[1])
     changed = true
   }
 
   const dislikes = text.match(/(?:dislike|avoid|don'?t like)\s*([^.;]+)/)
   if (dislikes) {
-    next.dislikedFoods = dislikes[1].split(/,| and /).map((v) => v.trim()).filter(Boolean)
+    next.dislikedFoods = parseListValue(dislikes[1])
+    changed = true
+  }
+
+  if (!next.allergies && /\bnone\b/.test(text) && (text.includes("allerg") || text.includes("allergy"))) {
+    next.allergies = []
+    changed = true
+  }
+
+  if (!next.dislikedFoods && /\bnone\b/.test(text) && (text.includes("dislike") || text.includes("avoid"))) {
+    next.dislikedFoods = []
     changed = true
   }
 
   return changed ? next : null
 }
 
+function formatTargetSummary(targets: Nutrition) {
+  return `Targets updated: ${targets.calories} kcal | Protein ${targets.protein}g | Carbs ${targets.carbs}g | Fats ${targets.fat}g.`
+}
+
+function formatMealPlan(profile: Profile) {
+  const result = buildMealPlan(profile)
+  const lines = [formatTargetSummary(result.targets), ""]
+
+  result.plan.forEach((meal, index) => {
+    lines.push(`Meal ${index + 1}: ${meal.name}`)
+    meal.ingredients.forEach((ingredient) => {
+      const food = foods.find((entry) => entry.id === ingredient.foodId)
+      lines.push(`- ${food?.name || ingredient.foodId}: ${ingredient.grams}g`)
+    })
+    lines.push(`Macros: ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`)
+    lines.push("")
+  })
+
+  return lines.join("\n").trim()
+}
+
 export function CoachGeorgeLiveAssistant() {
-  const [messages, setMessages] = useState<LiveMessage[]>(INITIAL_MESSAGES)
+  const [state, setState] = useState<CoachState>(INITIAL_STATE)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [error, setError] = useState<string | null>(null)
-  const [visitorName, setVisitorName] = useState<string | null>(null)
-  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE)
-  const [coachingStyle, setCoachingStyle] = useState<CoachingStyle>("balanced")
-  const [latestWeightInput, setLatestWeightInput] = useState<string>(DEFAULT_PROFILE.currentWeightKg.toString())
-  const [contextActions, setContextActions] = useState<ContextAction[]>([])
-
-  const [stats, setStats] = useState<StatsState>({
-    currentWeightKg: DEFAULT_PROFILE.currentWeightKg,
-    dayStreak: 1,
-  })
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -191,27 +283,37 @@ export function CoachGeorgeLiveAssistant() {
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
 
-  const targets = useMemo(() => getDailyTargets(profile), [profile])
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
+
+  const appendAssistantMessage = (content: string) => {
+    setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
+  }
+
+  const appendUserMessage = (content: string) => {
+    setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("user", content)] }))
+  }
+
+  const speakIfConnected = (instructions: string) => {
+    const channel = dcRef.current
+    if (!channel || channel.readyState !== "open") return
+    channel.send(JSON.stringify({ type: "response.create", response: { instructions } }))
+  }
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(SESSION_KEY)
       if (!raw) return
-      const stored = JSON.parse(raw) as StoredSession
-      if (!Array.isArray(stored.messages)) return
-      setMessages(stored.messages.length ? stored.messages : INITIAL_MESSAGES)
-      setProfile(stored.profile ?? DEFAULT_PROFILE)
-      setCoachingStyle(stored.coachingStyle ?? "balanced")
-      setStats(stored.stats ?? { currentWeightKg: DEFAULT_PROFILE.currentWeightKg, dayStreak: 1 })
-      setLatestWeightInput((stored.profile?.currentWeightKg ?? DEFAULT_PROFILE.currentWeightKg).toString())
-      setVisitorName(stored.visitorName || null)
-
+      const stored = JSON.parse(raw) as CoachState
       const today = new Date().toISOString().slice(0, 10)
-      if (stored.lastActiveDate !== today) {
-        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-        setStats((prev) => ({ ...prev, dayStreak: stored.lastActiveDate === yesterday ? prev.dayStreak + 1 : 1 }))
-      }
+      const last = stored.lastActiveDate
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+      const dayStreak = last ? (last === today ? stored.stats.dayStreak : last === yesterday ? stored.stats.dayStreak + 1 : 1) : 1
+      setState({
+        ...INITIAL_STATE,
+        ...stored,
+        stats: { ...stored.stats, dayStreak },
+        weightInput: stored.weightInput ?? (stored.profileComplete ? String(stored.profile.currentWeightKg ?? "") : ""),
+      })
     } catch {
       // ignore corrupted storage
     }
@@ -219,22 +321,16 @@ export function CoachGeorgeLiveAssistant() {
 
   useEffect(() => {
     try {
-      const trimmed = trimMessagesForStorage(messages)
-      if (!trimmed.length) return
-      const payload: StoredSession = {
-        messages: trimmed,
-        visitorName,
-        updatedAt: Date.now(),
-        profile,
-        coachingStyle,
-        stats,
+      const payload: CoachState = {
+        ...state,
+        messages: trimMessagesForStorage(state.messages),
         lastActiveDate: new Date().toISOString().slice(0, 10),
       }
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload))
     } catch {
       // ignore
     }
-  }, [messages, visitorName, profile, coachingStyle, stats])
+  }, [state])
 
   useEffect(() => {
     return () => {
@@ -245,7 +341,7 @@ export function CoachGeorgeLiveAssistant() {
   useEffect(() => {
     if (!chatScrollRef.current) return
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
-  }, [messages])
+  }, [state.messages])
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
@@ -254,7 +350,7 @@ export function CoachGeorgeLiveAssistant() {
       const message = makeMessage("assistant", delta)
       currentAssistantMessageIdRef.current = message.id
       currentAssistantTextRef.current = delta
-      setMessages((prev) => [...prev, message])
+      setState((prev) => ({ ...prev, messages: [...prev.messages, message] }))
       if (isFinal) {
         currentAssistantMessageIdRef.current = null
         currentAssistantTextRef.current = ""
@@ -264,7 +360,10 @@ export function CoachGeorgeLiveAssistant() {
 
     currentAssistantTextRef.current += delta
     const targetId = currentAssistantMessageIdRef.current
-    setMessages((prev) => prev.map((message) => (message.id === targetId ? { ...message, content: currentAssistantTextRef.current } : message)))
+    setState((prev) => ({
+      ...prev,
+      messages: prev.messages.map((message) => (message.id === targetId ? { ...message, content: currentAssistantTextRef.current } : message)),
+    }))
 
     if (isFinal) {
       currentAssistantMessageIdRef.current = null
@@ -272,47 +371,44 @@ export function CoachGeorgeLiveAssistant() {
     }
   }
 
-  function sendTextToCoach(text: string, userVisibleText = text) {
-    setMessages((prev) => [...prev, makeMessage("user", userVisibleText)])
-    setContextActions([])
-
-    const channel = dcRef.current
-    if (!channel || channel.readyState !== "open") {
-      setMessages((prev) => [...prev, makeMessage("assistant", "Tap the round button first, then I’ll guide this by voice and chat."),])
+  function continueOnboarding(nextProfile: PartialProfile) {
+    if (isProfileComplete(nextProfile)) {
+      const dayStreak = state.stats.dayStreak > 0 ? state.stats.dayStreak : 1
+      const calculated = buildTargetsAndStats(nextProfile, dayStreak)
+      const targetLine = formatTargetSummary(calculated.targets)
+      setState((prev) => ({
+        ...prev,
+        profile: nextProfile,
+        profileComplete: true,
+        targets: calculated.targets,
+        stats: calculated.stats,
+        messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", "Great — your profile is complete. I’ll keep this concise and personalized from here.")],
+      }))
+      speakIfConnected("Great — your profile is complete. I’ve set your targets. Tell me when to build your meal plan.")
       return
     }
 
-    channel.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: { type: "message", role: "user", content: [{ type: "input_text", text }] },
-      }),
-    )
-    channel.send(JSON.stringify({ type: "response.create" }))
+    const missing = getMissingField(nextProfile)
+    const prompt = onboardingPrompt(missing)
+    setState((prev) => ({ ...prev, profile: nextProfile, messages: [...prev.messages, makeMessage("assistant", prompt)] }))
+    speakIfConnected(prompt)
   }
 
   function handleUserTranscript(text: string) {
     const cleaned = text.trim()
     if (!cleaned) return
-    setMessages((prev) => [...prev, makeMessage("user", cleaned)])
+    appendUserMessage(cleaned)
 
-    const updated = inferProfileUpdate(cleaned, profile)
-    if (updated) {
-      setProfile(updated)
-      setLatestWeightInput(updated.currentWeightKg.toString())
-      setStats((prev) => ({ ...prev, currentWeightKg: updated.currentWeightKg }))
-      setContextActions([
-        { id: "confirm-targets", label: "Confirm targets", prompt: "Targets look good. Confirm and continue." },
-        { id: "adjust-targets", label: "Adjust targets", prompt: "I want to adjust my targets before continuing." },
-      ])
-    }
+    setState((prev) => {
+      if (prev.profileComplete) return prev
+      const updated = inferProfileUpdate(cleaned, prev.profile)
+      if (!updated) return prev
+      return { ...prev, profile: updated }
+    })
 
-    const textLower = cleaned.toLowerCase()
-    if (textLower.includes("swap") || textLower.includes("change meal") || textLower.includes("replace")) {
-      setContextActions([
-        { id: "swap-works", label: "That works", prompt: "That swap works for me. Keep it." },
-        { id: "swap-another", label: "Try another option", prompt: "Give me another swap option with grams." },
-      ])
+    const updatedProfile = inferProfileUpdate(cleaned, state.profile)
+    if (!state.profileComplete && updatedProfile) {
+      continueOnboarding(updatedProfile)
     }
   }
 
@@ -415,9 +511,9 @@ export function CoachGeorgeLiveAssistant() {
       dcRef.current = dataChannel
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
-        const intro = visitorName
-          ? `Welcome back ${visitorName}. Continue coaching in ${coachingStyle} style and confirm my current targets.`
-          : "Introduce yourself as Coach George and start conversational onboarding one question at a time."
+        const intro = state.profileComplete
+          ? "You are Coach George. Continue from saved state and keep spoken replies short."
+          : `You are Coach George. Ask onboarding one question at a time. Start with: ${onboardingPrompt(getMissingField(state.profile))}`
         dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
@@ -459,54 +555,58 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function buildMyPlan() {
-    const planText = formatMealPlan(profile)
-    setMessages((prev) => [...prev, makeMessage("assistant", planText)])
-    setContextActions([
-      { id: "plan-good", label: "Looks good", prompt: "Looks good. Lock this in for today." },
-      { id: "plan-change", label: "Change something", prompt: "Change something in this plan and keep grams exact." },
-    ])
+    appendUserMessage("Build My Plan")
+    if (!state.profileComplete || !isProfileComplete(state.profile)) {
+      const gate = "Let’s set your basics first so I can do this properly."
+      appendAssistantMessage(gate)
+      speakIfConnected(gate)
+      return
+    }
 
-    sendTextToCoach(
-      `Build my nutrition plan using my stored profile and structured foods/recipes. Output as Meal 1, Meal 2, Meal 3... with exact gram amounts and macros per meal. Meals per day: ${profile.mealsPerDay}.`,
-      "Build My Plan",
-    )
+    const planText = formatMealPlan(state.profile)
+    setState((prev) => ({ ...prev, latestPlan: planText, messages: [...prev.messages, makeMessage("assistant", planText)] }))
+    const spoken = "I’ve built your plan. Have a look below and tell me what you want to change."
+    appendAssistantMessage(spoken)
+    speakIfConnected(spoken)
   }
 
   function updateWeight() {
-    const value = Number(latestWeightInput)
+    appendUserMessage("Update Weight")
+    if (!state.profileComplete || !isProfileComplete(state.profile)) {
+      const gate = "Let’s set your basics first so I can do this properly."
+      appendAssistantMessage(gate)
+      speakIfConnected(gate)
+      return
+    }
+
+    const value = Number(state.weightInput)
     if (!Number.isFinite(value) || value < 35 || value > 350) {
       setError("Please enter a valid weight in kg.")
       return
     }
 
     setError(null)
-    setProfile((prev) => ({ ...prev, currentWeightKg: value }))
-    setStats((prev) => ({ ...prev, currentWeightKg: value }))
+    const nextProfile: Profile = { ...state.profile, currentWeightKg: value }
+    const calculated = buildTargetsAndStats(nextProfile, state.stats.dayStreak || 1)
+    const targetLine = formatTargetSummary(calculated.targets)
 
-    setContextActions([
-      { id: "rebuild-plan", label: "Rebuild plan", prompt: "Rebuild my plan with this new weight now." },
-      { id: "keep-plan", label: "Keep current plan", prompt: "Keep the current plan for now and review tomorrow." },
-    ])
+    setState((prev) => ({
+      ...prev,
+      profile: nextProfile,
+      targets: calculated.targets,
+      stats: calculated.stats,
+      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", "Weight updated. I’ve refreshed your targets.")],
+    }))
 
-    sendTextToCoach(
-      `My weight is now ${value}kg. Update my targets and confirm naturally in voice and chat.`,
-      `Update Weight to ${value}kg`,
-    )
+    speakIfConnected("Weight updated. I’ve refreshed your targets.")
   }
 
   function resetGoalsAndStats() {
-    setProfile(DEFAULT_PROFILE)
-    setCoachingStyle("balanced")
-    setStats({ currentWeightKg: DEFAULT_PROFILE.currentWeightKg, dayStreak: 1 })
-    setLatestWeightInput(DEFAULT_PROFILE.currentWeightKg.toString())
-    setContextActions([])
+    appendUserMessage("Reset Goals & Stats")
+    const next = { ...INITIAL_STATE, messages: [...INITIAL_MESSAGES, makeMessage("assistant", onboardingPrompt("goal"))] }
+    setState(next)
     window.localStorage.removeItem(SESSION_KEY)
-    setMessages([makeMessage("assistant", "I’ve reset your goals and stats. Let’s restart onboarding together.")])
-
-    sendTextToCoach(
-      "I reset goals and stats. Start onboarding again conversationally by voice and transcript, one question at a time.",
-      "Reset Goals & Stats",
-    )
+    speakIfConnected("I’ve reset everything. Let’s restart onboarding. What’s your main goal?")
   }
 
   return (
@@ -526,23 +626,23 @@ export function CoachGeorgeLiveAssistant() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Total Calories</p><p className="text-xl font-semibold">{targets.calories}</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Current Weight</p><p className="text-xl font-semibold">{stats.currentWeightKg}kg</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Day Streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{stats.dayStreak}</p></div>
+          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Total Calories</p><p className="text-xl font-semibold">{state.stats.totalCalories}</p></div>
+          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Current Weight</p><p className="text-xl font-semibold">{state.stats.currentWeightKg}kg</p></div>
+          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Day Streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{state.stats.dayStreak}</p></div>
         </div>
 
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Protein</p><p className="text-lg font-semibold">{targets.protein}g</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Carbs</p><p className="text-lg font-semibold">{targets.carbs}g</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{targets.fat}g</p></div>
+          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Protein</p><p className="text-lg font-semibold">{state.stats.protein}g</p></div>
+          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Carbs</p><p className="text-lg font-semibold">{state.stats.carbs}g</p></div>
+          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{state.stats.fats}g</p></div>
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
           <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff]">Build My Plan</button>
           <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2">
             <input
-              value={latestWeightInput}
-              onChange={(e) => setLatestWeightInput(e.target.value)}
+              value={state.weightInput}
+              onChange={(e) => setState((prev) => ({ ...prev, weightInput: e.target.value }))}
               placeholder="kg"
               className="min-w-0 flex-1 rounded-xl bg-white/10 px-2 py-1 text-sm"
             />
@@ -554,7 +654,7 @@ export function CoachGeorgeLiveAssistant() {
         <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3">
           <div className="mb-3 flex items-center gap-2 px-1"><MessageSquareText className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Conversation</p></div>
           <div ref={chatScrollRef} className="h-[360px] sm:h-[440px] space-y-3 overflow-y-auto rounded-2xl bg-white/[0.03] p-3">
-            {messages.map((message) => {
+            {state.messages.map((message) => {
               const isUser = message.role === "user"
               return (
                 <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -564,19 +664,6 @@ export function CoachGeorgeLiveAssistant() {
                 </div>
               )
             })}
-            {contextActions.length ? (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {contextActions.map((action) => (
-                  <button
-                    key={action.id}
-                    onClick={() => sendTextToCoach(action.prompt, action.label)}
-                    className="rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-[#dce8ff]"
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
 
