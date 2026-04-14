@@ -4,17 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Flame, Loader2, MessageSquareText, Mic } from "lucide-react"
 import {
   buildMealPlan,
-  foods as fallbackFoods,
-  recipes as fallbackRecipes,
   getDailyTargets,
-  type CoachGeorgeDataSet,
   type ActivityLevel,
   type DietaryPreference,
+  type Food,
   type Goal,
   type Nutrition,
   type Profile,
+  type Recipe,
   type Sex,
 } from "@/lib/coach-george/coach-george-nutrition"
+import { getLocalCoachGeorgePlannerData, type PlannerDataSource } from "@/lib/coach-george/coach-george-sheet-data"
 
 type LiveMessage = {
   id: string
@@ -57,11 +57,17 @@ type SetupFormState = {
   dietaryPreference: DietaryPreference
 }
 
-const SESSION_KEY = "coach-george-session-v6"
+type PlannerPayload = {
+  foods: Food[]
+  recipes: Recipe[]
+  source: PlannerDataSource
+}
+
+const SESSION_KEY = "coach-george-session-v7"
 
 const ZERO_TARGETS: Nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
 const ZERO_STATS: StatsState = { currentWeightKg: 0, dayStreak: 0, totalCalories: 0, protein: 0, carbs: 0, fats: 0 }
-const FALLBACK_DATASET: CoachGeorgeDataSet = { foods: fallbackFoods, recipes: fallbackRecipes }
+const LOCAL_FALLBACK = getLocalCoachGeorgePlannerData()
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
@@ -114,23 +120,6 @@ function formatTargetSummary(targets: Nutrition) {
   return `Targets updated: ${targets.calories} kcal | Protein ${targets.protein}g | Carbs ${targets.carbs}g | Fats ${targets.fat}g.`
 }
 
-function formatMealPlan(profile: Profile, dataset: CoachGeorgeDataSet) {
-  const result = buildMealPlan(profile, dataset)
-  const lines = [formatTargetSummary(result.targets), ""]
-
-  result.plan.forEach((meal, index) => {
-    lines.push(`Meal ${index + 1}: ${meal.name}`)
-    meal.ingredients.forEach((ingredient) => {
-      const food = dataset.foods.find((entry) => entry.id === ingredient.foodId)
-      lines.push(`- ${food?.name || ingredient.foodId}: ${ingredient.grams}g`)
-    })
-    lines.push(`Macros: ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`)
-    lines.push("")
-  })
-
-  return lines.join("\n").trim()
-}
-
 function parseListValue(raw: string) {
   if (!raw.trim()) return []
   if (/\bnone\b|\bno\b/i.test(raw)) return []
@@ -138,24 +127,6 @@ function parseListValue(raw: string) {
     .split(/,| and /i)
     .map((v) => v.trim().toLowerCase())
     .filter(Boolean)
-}
-
-
-function buildRealtimeDatasetContext(dataset: CoachGeorgeDataSet) {
-  const recipeLines = dataset.recipes.slice(0, 80).map((recipe) => {
-    const ingredients = recipe.ingredients
-      .map((ingredient) => {
-        const food = dataset.foods.find((entry) => entry.id === ingredient.foodId)
-        return `${food?.name || ingredient.foodId} ${ingredient.grams}g`
-      })
-      .join(", ")
-    return `- ${recipe.name} [${recipe.mealType}] (${recipe.dietary.join("/")}): ${ingredients}`
-  })
-
-  return [
-    "Use this live Coach George meal database when discussing meal ideas or building plans.",
-    ...recipeLines,
-  ].join("\n")
 }
 
 function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachState, "targets" | "stats"> {
@@ -187,13 +158,37 @@ function computeNextStreak(lastActiveDate: string | null, previousStreak: number
   return 1
 }
 
+function buildVoicePlannerSummary(plannerData: PlannerPayload) {
+  const names = plannerData.recipes.slice(0, 12).map((recipe) => recipe.name).join(", ")
+  return `Plan source: ${plannerData.source === "google_sheets" ? "Live Google Sheets" : "Local fallback data"}. Available recipes include: ${names || "standard meals"}.`
+}
+
+function formatMealPlan(profile: Profile, plannerData: PlannerPayload) {
+  const result = buildMealPlan(profile, plannerData)
+  const lines = [formatTargetSummary(result.targets), ""]
+
+  result.plan.forEach((meal, index) => {
+    lines.push(`Meal ${index + 1}: ${meal.name}`)
+    if (meal.ingredients.length) {
+      meal.ingredients.forEach((ingredient) => {
+        const food = plannerData.foods.find((entry) => entry.id === ingredient.foodId)
+        lines.push(`- ${food?.name || ingredient.foodId}: ${ingredient.grams}g`)
+      })
+    }
+    lines.push(`Macros: ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`)
+    lines.push("")
+  })
+
+  return lines.join("\n").trim()
+}
+
 export function CoachGeorgeLiveAssistant() {
   const [state, setState] = useState<CoachState>(INITIAL_STATE)
   const [setupForm, setSetupForm] = useState<SetupFormState>(DEFAULT_SETUP_FORM)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [error, setError] = useState<string | null>(null)
-  const [dataSet, setDataSet] = useState<CoachGeorgeDataSet>(FALLBACK_DATASET)
-  const [dataSource, setDataSource] = useState<"google-sheets" | "local-fallback">("local-fallback")
+  const [plannerData, setPlannerData] = useState<PlannerPayload>(LOCAL_FALLBACK)
+  const [plannerLoading, setPlannerLoading] = useState(true)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -205,6 +200,7 @@ export function CoachGeorgeLiveAssistant() {
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
   const showSetupModal = !state.profileComplete
+  const plannerSourceLabel = plannerData.source === "google_sheets" ? "Live Google Sheets" : "Local fallback data"
 
   const appendAssistantMessage = (content: string) => {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
@@ -219,6 +215,30 @@ export function CoachGeorgeLiveAssistant() {
     if (!channel || channel.readyState !== "open") return
     channel.send(JSON.stringify({ type: "response.create", response: { instructions } }))
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadPlannerData() {
+      try {
+        const response = await fetch("/api/coach-george-data", { cache: "no-store" })
+        const payload = (await response.json()) as PlannerPayload
+        if (!cancelled && response.ok && payload?.foods?.length && payload?.recipes?.length) {
+          setPlannerData(payload)
+        }
+      } catch {
+        if (!cancelled) setPlannerData(LOCAL_FALLBACK)
+      } finally {
+        if (!cancelled) setPlannerLoading(false)
+      }
+    }
+
+    void loadPlannerData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -279,30 +299,6 @@ export function CoachGeorgeLiveAssistant() {
       // ignore
     }
   }, [state])
-
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadCoachData() {
-      try {
-        const response = await fetch("/api/coach-george-data", { cache: "no-store" })
-        const data = await response.json().catch(() => null)
-        if (!response.ok || !data?.foods || !data?.recipes) return
-        if (cancelled) return
-        setDataSet({ foods: data.foods, recipes: data.recipes })
-        setDataSource(data.source === "google-sheets" ? "google-sheets" : "local-fallback")
-      } catch {
-        // keep fallback dataset
-      }
-    }
-
-    void loadCoachData()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     return () => {
@@ -429,7 +425,6 @@ export function CoachGeorgeLiveAssistant() {
 
       const remoteAudio = document.createElement("audio")
       remoteAudio.autoplay = true
-      remoteAudio.setAttribute("playsinline", "true")
       audioRef.current = remoteAudio
 
       pc.ontrack = (event) => {
@@ -449,10 +444,9 @@ export function CoachGeorgeLiveAssistant() {
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
         const intro = state.profileComplete
-          ? "You are Coach George. User is returning. Keep spoken replies short and practical."
-          : "You are Coach George. User is completing setup with the on-screen form. Keep spoken replies short and practical while setup is pending."
-        const dataContext = buildRealtimeDatasetContext(dataSet)
-        dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: `${intro}\n\n${dataContext}` } }))
+          ? `You are Coach George. User is returning. Keep spoken replies short and practical. ${buildVoicePlannerSummary(plannerData)}`
+          : `You are Coach George. User is completing setup with the on-screen form. Keep spoken replies short and practical while setup is pending. ${buildVoicePlannerSummary(plannerData)}`
+        dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
       dataChannel.addEventListener("message", (event) => {
@@ -541,7 +535,7 @@ export function CoachGeorgeLiveAssistant() {
       return
     }
 
-    const planText = formatMealPlan(state.profile, dataSet)
+    const planText = formatMealPlan(state.profile, plannerData)
     const spoken = "I’ve built your plan. Have a look below and tell me what you want to change."
     setState((prev) => ({
       ...prev,
@@ -624,10 +618,14 @@ export function CoachGeorgeLiveAssistant() {
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{state.stats.fats}g</p></div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+        <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#b5c9ee]">
+          <span>Food source: {plannerSourceLabel}</span>
+          <span>{plannerLoading ? "Syncing..." : `${plannerData.recipes.length} recipes loaded`}</span>
+        </div>
+
+        <div className="mt-4 grid gap-2 text-sm md:grid-cols-[1fr_1.2fr_1fr]">
           <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Build My Plan</button>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-[#9db2d8]">Food source: {dataSource === "google-sheets" ? "Live Google Sheets" : "Local fallback data"}</div>
-          <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
             <input
               value={state.weightInput}
               onChange={(e) => setState((prev) => ({ ...prev, weightInput: e.target.value }))}
@@ -639,9 +637,9 @@ export function CoachGeorgeLiveAssistant() {
               max={350}
               step="0.1"
               disabled={!state.profileComplete}
-              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-sm disabled:opacity-50"
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm disabled:opacity-50"
             />
-            <button onClick={updateWeight} className="rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-xs font-medium">Update Weight</button>
+            <button onClick={updateWeight} className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium">Update Weight</button>
           </div>
           <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Reset Goals & Stats</button>
         </div>

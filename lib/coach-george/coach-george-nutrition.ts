@@ -21,6 +21,7 @@ export type Recipe = {
   mealType: "breakfast" | "lunch" | "dinner" | "snack"
   dietary: DietaryPreference[]
   ingredients: RecipeIngredient[]
+  nutrition?: Nutrition
 }
 
 export type Profile = {
@@ -38,10 +39,6 @@ export type Profile = {
 
 export const foods: Food[] = foodsData as Food[]
 export const recipes: Recipe[] = recipesData as Recipe[]
-
-export type CoachGeorgeDataSet = { foods: Food[]; recipes: Recipe[] }
-
-const DEFAULT_DATASET: CoachGeorgeDataSet = { foods, recipes }
 
 const activityMultipliers: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -78,10 +75,12 @@ export function getDailyTargets(profile: Profile): Nutrition {
   return roundNutrition({ calories: calorieTarget, protein, carbs, fat })
 }
 
-export function getRecipeNutrition(recipe: Recipe, dataset: CoachGeorgeDataSet = DEFAULT_DATASET): Nutrition {
+export function getRecipeNutrition(recipe: Recipe, availableFoods: Food[] = foods): Nutrition {
+  if (recipe.nutrition) return roundNutrition(recipe.nutrition)
+
   const totals = recipe.ingredients.reduce(
     (acc, ingredient) => {
-      const food = dataset.foods.find((entry) => entry.id === ingredient.foodId)
+      const food = availableFoods.find((entry) => entry.id === ingredient.foodId)
       if (!food) return acc
       const factor = ingredient.grams / 100
       return {
@@ -97,10 +96,10 @@ export function getRecipeNutrition(recipe: Recipe, dataset: CoachGeorgeDataSet =
   return roundNutrition(totals)
 }
 
-function recipeFitsProfile(recipe: Recipe, profile: Profile, dataset: CoachGeorgeDataSet = DEFAULT_DATASET) {
+function recipeFitsProfile(recipe: Recipe, profile: Profile, availableFoods: Food[]) {
   if (!recipe.dietary.includes(profile.dietaryPreference)) return false
   return recipe.ingredients.every((ingredient) => {
-    const food = dataset.foods.find((entry) => entry.id === ingredient.foodId)
+    const food = availableFoods.find((entry) => entry.id === ingredient.foodId)
     if (!food) return false
     const lowerName = food.name.toLowerCase()
     const blockedByDislike = profile.dislikedFoods.some((item) => lowerName.includes(item.toLowerCase()))
@@ -109,7 +108,59 @@ function recipeFitsProfile(recipe: Recipe, profile: Profile, dataset: CoachGeorg
   })
 }
 
-export function buildMealPlan(profile: Profile, dataset: CoachGeorgeDataSet = DEFAULT_DATASET) {
+function nutritionDelta(a: Nutrition, b: Nutrition) {
+  return {
+    calories: Math.abs(a.calories - b.calories),
+    protein: Math.abs(a.protein - b.protein),
+    carbs: Math.abs(a.carbs - b.carbs),
+    fat: Math.abs(a.fat - b.fat),
+  }
+}
+
+function sumNutrition(entries: Nutrition[]) {
+  return roundNutrition(
+    entries.reduce(
+      (acc, item) => ({
+        calories: acc.calories + item.calories,
+        protein: acc.protein + item.protein,
+        carbs: acc.carbs + item.carbs,
+        fat: acc.fat + item.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    ),
+  )
+}
+
+function scorePlan(totals: Nutrition, targets: Nutrition, uniqueRecipeCount: number) {
+  const delta = nutritionDelta(totals, targets)
+  return delta.calories * 1 + delta.protein * 4 + delta.carbs * 2 + delta.fat * 3 - uniqueRecipeCount * 10
+}
+
+function getMealSequence(mealsPerDay: Profile["mealsPerDay"]): Array<Recipe["mealType"]> {
+  if (mealsPerDay === 3) return ["breakfast", "lunch", "dinner"]
+  if (mealsPerDay === 4) return ["breakfast", "lunch", "snack", "dinner"]
+  return ["breakfast", "snack", "lunch", "snack", "dinner"]
+}
+
+function chooseBestRecipe(pool: Recipe[], remaining: Nutrition, usedIds: Set<string>, availableFoods: Food[]) {
+  const scored = pool
+    .map((recipe) => {
+      const nutrition = getRecipeNutrition(recipe, availableFoods)
+      const score =
+        Math.abs(remaining.calories - nutrition.calories) * 1 +
+        Math.abs(remaining.protein - nutrition.protein) * 4 +
+        Math.abs(remaining.carbs - nutrition.carbs) * 2 +
+        Math.abs(remaining.fat - nutrition.fat) * 3 +
+        (usedIds.has(recipe.id) ? 60 : 0)
+
+      return { recipe: { ...recipe, nutrition }, score }
+    })
+    .sort((a, b) => a.score - b.score)
+
+  return scored[0]?.recipe || null
+}
+
+export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; recipes: Recipe[] }) {
   const supportedPreference: DietaryPreference[] = ["omnivore", "vegetarian", "pescatarian", "vegan"]
   const normalizedProfile = {
     ...profile,
@@ -118,44 +169,55 @@ export function buildMealPlan(profile: Profile, dataset: CoachGeorgeDataSet = DE
     dietaryPreference: supportedPreference.includes(profile.dietaryPreference) ? profile.dietaryPreference : "omnivore",
   }
 
-  const eligibleRecipes = dataset.recipes.filter((recipe) => recipeFitsProfile(recipe, normalizedProfile, dataset))
-  const byType = {
-    breakfast: eligibleRecipes.filter((recipe) => recipe.mealType === "breakfast"),
-    lunch: eligibleRecipes.filter((recipe) => recipe.mealType === "lunch"),
-    dinner: eligibleRecipes.filter((recipe) => recipe.mealType === "dinner"),
-    snack: eligibleRecipes.filter((recipe) => recipe.mealType === "snack"),
+  const availableFoods = plannerData?.foods?.length ? plannerData.foods : foods
+  const availableRecipes = plannerData?.recipes?.length ? plannerData.recipes : recipes
+  const eligibleRecipes = availableRecipes.filter((recipe) => recipeFitsProfile(recipe, normalizedProfile, availableFoods))
+  const workingRecipes = eligibleRecipes.length ? eligibleRecipes : availableRecipes
+  const targets = getDailyTargets(normalizedProfile)
+  const sequence = getMealSequence(normalizedProfile.mealsPerDay)
+
+  const recipesByType = {
+    breakfast: workingRecipes.filter((recipe) => recipe.mealType === "breakfast"),
+    lunch: workingRecipes.filter((recipe) => recipe.mealType === "lunch"),
+    dinner: workingRecipes.filter((recipe) => recipe.mealType === "dinner"),
+    snack: workingRecipes.filter((recipe) => recipe.mealType === "snack"),
   }
 
-  const sequence: Array<keyof typeof byType> =
-    normalizedProfile.mealsPerDay === 3
-      ? ["breakfast", "lunch", "dinner"]
-      : normalizedProfile.mealsPerDay === 4
-        ? ["breakfast", "lunch", "snack", "dinner"]
-        : ["breakfast", "snack", "lunch", "snack", "dinner"]
+  const candidatePlans: Array<Array<Recipe & { nutrition: Nutrition }>> = []
 
-  let fallbackPool = eligibleRecipes
-  if (!fallbackPool.length) fallbackPool = dataset.recipes
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const usedIds = new Set<string>()
+    const currentPlan: Array<Recipe & { nutrition: Nutrition }> = []
 
-  const plan = sequence.map((type, index) => {
-    const pool = byType[type].length ? byType[type] : fallbackPool
-    const recipe = pool[index % pool.length]
-    return {
-      ...recipe,
-      nutrition: getRecipeNutrition(recipe, dataset),
-    }
-  })
+    sequence.forEach((type, index) => {
+      const pool = recipesByType[type].length ? recipesByType[type] : workingRecipes
+      const consumedTotals = sumNutrition(currentPlan.map((item) => item.nutrition))
+      const mealsLeft = sequence.length - index
+      const remaining = {
+        calories: Math.max(0, (targets.calories - consumedTotals.calories) / Math.max(1, mealsLeft)),
+        protein: Math.max(0, (targets.protein - consumedTotals.protein) / Math.max(1, mealsLeft)),
+        carbs: Math.max(0, (targets.carbs - consumedTotals.carbs) / Math.max(1, mealsLeft)),
+        fat: Math.max(0, (targets.fat - consumedTotals.fat) / Math.max(1, mealsLeft)),
+      }
 
-  const totals = roundNutrition(
-    plan.reduce(
-      (acc, recipe) => ({
-        calories: acc.calories + recipe.nutrition.calories,
-        protein: acc.protein + recipe.nutrition.protein,
-        carbs: acc.carbs + recipe.nutrition.carbs,
-        fat: acc.fat + recipe.nutrition.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    ),
-  )
+      const rotatedPool = pool.slice(attempt).concat(pool.slice(0, attempt))
+      const selected = chooseBestRecipe(rotatedPool, remaining, usedIds, availableFoods)
+      if (selected) {
+        usedIds.add(selected.id)
+        currentPlan.push(selected)
+      }
+    })
 
-  return { plan, totals, targets: getDailyTargets(normalizedProfile), profile: normalizedProfile }
+    if (currentPlan.length) candidatePlans.push(currentPlan)
+  }
+
+  const bestPlan = candidatePlans.sort((a, b) => {
+    const totalA = sumNutrition(a.map((item) => item.nutrition))
+    const totalB = sumNutrition(b.map((item) => item.nutrition))
+    return scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size) - scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size)
+  })[0] || []
+
+  const totals = sumNutrition(bestPlan.map((recipe) => recipe.nutrition))
+
+  return { plan: bestPlan, totals, targets, profile: normalizedProfile }
 }
