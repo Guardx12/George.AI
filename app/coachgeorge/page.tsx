@@ -26,19 +26,6 @@ export default function CoachGeorgePage() {
       <div className="mx-auto max-w-[960px] px-4 sm:px-6 lg:px-8">
         <CoachGeorgeLiveAssistant />
       </div>
-
-      <footer className="mt-10 border-t border-white/10 bg-[#0a101b] text-white">
-        <div className="mx-auto max-w-[960px] px-4 py-6 text-center sm:px-6 lg:px-8">
-          <a
-            href="https://askgeorge.app"
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm font-semibold tracking-[0.12em] text-white/80 transition hover:text-white"
-          >
-            AskGeorge.app
-          </a>
-        </div>
-      </footer>
     </main>
   )
 }
