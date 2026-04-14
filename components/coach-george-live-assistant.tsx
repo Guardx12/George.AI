@@ -6,8 +6,12 @@ import {
   buildMealPlan,
   foods,
   getDailyTargets,
+  type ActivityLevel,
+  type DietaryPreference,
+  type Goal,
   type Nutrition,
   type Profile,
+  type Sex,
 } from "@/lib/coach-george/coach-george-nutrition"
 
 type LiveMessage = {
@@ -17,8 +21,19 @@ type LiveMessage = {
 }
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error"
-
 type PartialProfile = Partial<Profile>
+type OnboardingStep = keyof Profile
+
+type QuickReply = {
+  label: string
+  value: string
+}
+
+type PendingConfirmation = {
+  step: OnboardingStep
+  candidate: Goal | Sex | ActivityLevel | 3 | 4 | 5 | DietaryPreference
+  prompt: string
+}
 
 type StatsState = {
   currentWeightKg: number
@@ -38,18 +53,65 @@ type CoachState = {
   messages: LiveMessage[]
   weightInput: string
   lastActiveDate: string | null
+  lockedSteps: OnboardingStep[]
+  pendingConfirmation: PendingConfirmation | null
+  activeStep: OnboardingStep | null
+  quickReplies: QuickReply[]
 }
 
-const SESSION_KEY = "coach-george-session-v4"
+const SESSION_KEY = "coach-george-session-v5"
 
 const ZERO_TARGETS: Nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
 const ZERO_STATS: StatsState = { currentWeightKg: 0, dayStreak: 0, totalCalories: 0, protein: 0, carbs: 0, fats: 0 }
+
+const STEP_ORDER: OnboardingStep[] = [
+  "goal",
+  "sex",
+  "age",
+  "heightCm",
+  "currentWeightKg",
+  "activityLevel",
+  "allergies",
+  "dislikedFoods",
+  "mealsPerDay",
+  "dietaryPreference",
+]
+
+const STEP_QUICK_REPLIES: Partial<Record<OnboardingStep, QuickReply[]>> = {
+  goal: [
+    { label: "Lose fat", value: "lose fat" },
+    { label: "Recomp", value: "recomp" },
+    { label: "Gain muscle", value: "gain muscle" },
+  ],
+  sex: [
+    { label: "Male", value: "male" },
+    { label: "Female", value: "female" },
+  ],
+  activityLevel: [
+    { label: "Sedentary", value: "sedentary" },
+    { label: "Light", value: "light" },
+    { label: "Moderate", value: "moderate" },
+    { label: "Active", value: "active" },
+    { label: "Very active", value: "very active" },
+  ],
+  mealsPerDay: [
+    { label: "3", value: "3" },
+    { label: "4", value: "4" },
+    { label: "5", value: "5" },
+  ],
+  dietaryPreference: [
+    { label: "I eat everything", value: "normal" },
+    { label: "Vegetarian", value: "vegetarian" },
+    { label: "Pescatarian", value: "pescatarian" },
+    { label: "Vegan", value: "vegan" },
+  ],
+}
 
 const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "assistant",
-    content: "Hi — I’m Coach George. Tap the round button and we’ll set your basics together, then build your plan.",
+    content: "Hi — I’m Coach George. Let’s set your basics quickly. What’s your main goal: lose fat, recomp, or gain muscle?",
   },
 ]
 
@@ -62,20 +124,11 @@ const INITIAL_STATE: CoachState = {
   messages: INITIAL_MESSAGES,
   weightInput: "",
   lastActiveDate: null,
+  lockedSteps: [],
+  pendingConfirmation: null,
+  activeStep: "goal",
+  quickReplies: STEP_QUICK_REPLIES.goal || [],
 }
-
-const REQUIRED_FIELDS: Array<keyof Profile> = [
-  "goal",
-  "sex",
-  "age",
-  "heightCm",
-  "currentWeightKg",
-  "activityLevel",
-  "allergies",
-  "dislikedFoods",
-  "mealsPerDay",
-  "dietaryPreference",
-]
 
 function makeMessage(role: LiveMessage["role"], content: string) {
   return {
@@ -92,21 +145,17 @@ function trimMessagesForStorage(messages: LiveMessage[]) {
   return messages.slice(-80)
 }
 
-function isProfileComplete(profile: PartialProfile): profile is Profile {
-  return REQUIRED_FIELDS.every((key) => {
-    const value = profile[key]
-    if (Array.isArray(value)) return true
-    return value !== undefined && value !== null && value !== ""
-  })
+function hasValue(step: OnboardingStep, value: PartialProfile[OnboardingStep]) {
+  if (step === "allergies" || step === "dislikedFoods") return Array.isArray(value)
+  return value !== undefined && value !== null && value !== ""
 }
 
-function getMissingField(profile: PartialProfile): keyof Profile | null {
-  for (const key of REQUIRED_FIELDS) {
-    const value = profile[key]
-    if (Array.isArray(value)) continue
-    if (value === undefined || value === null || value === "") return key
-  }
-  return null
+function isProfileComplete(profile: PartialProfile): profile is Profile {
+  return STEP_ORDER.every((step) => hasValue(step, profile[step]))
+}
+
+function getNextStep(profile: PartialProfile, lockedSteps: OnboardingStep[]) {
+  return STEP_ORDER.find((step) => !lockedSteps.includes(step) && !hasValue(step, profile[step])) || null
 }
 
 function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachState, "targets" | "stats"> {
@@ -124,7 +173,7 @@ function buildTargetsAndStats(profile: Profile, dayStreak: number): Pick<CoachSt
   }
 }
 
-function onboardingPrompt(field: keyof Profile | null) {
+function onboardingPrompt(field: OnboardingStep | null) {
   switch (field) {
     case "goal":
       return "What’s your main goal right now: lose fat, recomp, or gain muscle?"
@@ -133,7 +182,7 @@ function onboardingPrompt(field: keyof Profile | null) {
     case "age":
       return "How old are you?"
     case "heightCm":
-      return "What is your height in cm?"
+      return "What is your height? You can say 196 cm or 6 foot 5."
     case "currentWeightKg":
       return "What is your current body weight in kg?"
     case "activityLevel":
@@ -159,94 +208,167 @@ function parseListValue(raw: string) {
     .filter(Boolean)
 }
 
-function inferProfileUpdate(input: string, profile: PartialProfile): PartialProfile | null {
-  const text = input.toLowerCase()
-  const next = { ...profile }
-  let changed = false
+function parseYesNo(raw: string): "yes" | "no" | null {
+  const text = raw.toLowerCase().trim()
+  if (/\b(yes|yeah|yep|correct|right|exactly|confirm)\b/.test(text)) return "yes"
+  if (/\b(no|nope|nah|wrong|incorrect)\b/.test(text)) return "no"
+  return null
+}
 
-  const age = text.match(/(?:age\s*(?:is|=)?\s*|i(?:'| a)?m\s*)(\d{1,2})\b/)
-  if (age) {
-    next.age = Number(age[1])
-    changed = true
+function wordToDigit(raw: string) {
+  if (raw === "three") return 3
+  if (raw === "four") return 4
+  if (raw === "five") return 5
+  return Number(raw)
+}
+
+function parseHeightCm(text: string): number | null {
+  const cm = text.match(/(\d{2,3}(?:\.\d+)?)\s*cm\b/)
+  if (cm) return Math.round(Number(cm[1]))
+
+  const feetInches = text.match(/(\d)\s*(?:foot|feet|ft|')\s*(\d{1,2})?\s*(?:inches|inch|in|\")?\b/)
+  if (feetInches) {
+    const feet = Number(feetInches[1])
+    const inches = Number(feetInches[2] || 0)
+    return Math.round((feet * 12 + inches) * 2.54)
   }
 
-  const height = text.match(/(?:height\s*(?:is|=)?\s*|(?:i(?:'| a)?m\s*)?)(\d{2,3})\s*cm\b/)
-  if (height) {
-    next.heightCm = Number(height[1])
-    changed = true
+  const compact = text.match(/\b(\d)'(\d{1,2})\b/)
+  if (compact) {
+    const feet = Number(compact[1])
+    const inches = Number(compact[2])
+    return Math.round((feet * 12 + inches) * 2.54)
   }
 
-  const weight = text.match(/(?:weight\s*(?:is|=)?\s*|i\s*weigh\s*)(\d{2,3}(?:\.\d+)?)\s*kg\b/)
-  if (weight) {
-    next.currentWeightKg = Number(weight[1])
-    changed = true
+  return null
+}
+
+function parseGoal(text: string): Goal | null {
+  const raw = text.toLowerCase()
+  if (/\b(recomp)\b/.test(raw)) return "recomp"
+  if (/\b(lose fat|fat loss|weight loss|cut|cutting)\b/.test(raw)) return "lose-fat"
+  if (/\b(gain muscle|build muscle|bulk|bulking)\b/.test(raw)) return "gain-muscle"
+  return null
+}
+
+function parseSex(text: string): Sex | null {
+  const raw = text.toLowerCase()
+  if (/\bfemale\b/.test(raw)) return "female"
+  if (/\bmale\b/.test(raw)) return "male"
+  return null
+}
+
+function parseActivity(text: string): ActivityLevel | null {
+  const raw = text.toLowerCase()
+  if (/\bvery\s*active\b/.test(raw)) return "very-active"
+  if (/\bsedentary\b/.test(raw)) return "sedentary"
+  if (/\blight\b/.test(raw)) return "light"
+  if (/\bmoderate\b/.test(raw)) return "moderate"
+  if (/\bactive\b/.test(raw)) return "active"
+  return null
+}
+
+function parseMealsPerDay(text: string): 3 | 4 | 5 | null {
+  const raw = text.toLowerCase()
+  const match = raw.match(/\b(3|4|5|three|four|five)\b/)
+  if (!match) return null
+  const value = wordToDigit(match[1])
+  if (value === 3 || value === 4 || value === 5) return value
+  return null
+}
+
+function parseDietaryPreference(text: string): DietaryPreference | null {
+  const raw = text.toLowerCase()
+  if (/\b(omnivore|normal|just normal|eat everything|i eat everything)\b/.test(raw)) return "omnivore"
+  if (/\bvegetarian\b/.test(raw)) return "vegetarian"
+  if (/\bpescatarian\b/.test(raw)) return "pescatarian"
+  if (/\bvegan\b/.test(raw)) return "vegan"
+  return null
+}
+
+function inferCandidateForConfirmation(step: OnboardingStep, text: string): PendingConfirmation["candidate"] | null {
+  const raw = text.toLowerCase()
+  if (step === "goal") {
+    if (/\b(lose|cut)\b/.test(raw)) return "lose-fat"
+    if (/\b(gain|bulk|muscle)\b/.test(raw)) return "gain-muscle"
+    if (/\brecomp\b/.test(raw)) return "recomp"
   }
 
-  if (text.includes("lose fat") || text.includes("weight loss") || text.includes("cut")) {
-    next.goal = "lose-fat"
-    changed = true
-  } else if (text.includes("gain") || text.includes("build muscle") || text.includes("bulk")) {
-    next.goal = "gain-muscle"
-    changed = true
-  } else if (text.includes("recomp")) {
-    next.goal = "recomp"
-    changed = true
+  if (step === "sex") {
+    if (raw.includes("fem")) return "female"
+    if (raw.includes("mal")) return "male"
   }
 
-  if (text.includes("female")) {
-    next.sex = "female"
-    changed = true
-  } else if (text.includes("male")) {
-    next.sex = "male"
-    changed = true
+  if (step === "activityLevel") {
+    if (raw.includes("very")) return "very-active"
+    if (raw.includes("sed")) return "sedentary"
+    if (raw.includes("light")) return "light"
+    if (raw.includes("mod")) return "moderate"
+    if (raw.includes("act")) return "active"
   }
 
-  if (text.includes("sedentary")) next.activityLevel = "sedentary"
-  else if (text.includes("very active")) next.activityLevel = "very-active"
-  else if (text.includes("active")) next.activityLevel = "active"
-  else if (text.includes("moderate")) next.activityLevel = "moderate"
-  else if (text.includes("light")) next.activityLevel = "light"
-  if (["sedentary", "very-active", "active", "moderate", "light"].some((a) => text.includes(a.replace("-", " ")) || text.includes(a))) {
-    changed = true
+  if (step === "mealsPerDay") {
+    if (raw.includes("3") || raw.includes("three")) return 3
+    if (raw.includes("4") || raw.includes("four")) return 4
+    if (raw.includes("5") || raw.includes("five")) return 5
   }
 
-  const meals = text.match(/(3|4|5)\s*(?:meals|meals per day|meal)/)
-  if (meals) {
-    next.mealsPerDay = Number(meals[1]) as 3 | 4 | 5
-    changed = true
+  if (step === "dietaryPreference") {
+    if (raw.includes("omni") || raw.includes("normal") || raw.includes("everything")) return "omnivore"
+    if (raw.includes("vegetarian")) return "vegetarian"
+    if (raw.includes("pesc")) return "pescatarian"
+    if (raw.includes("vegan")) return "vegan"
   }
 
-  if (text.includes("vegan")) next.dietaryPreference = "vegan"
-  else if (text.includes("vegetarian")) next.dietaryPreference = "vegetarian"
-  else if (text.includes("pescatarian")) next.dietaryPreference = "pescatarian"
-  else if (text.includes("omnivore")) next.dietaryPreference = "omnivore"
-  if (["vegan", "vegetarian", "pescatarian", "omnivore"].some((d) => text.includes(d))) {
-    changed = true
-  }
+  return null
+}
 
-  const allergies = text.match(/allerg(?:y|ies)\s*(?:to|:)?\s*([^.;]+)/)
-  if (allergies) {
-    next.allergies = parseListValue(allergies[1])
-    changed = true
+function parseStepValue(step: OnboardingStep, text: string) {
+  switch (step) {
+    case "goal": {
+      const parsed = parseGoal(text)
+      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
+    }
+    case "sex": {
+      const parsed = parseSex(text)
+      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
+    }
+    case "age": {
+      const parsed = text.toLowerCase().match(/\b(\d{1,2})\b/)
+      if (!parsed) return { status: "unclear" as const }
+      const age = Number(parsed[1])
+      if (age < 13 || age > 95) return { status: "unclear" as const }
+      return { status: "ok" as const, value: age }
+    }
+    case "heightCm": {
+      const heightCm = parseHeightCm(text.toLowerCase())
+      if (!heightCm || heightCm < 120 || heightCm > 230) return { status: "unclear" as const }
+      return { status: "ok" as const, value: heightCm }
+    }
+    case "currentWeightKg": {
+      const parsed = text.toLowerCase().match(/\b(\d{2,3}(?:\.\d+)?)\s*(kg)?\b/)
+      if (!parsed) return { status: "unclear" as const }
+      const weight = Number(parsed[1])
+      if (weight < 35 || weight > 350) return { status: "unclear" as const }
+      return { status: "ok" as const, value: Math.round(weight * 10) / 10 }
+    }
+    case "activityLevel": {
+      const parsed = parseActivity(text)
+      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
+    }
+    case "allergies":
+      return { status: "ok" as const, value: parseListValue(text) }
+    case "dislikedFoods":
+      return { status: "ok" as const, value: parseListValue(text) }
+    case "mealsPerDay": {
+      const parsed = parseMealsPerDay(text)
+      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
+    }
+    case "dietaryPreference": {
+      const parsed = parseDietaryPreference(text)
+      return parsed ? { status: "ok" as const, value: parsed } : { status: "unclear" as const }
+    }
   }
-
-  const dislikes = text.match(/(?:dislike|avoid|don'?t like)\s*([^.;]+)/)
-  if (dislikes) {
-    next.dislikedFoods = parseListValue(dislikes[1])
-    changed = true
-  }
-
-  if (!next.allergies && /\bnone\b/.test(text) && (text.includes("allerg") || text.includes("allergy"))) {
-    next.allergies = []
-    changed = true
-  }
-
-  if (!next.dislikedFoods && /\bnone\b/.test(text) && (text.includes("dislike") || text.includes("avoid"))) {
-    next.dislikedFoods = []
-    changed = true
-  }
-
-  return changed ? next : null
 }
 
 function formatTargetSummary(targets: Nutrition) {
@@ -308,9 +430,27 @@ export function CoachGeorgeLiveAssistant() {
       const last = stored.lastActiveDate
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
       const dayStreak = last ? (last === today ? stored.stats.dayStreak : last === yesterday ? stored.stats.dayStreak + 1 : 1) : 1
+
+      const lockedSteps = stored.lockedSteps || STEP_ORDER.filter((step) => hasValue(step, stored.profile?.[step]))
+      const activeStep = stored.profileComplete ? null : getNextStep(stored.profile || {}, lockedSteps)
+      const quickReplies = stored.pendingConfirmation
+        ? [
+            { label: "Yes", value: "yes" },
+            { label: "No", value: "no" },
+          ]
+        : activeStep
+          ? (STEP_QUICK_REPLIES[activeStep] ?? [])
+          : []
+
       setState({
         ...INITIAL_STATE,
         ...stored,
+        lockedSteps,
+        activeStep,
+        quickReplies,
+        messages: stored.profileComplete
+          ? [...trimMessagesForStorage(stored.messages || []), makeMessage("assistant", "Welcome back — pick up where you left off.")]
+          : trimMessagesForStorage(stored.messages || INITIAL_MESSAGES),
         stats: { ...stored.stats, dayStreak },
         weightInput: stored.weightInput ?? (stored.profileComplete ? String(stored.profile.currentWeightKg ?? "") : ""),
       })
@@ -371,27 +511,124 @@ export function CoachGeorgeLiveAssistant() {
     }
   }
 
-  function continueOnboarding(nextProfile: PartialProfile) {
-    if (isProfileComplete(nextProfile)) {
-      const dayStreak = state.stats.dayStreak > 0 ? state.stats.dayStreak : 1
-      const calculated = buildTargetsAndStats(nextProfile, dayStreak)
-      const targetLine = formatTargetSummary(calculated.targets)
-      setState((prev) => ({
-        ...prev,
-        profile: nextProfile,
-        profileComplete: true,
-        targets: calculated.targets,
-        stats: calculated.stats,
-        messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", "Great — your profile is complete. I’ll keep this concise and personalized from here.")],
-      }))
-      speakIfConnected("Great — your profile is complete. I’ve set your targets. Tell me when to build your meal plan.")
+  function completeOnboardingWithProfile(profile: Profile, lockedSteps: OnboardingStep[]) {
+    const dayStreak = state.stats.dayStreak > 0 ? state.stats.dayStreak : 1
+    const calculated = buildTargetsAndStats(profile, dayStreak)
+    const targetLine = formatTargetSummary(calculated.targets)
+    const shortSummary = "Profile complete. Targets are set — tell me when to build your plan."
+
+    setState((prev) => ({
+      ...prev,
+      profile,
+      profileComplete: true,
+      targets: calculated.targets,
+      stats: calculated.stats,
+      lockedSteps,
+      activeStep: null,
+      quickReplies: [],
+      pendingConfirmation: null,
+      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", shortSummary)],
+    }))
+    speakIfConnected(shortSummary)
+  }
+
+  function moveToNextStep(profile: PartialProfile, lockedSteps: OnboardingStep[]) {
+    if (isProfileComplete(profile)) {
+      completeOnboardingWithProfile(profile, lockedSteps)
       return
     }
 
-    const missing = getMissingField(nextProfile)
-    const prompt = onboardingPrompt(missing)
-    setState((prev) => ({ ...prev, profile: nextProfile, messages: [...prev.messages, makeMessage("assistant", prompt)] }))
+    const nextStep = getNextStep(profile, lockedSteps)
+    const prompt = onboardingPrompt(nextStep)
+    const quickReplies = nextStep ? (STEP_QUICK_REPLIES[nextStep] ?? []) : []
+
+    setState((prev) => ({
+      ...prev,
+      profile,
+      lockedSteps,
+      activeStep: nextStep,
+      quickReplies,
+      pendingConfirmation: null,
+      messages: [...prev.messages, makeMessage("assistant", prompt)],
+    }))
     speakIfConnected(prompt)
+  }
+
+  function askForConfirmation(step: OnboardingStep, candidate: PendingConfirmation["candidate"], prompt: string) {
+    setState((prev) => ({
+      ...prev,
+      pendingConfirmation: { step, candidate, prompt },
+      quickReplies: [
+        { label: "Yes", value: "yes" },
+        { label: "No", value: "no" },
+      ],
+      messages: [...prev.messages, makeMessage("assistant", prompt)],
+    }))
+    speakIfConnected(prompt)
+  }
+
+  function lockAndAdvance(step: OnboardingStep, value: PartialProfile[OnboardingStep]) {
+    if (state.profileComplete) return
+    const nextProfile = { ...state.profile, [step]: value }
+    const nextLocked = state.lockedSteps.includes(step) ? state.lockedSteps : [...state.lockedSteps, step]
+    moveToNextStep(nextProfile, nextLocked)
+  }
+
+  function processOnboardingInput(rawInput: string) {
+    const input = rawInput.trim()
+    if (!input) return
+
+    const pending = state.pendingConfirmation
+    if (pending) {
+      const yesNo = parseYesNo(input)
+      const explicit = parseStepValue(pending.step, input)
+
+      if (yesNo === "yes") {
+        lockAndAdvance(pending.step, pending.candidate)
+        return
+      }
+
+      if (explicit.status === "ok") {
+        lockAndAdvance(pending.step, explicit.value)
+        return
+      }
+
+      const retry = `No problem — ${onboardingPrompt(pending.step)}`
+      setState((prev) => ({
+        ...prev,
+        pendingConfirmation: null,
+        quickReplies: STEP_QUICK_REPLIES[pending.step] ?? [],
+        messages: [...prev.messages, makeMessage("assistant", retry)],
+      }))
+      speakIfConnected(retry)
+      return
+    }
+
+    const currentStep = state.activeStep || getNextStep(state.profile, state.lockedSteps)
+    if (!currentStep) return
+
+    const parsed = parseStepValue(currentStep, input)
+    if (parsed.status !== "ok") {
+      if (["goal", "sex", "activityLevel", "mealsPerDay", "dietaryPreference"].includes(currentStep)) {
+        const candidate = inferCandidateForConfirmation(currentStep, input)
+        if (candidate) {
+          const confirmPrompt = `Just to confirm — do you mean ${String(candidate).replace("-", " ")}?`
+          askForConfirmation(currentStep, candidate, confirmPrompt)
+          return
+        }
+      }
+
+      const prompt = onboardingPrompt(currentStep)
+      setState((prev) => ({
+        ...prev,
+        quickReplies: STEP_QUICK_REPLIES[currentStep] ?? [],
+        messages: [...prev.messages, makeMessage("assistant", `I didn’t catch that. ${prompt}`)],
+      }))
+      speakIfConnected(prompt)
+      return
+    }
+
+    lockAndAdvance(currentStep, parsed.value)
   }
 
   function handleUserTranscript(text: string) {
@@ -399,16 +636,8 @@ export function CoachGeorgeLiveAssistant() {
     if (!cleaned) return
     appendUserMessage(cleaned)
 
-    setState((prev) => {
-      if (prev.profileComplete) return prev
-      const updated = inferProfileUpdate(cleaned, prev.profile)
-      if (!updated) return prev
-      return { ...prev, profile: updated }
-    })
-
-    const updatedProfile = inferProfileUpdate(cleaned, state.profile)
-    if (!state.profileComplete && updatedProfile) {
-      continueOnboarding(updatedProfile)
+    if (!state.profileComplete) {
+      processOnboardingInput(cleaned)
     }
   }
 
@@ -512,8 +741,8 @@ export function CoachGeorgeLiveAssistant() {
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
         const intro = state.profileComplete
-          ? "You are Coach George. Continue from saved state and keep spoken replies short."
-          : `You are Coach George. Ask onboarding one question at a time. Start with: ${onboardingPrompt(getMissingField(state.profile))}`
+          ? "You are Coach George. User is returning. Keep spoken replies short and practical."
+          : `You are Coach George. Ask one onboarding question at a time. Start with: ${onboardingPrompt(state.activeStep)}`
         dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
@@ -557,7 +786,7 @@ export function CoachGeorgeLiveAssistant() {
   function buildMyPlan() {
     appendUserMessage("Build My Plan")
     if (!state.profileComplete || !isProfileComplete(state.profile)) {
-      const gate = "Let’s set your basics first so I can do this properly."
+      const gate = "Please finish onboarding first so I can build this correctly."
       appendAssistantMessage(gate)
       speakIfConnected(gate)
       return
@@ -573,7 +802,7 @@ export function CoachGeorgeLiveAssistant() {
   function updateWeight() {
     appendUserMessage("Update Weight")
     if (!state.profileComplete || !isProfileComplete(state.profile)) {
-      const gate = "Let’s set your basics first so I can do this properly."
+      const gate = "Finish onboarding first — weight updates are for returning users."
       appendAssistantMessage(gate)
       speakIfConnected(gate)
       return
@@ -588,37 +817,58 @@ export function CoachGeorgeLiveAssistant() {
     setError(null)
     const nextProfile: Profile = { ...state.profile, currentWeightKg: value }
     const calculated = buildTargetsAndStats(nextProfile, state.stats.dayStreak || 1)
-    const targetLine = formatTargetSummary(calculated.targets)
+    const targetLine = `Weight updated to ${value}kg. ${formatTargetSummary(calculated.targets)}`
 
     setState((prev) => ({
       ...prev,
       profile: nextProfile,
       targets: calculated.targets,
       stats: calculated.stats,
-      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", "Weight updated. I’ve refreshed your targets.")],
+      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", "Done — your stats are refreshed.")],
     }))
 
-    speakIfConnected("Weight updated. I’ve refreshed your targets.")
+    speakIfConnected("Done — your stats are refreshed.")
   }
 
   function resetGoalsAndStats() {
     appendUserMessage("Reset Goals & Stats")
-    const next = { ...INITIAL_STATE, messages: [...INITIAL_MESSAGES, makeMessage("assistant", onboardingPrompt("goal"))] }
+    const next: CoachState = {
+      ...INITIAL_STATE,
+      messages: [...INITIAL_MESSAGES, makeMessage("assistant", onboardingPrompt("goal"))],
+      stats: { ...ZERO_STATS, dayStreak: 0 },
+      targets: ZERO_TARGETS,
+      weightInput: "",
+      profile: {},
+      profileComplete: false,
+      latestPlan: null,
+      lockedSteps: [],
+      activeStep: "goal",
+      pendingConfirmation: null,
+      quickReplies: STEP_QUICK_REPLIES.goal || [],
+      lastActiveDate: null,
+    }
     setState(next)
     window.localStorage.removeItem(SESSION_KEY)
     speakIfConnected("I’ve reset everything. Let’s restart onboarding. What’s your main goal?")
   }
 
+  function handleQuickReply(value: string) {
+    appendUserMessage(value)
+    if (!state.profileComplete) {
+      processOnboardingInput(value)
+    }
+  }
+
   return (
     <section className="bg-[#060a12] px-3 py-4 text-white sm:px-4 sm:py-8">
-      <div className="mx-auto w-full max-w-[860px] rounded-[28px] border border-white/10 bg-gradient-to-b from-[#0f1727] to-[#090f1a] p-4 shadow-[0_0_80px_rgba(93,123,255,0.12)] sm:p-5">
-        <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4">
+      <div className="mx-auto w-full max-w-[860px] rounded-[28px] border border-white/10 bg-gradient-to-b from-[#101b31] via-[#0b1323] to-[#090f1a] p-4 shadow-[0_20px_100px_rgba(72,132,255,0.2)] sm:p-5">
+        <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4 shadow-[inset_0_0_40px_rgba(123,166,255,0.15)]">
           <button
             type="button"
             onClick={connectionState === "connected" ? stopConversation : startConversation}
             disabled={connectionState === "connecting"}
-            className={`mx-auto flex h-[152px] w-[152px] items-center justify-center rounded-full ${connectionState === "connected" ? "animate-pulse" : ""}`}
-            style={{ background: "radial-gradient(circle at 32% 26%, #284775 0%, #1a2e52 52%, #0d1a33 100%)" }}
+            className={`mx-auto flex h-[152px] w-[152px] items-center justify-center rounded-full border border-[#95bcff]/50 shadow-[0_0_40px_rgba(85,141,255,0.55)] transition ${connectionState === "connected" ? "animate-pulse" : ""}`}
+            style={{ background: "radial-gradient(circle at 32% 26%, #3a5f98 0%, #1e3157 52%, #0d1a33 100%)" }}
           >
             {connectionState === "connecting" ? <Loader2 className="h-10 w-10 animate-spin" /> : <Mic className="h-10 w-10" />}
           </button>
@@ -626,34 +876,56 @@ export function CoachGeorgeLiveAssistant() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Total Calories</p><p className="text-xl font-semibold">{state.stats.totalCalories}</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Current Weight</p><p className="text-xl font-semibold">{state.stats.currentWeightKg}kg</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Day Streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{state.stats.dayStreak}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Total Calories</p><p className="text-xl font-semibold">{state.stats.totalCalories}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Current Weight</p><p className="text-xl font-semibold">{state.stats.currentWeightKg}kg</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Day Streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{state.stats.dayStreak}</p></div>
         </div>
 
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Protein</p><p className="text-lg font-semibold">{state.stats.protein}g</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Carbs</p><p className="text-lg font-semibold">{state.stats.carbs}g</p></div>
-          <div className="rounded-2xl bg-white/5 p-3"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{state.stats.fats}g</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Protein</p><p className="text-lg font-semibold">{state.stats.protein}g</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Carbs</p><p className="text-lg font-semibold">{state.stats.carbs}g</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{state.stats.fats}g</p></div>
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-          <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff]">Build My Plan</button>
-          <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2">
+          <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Build My Plan</button>
+          <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
             <input
               value={state.weightInput}
               onChange={(e) => setState((prev) => ({ ...prev, weightInput: e.target.value }))}
               placeholder="kg"
-              className="min-w-0 flex-1 rounded-xl bg-white/10 px-2 py-1 text-sm"
+              type="number"
+              inputMode="decimal"
+              pattern="[0-9]*[.,]?[0-9]*"
+              min={35}
+              max={350}
+              step="0.1"
+              disabled={!state.profileComplete}
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-sm disabled:opacity-50"
             />
             <button onClick={updateWeight} className="rounded-xl border border-white/10 bg-white/10 px-2 py-1 text-xs font-medium">Update Weight</button>
           </div>
-          <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff]">Reset Goals & Stats</button>
+          <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Reset Goals & Stats</button>
         </div>
 
-        <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3">
+        <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3 shadow-[inset_0_0_35px_rgba(105,154,255,0.08)]">
           <div className="mb-3 flex items-center gap-2 px-1"><MessageSquareText className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Conversation</p></div>
-          <div ref={chatScrollRef} className="h-[360px] sm:h-[440px] space-y-3 overflow-y-auto rounded-2xl bg-white/[0.03] p-3">
+
+          {state.quickReplies.length ? (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {state.quickReplies.map((reply) => (
+                <button
+                  key={`${reply.label}-${reply.value}`}
+                  onClick={() => handleQuickReply(reply.value)}
+                  className="rounded-full border border-[#8ab0ff]/40 bg-[#21385e] px-3 py-1 text-xs text-[#d9e7ff]"
+                >
+                  {reply.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div ref={chatScrollRef} className="h-[360px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:h-[440px]">
             {state.messages.map((message) => {
               const isUser = message.role === "user"
               return (
