@@ -170,12 +170,16 @@ function carbDensity(nutrition: Nutrition) {
   return nutrition.carbs / Math.max(1, nutrition.calories)
 }
 
+function calorieDensity(nutrition: Nutrition) {
+  return nutrition.calories / Math.max(1, nutrition.protein + nutrition.carbs + nutrition.fat)
+}
+
 function scoreNutritionFit(actual: Nutrition, target: Nutrition) {
   const delta = subtractNutrition(actual, target)
-  const caloriePenalty = Math.abs(delta.calories) * 0.65
-  const proteinPenalty = delta.protein < 0 ? Math.abs(delta.protein) * 14 : Math.abs(delta.protein) * 3.2
-  const carbPenalty = delta.carbs > 0 ? delta.carbs * 8.5 : Math.abs(delta.carbs) * 2.2
-  const fatPenalty = delta.fat > 0 ? delta.fat * 4.8 : Math.abs(delta.fat) * 2.8
+  const caloriePenalty = delta.calories < 0 ? Math.abs(delta.calories) * 1.9 : Math.abs(delta.calories) * 0.95
+  const proteinPenalty = delta.protein < 0 ? Math.abs(delta.protein) * 6.5 : Math.abs(delta.protein) * 1.9
+  const carbPenalty = delta.carbs > 0 ? delta.carbs * 3.1 : Math.abs(delta.carbs) * 1.1
+  const fatPenalty = delta.fat > 0 ? delta.fat * 2.4 : Math.abs(delta.fat) * 1.0
 
   return caloriePenalty + proteinPenalty + carbPenalty + fatPenalty
 }
@@ -195,11 +199,24 @@ function sumNutrition(entries: Nutrition[]) {
 }
 
 function scorePlan(totals: Nutrition, targets: Nutrition, uniqueRecipeCount: number, highCarbMeals = 0) {
+  const calorieGap = targets.calories - totals.calories
+  const calorieUndershoot = Math.max(0, calorieGap)
+  const calorieOvershoot = Math.max(0, -calorieGap)
   const proteinGap = Math.max(0, targets.protein - totals.protein)
   const carbOvershoot = Math.max(0, totals.carbs - targets.carbs)
-  const hardConstraintPenalty = Math.max(0, highCarbMeals - 2) * 260
+  const fatOvershoot = Math.max(0, totals.fat - targets.fat)
+  const hardConstraintPenalty = Math.max(0, highCarbMeals - 2) * 220
 
-  return scoreNutritionFit(totals, targets) + proteinGap * 8 + carbOvershoot * 4 + hardConstraintPenalty - uniqueRecipeCount * 10
+  return (
+    scoreNutritionFit(totals, targets) +
+    calorieUndershoot * 2.8 +
+    calorieOvershoot * 0.9 +
+    proteinGap * 4.2 +
+    carbOvershoot * 2.4 +
+    fatOvershoot * 1.4 +
+    hardConstraintPenalty -
+    uniqueRecipeCount * 8
+  )
 }
 
 
@@ -236,6 +253,8 @@ function rankRecipesForRemaining(
   usedIds: Set<string>,
   availableFoods: Food[],
   highCarbMealsUsed: number,
+  targets: Nutrition,
+  mealsPerDay: Profile["mealsPerDay"],
 ) {
   return pool
     .map((recipe) => {
@@ -244,17 +263,29 @@ function rankRecipesForRemaining(
       const highCarb = isHighCarbRecipe(recipe, availableFoods)
       const proteinGap = Math.max(0, remaining.protein - nutrition.protein)
       const carbOvershoot = Math.max(0, nutrition.carbs - remaining.carbs)
+      const mealCalorieTarget = Math.max(remaining.calories, targets.calories / Math.max(1, mealsPerDay))
+      const calorieGap = mealCalorieTarget - nutrition.calories
+      const caloriesNeededBias = remaining.calories > 650 || targets.calories >= 3000
+      const highTargetMode = targets.calories >= 3000 || mealsPerDay <= 3
+      const tooSmallPenalty = calorieGap > 0 ? calorieGap * (highTargetMode ? 1.25 : 0.8) : 0
+      const carbGuardPenalty = highCarb && highCarbMealsUsed >= 2 ? 260 : 0
+      const highCarbBiasPenalty = highCarb && !caloriesNeededBias ? Math.max(0, nutrition.carbs - nutrition.protein) * 0.9 : 0
+      const calorieDensityBonus = calorieDensity(nutrition) * (highTargetMode ? 55 : 25)
+      const calorieMatchPenalty = calorieGap < 0 ? Math.abs(calorieGap) * 0.18 : 0
       const score =
         scoreNutritionFit(nutrition, remaining) +
-        proteinGap * 6 +
-        carbOvershoot * 8 +
-        Math.max(0, nutrition.fat - remaining.fat) * 3.5 +
-        (usedIds.has(recipe.id) ? 55 : 0) +
-        (highCarb && highCarbMealsUsed >= 2 ? 240 : 0) +
-        (highCarb ? Math.max(0, nutrition.carbs - nutrition.protein) * 1.2 : 0) -
-        proteinDensity(nutrition) * 260 -
-        (proteinForward && remaining.protein > 18 ? 75 : 0) +
-        (remaining.protein > 22 && carbDensity(nutrition) > 0.22 ? 28 : 0)
+        tooSmallPenalty +
+        calorieMatchPenalty +
+        proteinGap * 3.8 +
+        carbOvershoot * (highTargetMode ? 3.1 : 4.2) +
+        Math.max(0, nutrition.fat - remaining.fat) * 1.8 +
+        (usedIds.has(recipe.id) ? 45 : 0) +
+        carbGuardPenalty +
+        highCarbBiasPenalty -
+        proteinDensity(nutrition) * 210 -
+        calorieDensityBonus -
+        (proteinForward && remaining.protein > 18 ? 60 : 0) +
+        (remaining.protein > 22 && carbDensity(nutrition) > 0.24 && !caloriesNeededBias ? 22 : 0)
 
       return { recipe: { ...recipe, nutrition }, score }
     })
@@ -374,6 +405,7 @@ function scalePlanToTargets(
   sequence: Array<Recipe["mealType"]>,
   targets: Nutrition,
   availableFoods: Food[],
+  mealsPerDay: Profile["mealsPerDay"],
 ) {
   let scaledPlan = plan.map((recipe) => scaleMeal(recipe, 1))
 
@@ -390,33 +422,43 @@ function scalePlanToTargets(
         fat: Math.max(0, targets.fat - consumed.fat),
       }
 
-      const calorieRatio = meal.nutrition.calories > 0 ? remaining.calories / Math.max(1, mealsLeft) / meal.nutrition.calories : 1
-      const proteinRatio = meal.nutrition.protein > 0 ? remaining.protein / Math.max(1, mealsLeft) / meal.nutrition.protein : 1
-      const carbCap = meal.nutrition.carbs > 0 ? remaining.carbs / Math.max(1, mealsLeft) / meal.nutrition.carbs : 1.2
-      const fatCap = meal.nutrition.fat > 0 ? remaining.fat / Math.max(1, mealsLeft) / meal.nutrition.fat : 1.2
-      const typeAdjustment = sequence[index] === "snack" ? 0.94 : sequence[index] === "dinner" ? 1.04 : 1
+      const perMealCalories = remaining.calories / Math.max(1, mealsLeft)
+      const perMealProtein = remaining.protein / Math.max(1, mealsLeft)
+      const perMealCarbs = remaining.carbs / Math.max(1, mealsLeft)
+      const perMealFat = remaining.fat / Math.max(1, mealsLeft)
+      const calorieRatio = meal.nutrition.calories > 0 ? perMealCalories / meal.nutrition.calories : 1
+      const proteinRatio = meal.nutrition.protein > 0 ? perMealProtein / meal.nutrition.protein : 1
+      const carbCap = meal.nutrition.carbs > 0 ? perMealCarbs / meal.nutrition.carbs : 1.3
+      const fatCap = meal.nutrition.fat > 0 ? perMealFat / meal.nutrition.fat : 1.25
+      const highTargetMode = targets.calories >= 3000 || mealsPerDay <= 3
+      const typeAdjustment = sequence[index] === "snack" ? 0.92 : sequence[index] === "dinner" ? 1.08 : sequence[index] === "lunch" ? 1.04 : 1
 
-      const proteinPriority = remaining.protein > 0 ? 0.56 : 0.38
       let multiplier =
-        proteinRatio * proteinPriority +
-        calorieRatio * 0.24 +
-        clamp(carbCap, 0.65, 1.12) * 0.14 +
-        clamp(fatCap, 0.75, 1.15) * 0.06
+        calorieRatio * (highTargetMode ? 0.58 : 0.46) +
+        proteinRatio * (highTargetMode ? 0.24 : 0.32) +
+        clamp(carbCap, 0.72, 1.28) * 0.1 +
+        clamp(fatCap, 0.75, 1.22) * 0.08
       multiplier *= typeAdjustment
 
+      if (highTargetMode && meal.nutrition.calories >= perMealCalories * 0.82) {
+        multiplier *= 1.06
+      }
+
       if (remaining.protein > 18 && isProteinForwardRecipe(meal, availableFoods)) {
-        multiplier *= 1.08
+        multiplier *= 1.04
       }
 
-      if (meal.nutrition.carbs > meal.nutrition.protein && remaining.protein > 12) {
-        multiplier *= 0.94
+      if (!highTargetMode && meal.nutrition.carbs > meal.nutrition.protein && remaining.protein > 12) {
+        multiplier *= 0.95
       }
 
-      if (remaining.carbs <= 0 && meal.nutrition.carbs > 0) {
-        multiplier = Math.min(multiplier, 0.84)
+      if (!highTargetMode && remaining.carbs <= 0 && meal.nutrition.carbs > 0) {
+        multiplier = Math.min(multiplier, 0.9)
       }
 
-      multiplier = clamp(multiplier, 0.72, 1.6)
+      const minScale = highTargetMode ? (sequence[index] === "snack" ? 0.9 : 0.98) : 0.78
+      const maxScale = highTargetMode ? (sequence[index] === "snack" ? 1.65 : 2.25) : 1.75
+      multiplier = clamp(multiplier, minScale, maxScale)
 
       const scaledMeal = scaleMeal(plan[index], multiplier)
       nextPlan.push(scaledMeal)
@@ -434,6 +476,7 @@ function rebalanceScaledPlan(
   basePlan: Array<Recipe & { nutrition: Nutrition }>,
   targets: Nutrition,
   availableFoods: Food[],
+  mealsPerDay: Profile["mealsPerDay"],
 ) {
   let workingPlan = [...scaledPlan]
   let workingTotals = sumNutrition(workingPlan.map((item) => item.nutrition))
@@ -445,9 +488,10 @@ function rebalanceScaledPlan(
     if (!caloriesLow && !caloriesHigh) break
 
     const rankedIndexes = workingPlan
-      .map((meal, index) => ({ index, density: proteinDensity(meal.nutrition), carbs: meal.nutrition.carbs }))
+      .map((meal, index) => ({ index, density: proteinDensity(meal.nutrition), carbs: meal.nutrition.carbs, calories: meal.nutrition.calories }))
       .sort((a, b) => {
         if (caloriesLow) {
+          if (b.calories !== a.calories) return b.calories - a.calories
           if (b.density !== a.density) return b.density - a.density
           return a.carbs - b.carbs
         }
@@ -460,8 +504,10 @@ function rebalanceScaledPlan(
     rankedIndexes.forEach(({ index }) => {
       if (changed) return
       const currentMeal = workingPlan[index]
-      const step = caloriesLow ? 0.06 : -0.06
-      const nextMultiplier = clamp(currentMeal.servingMultiplier + step, 0.75, 1.75)
+      const highTargetMode = targets.calories >= 3000 || mealsPerDay <= 3
+      const step = caloriesLow ? (highTargetMode ? 0.14 : 0.08) : -0.08
+      const maxScale = highTargetMode ? ((basePlan[index].mealType === "snack") ? 1.7 : 2.35) : 1.8
+      const nextMultiplier = clamp(currentMeal.servingMultiplier + step, 0.75, maxScale)
       if (nextMultiplier === currentMeal.servingMultiplier) return
 
       const nextPlan = [...workingPlan]
@@ -542,7 +588,7 @@ export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; r
       }
 
       const highCarbMealsUsed = countHighCarbMeals(partialPlan, availableFoods)
-      const ranked = rankRecipesForRemaining(pool, remaining, usedIds, availableFoods, highCarbMealsUsed)
+      const ranked = rankRecipesForRemaining(pool, remaining, usedIds, availableFoods, highCarbMealsUsed, targets, normalizedProfile.mealsPerDay)
       const topChoices = ranked.slice(0, Math.min(6, ranked.length))
 
       topChoices.forEach(({ recipe }) => {
@@ -563,13 +609,19 @@ export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; r
     candidatePlans.sort((a, b) => {
       const totalA = sumNutrition(a.map((item) => item.nutrition))
       const totalB = sumNutrition(b.map((item) => item.nutrition))
-      return scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size) - scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size)
+      return scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size, countHighCarbMeals(a, availableFoods)) - scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size, countHighCarbMeals(b, availableFoods))
     })[0] || []
 
-  const improvedPlan = improvePlanSelections(basePlan, sequence, recipesByType, targets, availableFoods)
+  const calorieFocusedPlan = improvePlanSelections(basePlan, sequence, recipesByType, {
+    ...targets,
+    protein: Math.max(0, targets.protein * 0.9),
+    carbs: targets.carbs,
+    fat: targets.fat,
+  }, availableFoods)
+  const improvedPlan = improvePlanSelections(calorieFocusedPlan, sequence, recipesByType, targets, availableFoods)
   const macroPrioritizedPlan = prioritizeProteinAndCarbBalance(improvedPlan, sequence, recipesByType, targets, availableFoods)
-  const initiallyScaledPlan = scalePlanToTargets(macroPrioritizedPlan, sequence, targets, availableFoods)
-  const scaledPlan = rebalanceScaledPlan(initiallyScaledPlan, macroPrioritizedPlan, targets, availableFoods)
+  const initiallyScaledPlan = scalePlanToTargets(macroPrioritizedPlan, sequence, targets, availableFoods, normalizedProfile.mealsPerDay)
+  const scaledPlan = rebalanceScaledPlan(initiallyScaledPlan, macroPrioritizedPlan, targets, availableFoods, normalizedProfile.mealsPerDay)
   const totals = sumNutrition(scaledPlan.map((recipe) => recipe.nutrition))
 
   return { plan: scaledPlan, totals, targets, profile: normalizedProfile }
