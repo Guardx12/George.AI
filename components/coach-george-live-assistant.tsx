@@ -239,26 +239,46 @@ function sumPlanNutrition(plan: MealPlanResult["plan"]): Nutrition {
   )
 }
 
+function cleanLabel(value: string) {
+  return value
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function formatWeight(grams: number) {
+  if (grams >= 1000) {
+    const kg = grams / 1000
+    return `${Number.isInteger(kg) ? kg.toFixed(0) : kg.toFixed(1)}kg`
+  }
+  return `${Math.round(grams)}g`
+}
+
 function buildShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, days: number) {
-  const totals = new Map<string, number>()
+  const totals = new Map<string, { label: string; grams: number }>()
 
   plan.plan.forEach((meal) => {
     meal.ingredients.forEach((ingredient) => {
       const food = plannerData.foods.find((entry) => entry.id === ingredient.foodId)
-      const name = food?.name || ingredient.foodId
-      totals.set(name, (totals.get(name) || 0) + ingredient.grams * days)
+      const rawName = cleanLabel(food?.name || ingredient.foodId)
+      const key = rawName.toLowerCase()
+      const existing = totals.get(key)
+      totals.set(key, {
+        label: existing?.label || rawName,
+        grams: (existing?.grams || 0) + ingredient.grams * days,
+      })
     })
   })
 
-  return Array.from(totals.entries())
-    .map(([name, grams]) => ({ name, grams: Math.round(grams) }))
+  return Array.from(totals.values())
+    .map((item) => ({ name: item.label, grams: Math.round(item.grams) }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function formatShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, days: number) {
   const items = buildShoppingList(plan, plannerData, days)
-  const lines = [`Shopping list for ${days} day${days === 1 ? "" : "s"}:`, ""]
-  items.forEach((item) => lines.push(`- ${item.name}: ${item.grams}g`))
+  const lines = [`Shopping List (${days} Day${days === 1 ? "" : "s"})`, ""]
+  items.forEach((item) => lines.push(`- ${item.name}: ${formatWeight(item.grams)}`))
   return lines.join("\n")
 }
 
