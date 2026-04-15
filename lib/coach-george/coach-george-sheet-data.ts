@@ -45,6 +45,14 @@ function slugify(input: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+function normalizeRecipeName(input: string) {
+  return input.replace(/^﻿/, "").replace(/\s+/g, " ").trim()
+}
+
+function normalizeRecipeKey(input: string) {
+  return normalizeRecipeName(input).toLowerCase()
+}
+
 function normalizeHeader(input: string) {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_")
 }
@@ -298,23 +306,25 @@ function normalizeRecipeRow(row: CsvRow, foods: Food[]): RawRecipe | null {
 }
 
 function buildRecipesFromIngredientRows(rows: CsvRow[], foods: Food[]) {
-  const grouped = new Map<string, RecipeIngredient[]>()
+  const grouped = new Map<string, { name: string; ingredients: RecipeIngredient[] }>()
 
   rows.forEach((row) => {
-    const recipeName = (row.recipe || row.recipe_name || row.name || row.title || "").trim()
+    const recipeNameRaw = row.recipe || row.recipe_name || row.name || row.title || ""
+    const recipeName = normalizeRecipeName(recipeNameRaw)
+    const recipeKey = normalizeRecipeKey(recipeNameRaw)
     const ingredientName = (row.ingredient || row.food || row.item || "").trim()
     const grams = toNumber(row.grams || row.gram || row.amount || row.qty || row.quantity)
-    if (!recipeName || !ingredientName || !grams) return
+    if (!recipeKey || !ingredientName || !grams) return
 
     const food = resolveFoodByName(ingredientName, foods)
     if (!food) return
 
-    const current = grouped.get(recipeName) || []
-    current.push({ foodId: food.id, grams })
-    grouped.set(recipeName, current)
+    const current = grouped.get(recipeKey) || { name: recipeName, ingredients: [] }
+    current.ingredients.push({ foodId: food.id, grams })
+    grouped.set(recipeKey, current)
   })
 
-  return Array.from(grouped.entries()).map(([name, ingredients]) => ({
+  return Array.from(grouped.values()).map(({ name, ingredients }) => ({
     id: slugify(name),
     name,
     mealType: normalizeMealType(undefined, name),
