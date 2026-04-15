@@ -5,6 +5,7 @@ export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "ver
 export type Goal = "lose-fat" | "recomp" | "gain-muscle"
 export type Sex = "male" | "female"
 export type DietaryPreference = "omnivore" | "vegetarian" | "pescatarian" | "vegan"
+export type PlanMode = "balanced" | "higher-carb" | "lower-carb"
 
 export type Nutrition = { calories: number; protein: number; carbs: number; fat: number }
 export type Food = {
@@ -35,6 +36,20 @@ export type Profile = {
   dislikedFoods: string[]
   mealsPerDay: 3 | 4 | 5
   dietaryPreference: DietaryPreference
+  planMode: PlanMode
+}
+
+export type ComputedMeal = Recipe & {
+  servingMultiplier: number
+  nutrition: Nutrition
+  ingredients: RecipeIngredient[]
+}
+
+export type MealPlanResult = {
+  plan: ComputedMeal[]
+  totals: Nutrition
+  targets: Nutrition
+  profile: Profile
 }
 
 export const foods: Food[] = foodsData as Food[]
@@ -57,6 +72,27 @@ export function roundNutrition(input: Nutrition): Nutrition {
   }
 }
 
+function getMacroStrategy(profile: Profile) {
+  if (profile.planMode === "higher-carb") {
+    return {
+      proteinPerKg: profile.goal === "gain-muscle" ? 2.05 : profile.goal === "lose-fat" ? 1.95 : 1.85,
+      fatRatio: 0.2,
+    }
+  }
+
+  if (profile.planMode === "lower-carb") {
+    return {
+      proteinPerKg: profile.goal === "gain-muscle" ? 2.3 : profile.goal === "lose-fat" ? 2.2 : 2.0,
+      fatRatio: 0.35,
+    }
+  }
+
+  return {
+    proteinPerKg: profile.goal === "gain-muscle" ? 2.2 : profile.goal === "lose-fat" ? 2.1 : 1.9,
+    fatRatio: 0.27,
+  }
+}
+
 export function getDailyTargets(profile: Profile): Nutrition {
   const bmr =
     profile.sex === "male"
@@ -67,10 +103,10 @@ export function getDailyTargets(profile: Profile): Nutrition {
   const calorieTarget =
     profile.goal === "lose-fat" ? maintenance - 400 : profile.goal === "gain-muscle" ? maintenance + 220 : maintenance - 120
 
-  const proteinPerKg = profile.goal === "gain-muscle" ? 2.2 : profile.goal === "lose-fat" ? 2.1 : 1.9
-  const protein = profile.currentWeightKg * proteinPerKg
-  const fat = (calorieTarget * 0.27) / 9
-  const carbs = (calorieTarget - protein * 4 - fat * 9) / 4
+  const macroStrategy = getMacroStrategy(profile)
+  const protein = profile.currentWeightKg * macroStrategy.proteinPerKg
+  const fat = (calorieTarget * macroStrategy.fatRatio) / 9
+  const carbs = Math.max(0, (calorieTarget - protein * 4 - fat * 9) / 4)
 
   return roundNutrition({ calories: calorieTarget, protein, carbs, fat })
 }
@@ -160,13 +196,35 @@ function chooseBestRecipe(pool: Recipe[], remaining: Nutrition, usedIds: Set<str
   return scored[0]?.recipe || null
 }
 
-export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; recipes: Recipe[] }) {
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function scaleMeal(recipe: Recipe & { nutrition: Nutrition }, multiplier: number): ComputedMeal {
+  return {
+    ...recipe,
+    servingMultiplier: Number(multiplier.toFixed(2)),
+    ingredients: recipe.ingredients.map((ingredient) => ({
+      ...ingredient,
+      grams: Math.round(ingredient.grams * multiplier),
+    })),
+    nutrition: roundNutrition({
+      calories: recipe.nutrition.calories * multiplier,
+      protein: recipe.nutrition.protein * multiplier,
+      carbs: recipe.nutrition.carbs * multiplier,
+      fat: recipe.nutrition.fat * multiplier,
+    }),
+  }
+}
+
+export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; recipes: Recipe[] }): MealPlanResult {
   const supportedPreference: DietaryPreference[] = ["omnivore", "vegetarian", "pescatarian", "vegan"]
   const normalizedProfile = {
     ...profile,
     allergies: profile.allergies.map((item) => item.toLowerCase().trim()).filter(Boolean),
     dislikedFoods: profile.dislikedFoods.map((item) => item.toLowerCase().trim()).filter(Boolean),
     dietaryPreference: supportedPreference.includes(profile.dietaryPreference) ? profile.dietaryPreference : "omnivore",
+    planMode: profile.planMode || "balanced",
   }
 
   const availableFoods = plannerData?.foods?.length ? plannerData.foods : foods
@@ -185,7 +243,7 @@ export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; r
 
   const candidatePlans: Array<Array<Recipe & { nutrition: Nutrition }>> = []
 
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     const usedIds = new Set<string>()
     const currentPlan: Array<Recipe & { nutrition: Nutrition }> = []
 
@@ -211,13 +269,22 @@ export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; r
     if (currentPlan.length) candidatePlans.push(currentPlan)
   }
 
-  const bestPlan = candidatePlans.sort((a, b) => {
-    const totalA = sumNutrition(a.map((item) => item.nutrition))
-    const totalB = sumNutrition(b.map((item) => item.nutrition))
-    return scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size) - scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size)
-  })[0] || []
+  const basePlan =
+    candidatePlans.sort((a, b) => {
+      const totalA = sumNutrition(a.map((item) => item.nutrition))
+      const totalB = sumNutrition(b.map((item) => item.nutrition))
+      return scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size) - scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size)
+    })[0] || []
 
-  const totals = sumNutrition(bestPlan.map((recipe) => recipe.nutrition))
+  const baseTotals = sumNutrition(basePlan.map((recipe) => recipe.nutrition))
+  const calorieMultiplier = baseTotals.calories > 0 ? clamp(targets.calories / baseTotals.calories, 0.75, 1.6) : 1
 
-  return { plan: bestPlan, totals, targets, profile: normalizedProfile }
+  const scaledPlan = basePlan.map((recipe, index) => {
+    const positionAdjustment = sequence[index] === "snack" ? 0.92 : sequence[index] === "dinner" ? 1.06 : 1
+    return scaleMeal(recipe, clamp(calorieMultiplier * positionAdjustment, 0.7, 1.75))
+  })
+
+  const totals = sumNutrition(scaledPlan.map((recipe) => recipe.nutrition))
+
+  return { plan: scaledPlan, totals, targets, profile: normalizedProfile }
 }

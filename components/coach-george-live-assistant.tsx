@@ -9,7 +9,9 @@ import {
   type DietaryPreference,
   type Food,
   type Goal,
+  type MealPlanResult,
   type Nutrition,
+  type PlanMode,
   type Profile,
   type Recipe,
   type Sex,
@@ -39,6 +41,7 @@ type CoachState = {
   targets: Nutrition
   stats: StatsState
   latestPlan: string | null
+  currentPlan: MealPlanResult | null
   messages: LiveMessage[]
   weightInput: string
   lastActiveDate: string | null
@@ -55,15 +58,18 @@ type SetupFormState = {
   dislikedFoods: string
   mealsPerDay: "3" | "4" | "5"
   dietaryPreference: DietaryPreference
+  planMode: PlanMode
 }
 
 type PlannerPayload = {
   foods: Food[]
   recipes: Recipe[]
   source: PlannerDataSource
+  statusMessage: string
+  fallbackReason: string | null
 }
 
-const SESSION_KEY = "coach-george-session-v7"
+const SESSION_KEY = "coach-george-session-v8"
 
 const ZERO_TARGETS: Nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
 const ZERO_STATS: StatsState = { currentWeightKg: 0, dayStreak: 0, totalCalories: 0, protein: 0, carbs: 0, fats: 0 }
@@ -83,6 +89,7 @@ const INITIAL_STATE: CoachState = {
   targets: ZERO_TARGETS,
   stats: ZERO_STATS,
   latestPlan: null,
+  currentPlan: null,
   messages: INITIAL_MESSAGES,
   weightInput: "",
   lastActiveDate: null,
@@ -99,6 +106,7 @@ const DEFAULT_SETUP_FORM: SetupFormState = {
   dislikedFoods: "",
   mealsPerDay: "3",
   dietaryPreference: "omnivore",
+  planMode: "balanced",
 }
 
 function makeMessage(role: LiveMessage["role"], content: string) {
@@ -158,17 +166,22 @@ function computeNextStreak(lastActiveDate: string | null, previousStreak: number
   return 1
 }
 
-function buildVoicePlannerSummary(plannerData: PlannerPayload) {
-  const names = plannerData.recipes.slice(0, 12).map((recipe) => recipe.name).join(", ")
-  return `Plan source: ${plannerData.source === "google_sheets" ? "Live Google Sheets" : "Local fallback data"}. Available recipes include: ${names || "standard meals"}.`
+function getPlannerSourceLabel(plannerData: PlannerPayload) {
+  if (plannerData.source === "uploaded_csv") return "Uploaded CSV data"
+  if (plannerData.source === "google_sheets") return "Live Google Sheets"
+  return "Local fallback data"
 }
 
-function formatMealPlan(profile: Profile, plannerData: PlannerPayload) {
-  const result = buildMealPlan(profile, plannerData)
-  const lines = [formatTargetSummary(result.targets), ""]
+function buildVoicePlannerSummary(plannerData: PlannerPayload) {
+  const names = plannerData.recipes.slice(0, 12).map((recipe) => recipe.name).join(", ")
+  return `Plan source: ${getPlannerSourceLabel(plannerData)}. ${plannerData.statusMessage} Available recipes include: ${names || "standard meals"}.`
+}
+
+function formatComputedPlan(result: MealPlanResult, plannerData: PlannerPayload) {
+  const lines = [formatTargetSummary(result.targets), "", `Planned totals: ${result.totals.calories} kcal | Protein ${result.totals.protein}g | Carbs ${result.totals.carbs}g | Fats ${result.totals.fat}g.`, ""]
 
   result.plan.forEach((meal, index) => {
-    lines.push(`Meal ${index + 1}: ${meal.name}`)
+    lines.push(`Meal ${index + 1}: ${meal.name}${meal.servingMultiplier !== 1 ? ` (x${meal.servingMultiplier})` : ""}`)
     if (meal.ingredients.length) {
       meal.ingredients.forEach((ingredient) => {
         const food = plannerData.foods.find((entry) => entry.id === ingredient.foodId)
@@ -200,7 +213,7 @@ export function CoachGeorgeLiveAssistant() {
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
   const showSetupModal = !state.profileComplete
-  const plannerSourceLabel = plannerData.source === "google_sheets" ? "Live Google Sheets" : "Local fallback data"
+  const plannerSourceLabel = getPlannerSourceLabel(plannerData)
 
   const appendAssistantMessage = (content: string) => {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
@@ -223,8 +236,8 @@ export function CoachGeorgeLiveAssistant() {
       try {
         const response = await fetch("/api/coach-george-data", { cache: "no-store" })
         const payload = (await response.json()) as PlannerPayload
-        if (!cancelled && response.ok && payload?.foods?.length && payload?.recipes?.length) {
-          setPlannerData(payload)
+        if (!cancelled && response.ok && payload) {
+          setPlannerData(payload.foods?.length && payload.recipes?.length ? payload : LOCAL_FALLBACK)
         }
       } catch {
         if (!cancelled) setPlannerData(LOCAL_FALLBACK)
@@ -266,6 +279,8 @@ export function CoachGeorgeLiveAssistant() {
         targets: calculated.targets,
         stats: calculated.stats,
         weightInput: String((stored.profile as Profile).currentWeightKg || ""),
+        currentPlan: null,
+        latestPlan: null,
         messages: needsWelcomeBack
           ? [...restoredMessages, makeMessage("assistant", "Welcome back — ready to carry on?")]
           : restoredMessages,
@@ -281,6 +296,7 @@ export function CoachGeorgeLiveAssistant() {
         dislikedFoods: (stored.profile as Profile).dislikedFoods.join(", "),
         mealsPerDay: String((stored.profile as Profile).mealsPerDay) as "3" | "4" | "5",
         dietaryPreference: (stored.profile as Profile).dietaryPreference,
+        planMode: ((stored.profile as Profile).planMode || "balanced") as PlanMode,
       })
     } catch {
       // ignore corrupted storage
@@ -339,10 +355,38 @@ export function CoachGeorgeLiveAssistant() {
     }
   }
 
+  function computePlanForProfile(profile: Profile) {
+    return buildMealPlan(profile, plannerData)
+  }
+
+  function applyComputedPlan(result: MealPlanResult, leadMessage?: string) {
+    const planText = formatComputedPlan(result, plannerData)
+    const spoken = `${leadMessage ? `${leadMessage} ` : ""}I've built your plan. The totals are ${result.totals.calories} calories, ${result.totals.protein} grams of protein, ${result.totals.carbs} grams of carbs, and ${result.totals.fat} grams of fats.`
+    setState((prev) => ({
+      ...prev,
+      currentPlan: result,
+      latestPlan: planText,
+      messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", spoken)],
+    }))
+    speakIfConnected(`${spoken} Describe the meals exactly as shown on screen.`)
+  }
+
   function handleUserTranscript(text: string) {
     const cleaned = text.trim()
     if (!cleaned) return
     appendUserMessage(cleaned)
+
+    if (!state.profileComplete || !state.profile) return
+
+    if (/\b(build|make|create|generate)\b.*\b(plan|meal plan)\b|\bmeal plan\b/.test(cleaned.toLowerCase())) {
+      const result = computePlanForProfile(state.profile)
+      applyComputedPlan(result, "Built from your saved targets.")
+      return
+    }
+
+    if (/\b(reset|start over|clear)\b/.test(cleaned.toLowerCase())) {
+      resetGoalsAndStats(false)
+    }
   }
 
   function handleRealtimeEvent(event: any) {
@@ -444,8 +488,8 @@ export function CoachGeorgeLiveAssistant() {
       dataChannel.addEventListener("open", () => {
         setConnectionState("connected")
         const intro = state.profileComplete
-          ? `You are Coach George. User is returning. Keep spoken replies short and practical. ${buildVoicePlannerSummary(plannerData)}`
-          : `You are Coach George. User is completing setup with the on-screen form. Keep spoken replies short and practical while setup is pending. ${buildVoicePlannerSummary(plannerData)}`
+          ? `You are Coach George. User is returning. Keep spoken replies short and practical. Never invent a separate meal plan. When asked for a plan, describe the app-computed plan only. ${buildVoicePlannerSummary(plannerData)}`
+          : `You are Coach George. User is completing setup with the on-screen form. Keep spoken replies short and practical while setup is pending. Never invent a separate meal plan. ${buildVoicePlannerSummary(plannerData)}`
         dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions: intro } }))
       })
 
@@ -508,6 +552,7 @@ export function CoachGeorgeLiveAssistant() {
       dislikedFoods: parseListValue(setupForm.dislikedFoods),
       mealsPerDay: Number(setupForm.mealsPerDay) as 3 | 4 | 5,
       dietaryPreference: setupForm.dietaryPreference,
+      planMode: setupForm.planMode,
     }
 
     const calculated = buildTargetsAndStats(profile, dayStreak)
@@ -521,6 +566,8 @@ export function CoachGeorgeLiveAssistant() {
       targets: calculated.targets,
       stats: calculated.stats,
       weightInput: String(profile.currentWeightKg),
+      currentPlan: null,
+      latestPlan: null,
       messages: [...prev.messages, makeMessage("assistant", formatTargetSummary(calculated.targets)), makeMessage("assistant", summary), makeMessage("assistant", georgeLine)],
     }))
     speakIfConnected(georgeLine)
@@ -535,14 +582,8 @@ export function CoachGeorgeLiveAssistant() {
       return
     }
 
-    const planText = formatMealPlan(state.profile, plannerData)
-    const spoken = "I’ve built your plan. Have a look below and tell me what you want to change."
-    setState((prev) => ({
-      ...prev,
-      latestPlan: planText,
-      messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", spoken)],
-    }))
-    speakIfConnected(spoken)
+    const result = computePlanForProfile(state.profile)
+    applyComputedPlan(result)
   }
 
   function updateWeight() {
@@ -571,13 +612,15 @@ export function CoachGeorgeLiveAssistant() {
       profile: nextProfile,
       targets: calculated.targets,
       stats: calculated.stats,
+      currentPlan: null,
+      latestPlan: null,
       messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", confirm)],
     }))
 
     speakIfConnected(confirm)
   }
 
-  function resetGoalsAndStats() {
+  function resetGoalsAndStats(announce = true) {
     appendUserMessage("Reset Goals & Stats")
     const resetLine = makeMessage("assistant", "Everything is cleared. Complete setup to continue.")
     setState({
@@ -587,7 +630,7 @@ export function CoachGeorgeLiveAssistant() {
     setSetupForm(DEFAULT_SETUP_FORM)
     window.localStorage.removeItem(SESSION_KEY)
     setError(null)
-    speakIfConnected("I’ve reset everything. Complete your setup form when you’re ready.")
+    if (announce) speakIfConnected("I’ve reset everything. Complete your setup form when you’re ready.")
   }
 
   return (
@@ -621,6 +664,11 @@ export function CoachGeorgeLiveAssistant() {
         <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#b5c9ee]">
           <span>Food source: {plannerSourceLabel}</span>
           <span>{plannerLoading ? "Syncing..." : `${plannerData.recipes.length} recipes loaded`}</span>
+        </div>
+
+        <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#b5c9ee]">
+          <div>{plannerData.statusMessage}</div>
+          {plannerData.fallbackReason ? <div className="mt-1 text-[#ffb4bb]">Fallback reason: {plannerData.fallbackReason}</div> : null}
         </div>
 
         <div className="mt-4 grid gap-2 text-sm md:grid-cols-[1fr_1.2fr_1fr]">
@@ -723,6 +771,13 @@ export function CoachGeorgeLiveAssistant() {
                     <option value="vegetarian">Vegetarian</option>
                     <option value="pescatarian">Pescatarian</option>
                     <option value="vegan">Vegan</option>
+                  </select>
+                </label>
+                <label className="text-sm text-[#d4e3ff]">Plan mode
+                  <select value={setupForm.planMode} onChange={(e) => setSetupForm((prev) => ({ ...prev, planMode: e.target.value as PlanMode }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
+                    <option value="balanced">Balanced</option>
+                    <option value="higher-carb">Higher carb</option>
+                    <option value="lower-carb">Lower carb</option>
                   </select>
                 </label>
               </div>
