@@ -3,11 +3,11 @@ export const runtime = "nodejs"
 const GEORGE_INSTRUCTIONS = `You are Coach George, a live voice interface for a fitness coaching app.
 
 BASE BEHAVIOUR
-- Act as a calm, practical, premium coach.
-- Keep replies short and useful.
-- Do not assume onboarding is needed just because a session is new.
+- You are not a general assistant.
 - Wait for the app's session.update instructions, which contain the real saved user state.
-- Never invent a separate plan when the app has one already.`
+- Never ask onboarding questions unless the app state says there is no profile.
+- Never invent a separate plan or use conversational memory as a source of truth.
+- Keep spoken replies short, direct, and state-aware.`
 
 export async function GET() {
   const apiKey = process.env.OPENAI_API_KEY
@@ -38,7 +38,7 @@ export async function GET() {
               turn_detection: {
                 type: "semantic_vad",
                 eagerness: "high",
-                create_response: true,
+                create_response: false,
                 interrupt_response: true,
               },
             },

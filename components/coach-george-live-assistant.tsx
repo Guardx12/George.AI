@@ -213,7 +213,7 @@ function formatComputedPlan(result: MealPlanResult, plannerData: PlannerPayload)
   const lines = [formatTargetSummary(result.targets), "", `Planned totals: ${result.totals.calories} kcal | Protein ${result.totals.protein}g | Carbs ${result.totals.carbs}g | Fats ${result.totals.fat}g.`, ""]
 
   result.plan.forEach((meal, index) => {
-    lines.push(`Meal ${index + 1}: ${meal.name}${meal.servingMultiplier !== 1 ? ` (x${meal.servingMultiplier})` : ""}`)
+    lines.push(`Meal ${index + 1}: ${meal.name}`)
     if (meal.ingredients.length) {
       meal.ingredients.forEach((ingredient) => {
         const food = plannerData.foods.find((entry) => entry.id === ingredient.foodId)
@@ -239,6 +239,29 @@ function sumPlanNutrition(plan: MealPlanResult["plan"]): Nutrition {
   )
 }
 
+function buildShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, days: number) {
+  const totals = new Map<string, number>()
+
+  plan.plan.forEach((meal) => {
+    meal.ingredients.forEach((ingredient) => {
+      const food = plannerData.foods.find((entry) => entry.id === ingredient.foodId)
+      const name = food?.name || ingredient.foodId
+      totals.set(name, (totals.get(name) || 0) + ingredient.grams * days)
+    })
+  })
+
+  return Array.from(totals.entries())
+    .map(([name, grams]) => ({ name, grams: Math.round(grams) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function formatShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, days: number) {
+  const items = buildShoppingList(plan, plannerData, days)
+  const lines = [`Shopping list for ${days} day${days === 1 ? "" : "s"}:`, ""]
+  items.forEach((item) => lines.push(`- ${item.name}: ${item.grams}g`))
+  return lines.join("\n")
+}
+
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
 }
@@ -248,6 +271,12 @@ function buildRealtimeSessionPayload(instructions: string) {
     type: "realtime",
     instructions,
     output_modalities: ["audio"],
+    audio: {
+      output: {
+        voice: "cedar",
+        speed: 1.0,
+      },
+    },
   }
 }
 
@@ -258,6 +287,7 @@ export function CoachGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null)
   const [plannerData, setPlannerData] = useState<PlannerPayload>(LOCAL_FALLBACK)
   const [plannerLoading, setPlannerLoading] = useState(true)
+  const [shoppingDays, setShoppingDays] = useState<1 | 3 | 5 | 7>(3)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -408,7 +438,7 @@ export function CoachGeorgeLiveAssistant() {
 
   function summarizeMeals(result: MealPlanResult) {
     return result.plan
-      .map((meal, index) => `${index + 1}. ${meal.name}${meal.servingMultiplier !== 1 ? ` x${meal.servingMultiplier}` : ""}`)
+      .map((meal, index) => `${index + 1}. ${meal.name}`)
       .join(". ")
   }
 
@@ -516,6 +546,17 @@ export function CoachGeorgeLiveAssistant() {
     channel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }))
   }
 
+  function respondFromState(text: string) {
+    appendAssistantMessage(text)
+    speakIfConnected(text)
+  }
+
+  function detectShoppingListDays(text: string) {
+    const match = text.match(/\b(1|3|5|7)\s*day/)
+    if (match) return Number(match[1]) as 1 | 3 | 5 | 7
+    return null
+  }
+
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
     if (!delta) return
 
@@ -549,16 +590,16 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function applyComputedPlan(result: MealPlanResult, leadMessage?: string) {
-    const planText = formatComputedPlan(result, plannerData)
+    const planText = formatComputedPlan(result, plannerDataRef.current)
     const spoken = `${leadMessage ? `${leadMessage} ` : ""}I've built your plan. Your targets are ${formatTargetsForSpeech(result.targets)}. Planned totals are ${result.totals.calories} calories, ${result.totals.protein} grams of protein, ${result.totals.carbs} grams of carbs, and ${result.totals.fat} grams of fats. Your meals are ${summarizeMeals(result)}.`
     currentPlanRef.current = result
     setState((prev) => ({
       ...prev,
       currentPlan: result,
       latestPlan: planText,
-      messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", spoken)],
+      messages: [...prev.messages, makeMessage("assistant", planText)],
     }))
-    speakIfConnected(`${spoken} Describe the meals exactly as shown on screen.`)
+    speakIfConnected(spoken)
   }
 
   function handleUserTranscript(text: string) {
@@ -579,39 +620,55 @@ export function CoachGeorgeLiveAssistant() {
     }
 
     if (!hasProfile || !savedProfile) {
-      const setupPrompt = "You haven't finished setup yet. Complete the on-screen form first and then I can build your targets and meal plan properly."
-      appendAssistantMessage(setupPrompt)
-      speakIfConnected(setupPrompt)
+      respondFromState("You haven't finished setup yet. Complete the on-screen form first so I can set your profile and targets.")
       return
     }
 
-    if (/\b(build|make|create|generate)\b.*\b(new )?\b(plan|meal plan)\b|\b(can i have a new plan)\b|\bmake my plan\b/.test(lower)) {
+    if (/\b(build( me)?|make|create|generate)\b.*\b(plan|meal plan|food plan)\b|\bnew plan\b|\bmake my plan\b/.test(lower)) {
       const result = computePlanForProfile(savedProfile)
       applyComputedPlan(result, "Built from your latest saved targets.")
       return
     }
 
-    if (/\b(swap|change|replace)\b/.test(lower) || /\bi don'?t like this meal\b/.test(lower)) {
+    if (/\bwhat are my targets\b|\bmy targets\b|\bcurrent targets\b|\bwhat are my calories\b|\bwhat are my macros\b|\bmacros\b/.test(lower)) {
+      respondFromState(`Your current targets are ${formatTargetsForSpeech(savedTargets)}.`)
+      return
+    }
+
+    if (/\bwhat am i eating\b|\bwhat plan am i on\b|\bwhat are my meals\b|\bcurrent plan\b/.test(lower)) {
       if (!savedPlan) {
-        const noPlan = `You don't have an active plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build me a new plan when you want me to generate it.`
-        appendAssistantMessage(noPlan)
-        speakIfConnected(noPlan)
+        respondFromState(`You have a saved profile and targets, but no active meal plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build my plan when you want me to generate it.`)
+        return
+      }
+      respondFromState(formatComputedPlan(savedPlan, plannerDataRef.current))
+      return
+    }
+
+    if (/\bshopping list\b|\bwhat do i need to buy\b/.test(lower)) {
+      if (!savedPlan) {
+        respondFromState("You don't have an active plan yet, so there isn't a shopping list to generate. Say build my plan first.")
+        return
+      }
+      const days = detectShoppingListDays(lower) || shoppingDays
+      respondFromState(formatShoppingList(savedPlan, plannerDataRef.current, days))
+      return
+    }
+
+    if (/\b(swap|change|replace)\b|\bi don'?t like this meal\b/.test(lower)) {
+      if (!savedPlan) {
+        respondFromState(`You don't have an active plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build my plan when you want me to generate it.`)
         return
       }
 
       const targetIndex = findSwapTarget(lower, savedPlan)
       if (targetIndex === null) {
-        const clarify = "Tell me which meal you want changed — for example, swap meal 2 or change lunch."
-        appendAssistantMessage(clarify)
-        speakIfConnected(clarify)
+        respondFromState("Tell me which meal you want changed — for example, swap meal 2 or change lunch.")
         return
       }
 
       const replacement = selectReplacementMeal(savedProfile, savedPlan, targetIndex, lower)
       if (!replacement) {
-        const noSwap = "I couldn't find a clean replacement from your current meal dataset for that one. Try another meal or rebuild the full plan."
-        appendAssistantMessage(noSwap)
-        speakIfConnected(noSwap)
+        respondFromState("I couldn't find a suitable replacement from your current meal dataset for that meal.")
         return
       }
 
@@ -629,40 +686,18 @@ export function CoachGeorgeLiveAssistant() {
         totals: nextTotals,
       }
       const planText = formatComputedPlan(nextPlan, plannerDataRef.current)
-      const response = `No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Your updated totals are ${nextTotals.calories} calories, ${nextTotals.protein} grams of protein, ${nextTotals.carbs} grams of carbs, and ${nextTotals.fat} grams of fats.`
       currentPlanRef.current = nextPlan
       setState((prev) => ({
         ...prev,
         currentPlan: nextPlan,
         latestPlan: planText,
-        messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", response)],
+        messages: [...prev.messages, makeMessage("assistant", `No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Updated totals: ${nextTotals.calories} kcal | Protein ${nextTotals.protein}g | Carbs ${nextTotals.carbs}g | Fats ${nextTotals.fat}g.\n\n${planText}`)],
       }))
-      speakIfConnected(`${response} Describe the updated meals exactly as shown on screen.`)
+      speakIfConnected(`No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Your updated totals are ${nextTotals.calories} calories, ${nextTotals.protein} grams of protein, ${nextTotals.carbs} grams of carbs, and ${nextTotals.fat} grams of fats.`)
       return
     }
 
-    if (/\bwhat (plan am i on|are my meals)\b|\bcurrent plan\b|\bmy plan\b/.test(lower)) {
-      if (!savedPlan) {
-        const noPlan = `You have a saved profile and targets, but no active meal plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build me a new plan when you want me to generate it.`
-        appendAssistantMessage(noPlan)
-        speakIfConnected(noPlan)
-        return
-      }
-
-      const planAnswer = `Your current plan is based on targets of ${formatTargetsForSpeech(savedPlan.targets)}. Planned totals are ${savedPlan.totals.calories} calories, ${savedPlan.totals.protein} grams of protein, ${savedPlan.totals.carbs} grams of carbs, and ${savedPlan.totals.fat} grams of fats. Your meals are ${summarizeMeals(savedPlan)}.`
-      appendAssistantMessage(planAnswer)
-      speakIfConnected(planAnswer)
-      return
-    }
-
-    if (/\bwhat are my targets\b|\bmy targets\b|\bcurrent targets\b|\bcalories\b|\bprotein\b|\bcarbs\b|\bfats\b|\bmacros\b/.test(lower)) {
-      const targetAnswer = `Your current targets are ${formatTargetsForSpeech(savedTargets)}.`
-      appendAssistantMessage(targetAnswer)
-      speakIfConnected(targetAnswer)
-      return
-    }
-
-    syncGeorgeContext()
+    respondFromState(getReturningUserPrompt(snapshot))
   }
 
   function handleRealtimeEvent(event: any) {
@@ -670,28 +705,9 @@ export function CoachGeorgeLiveAssistant() {
     if (!type) return
 
     switch (type) {
-      case "response.output_audio_transcript.delta":
-        appendOrUpdateAssistantPartial(typeof event.delta === "string" ? event.delta : "")
-        break
-      case "response.output_audio_transcript.done":
-        appendOrUpdateAssistantPartial(typeof event.transcript === "string" ? event.transcript : "", true)
-        break
       case "conversation.item.input_audio_transcription.completed":
         handleUserTranscript(typeof event.transcript === "string" ? event.transcript : "")
         break
-      case "response.output_item.done": {
-        const content = Array.isArray(event?.item?.content) ? event.item.content : []
-        const transcript = content
-          .map((part: any) => {
-            if (typeof part?.transcript === "string") return part.transcript
-            if (typeof part?.text === "string") return part.text
-            return ""
-          })
-          .filter(Boolean)
-          .join("\n")
-        if (transcript) appendOrUpdateAssistantPartial(transcript, true)
-        break
-      }
       case "error":
         setError(event?.error?.message || "George hit a voice error.")
         break
@@ -774,13 +790,7 @@ export function CoachGeorgeLiveAssistant() {
         profileCompleteRef.current = snapshot.profileComplete
         setConnectionState("connected")
         dataChannel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }))
-        dataChannel.send(JSON.stringify({
-          type: "response.create",
-          response: {
-            instructions: getReturningUserPrompt(snapshot),
-            modalities: ["audio"],
-          },
-        }))
+        speakIfConnected(getReturningUserPrompt(snapshot))
       })
 
       dataChannel.addEventListener("message", (event) => {
@@ -862,7 +872,7 @@ export function CoachGeorgeLiveAssistant() {
       weightInput: String(profile.currentWeightKg),
       currentPlan: null,
       latestPlan: null,
-      messages: [...prev.messages, makeMessage("assistant", formatTargetSummary(calculated.targets)), makeMessage("assistant", summary), makeMessage("assistant", georgeLine)],
+      messages: [...prev.messages, makeMessage("assistant", `${formatTargetSummary(calculated.targets)}\n\n${summary}\n\n${georgeLine}`)],
     }))
     speakIfConnected(georgeLine)
   }
@@ -912,7 +922,7 @@ export function CoachGeorgeLiveAssistant() {
       stats: calculated.stats,
       currentPlan: null,
       latestPlan: null,
-      messages: [...prev.messages, makeMessage("assistant", targetLine), makeMessage("assistant", confirm)],
+      messages: [...prev.messages, makeMessage("assistant", `${targetLine}\n\n${confirm}`)],
     }))
 
     speakIfConnected(confirm)
@@ -973,7 +983,7 @@ export function CoachGeorgeLiveAssistant() {
           {plannerData.fallbackReason ? <div className="mt-1 text-[#ffb4bb]">Fallback reason: {plannerData.fallbackReason}</div> : null}
         </div>
 
-        <div className="mt-4 grid gap-2 text-sm md:grid-cols-[1fr_1.2fr_1fr]">
+        <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
           <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Build My Plan</button>
           <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
             <input
@@ -990,6 +1000,37 @@ export function CoachGeorgeLiveAssistant() {
               className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm disabled:opacity-50"
             />
             <button onClick={updateWeight} className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium">Update Weight</button>
+          </div>
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
+            <select
+              value={shoppingDays}
+              onChange={(e) => setShoppingDays(Number(e.target.value) as 1 | 3 | 5 | 7)}
+              disabled={!state.currentPlan}
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm disabled:opacity-50"
+            >
+              <option value={1}>Shopping List: 1 day</option>
+              <option value={3}>Shopping List: 3 days</option>
+              <option value={5}>Shopping List: 5 days</option>
+              <option value={7}>Shopping List: 7 days</option>
+            </select>
+            <button
+              onClick={() => {
+                appendUserMessage(`Shopping List ${shoppingDays} day`)
+                if (!state.currentPlan) {
+                  const message = "You don't have an active plan yet, so there isn't a shopping list to generate."
+                  appendAssistantMessage(message)
+                  speakIfConnected(message)
+                  return
+                }
+                const list = formatShoppingList(state.currentPlan, plannerData, shoppingDays)
+                appendAssistantMessage(list)
+                speakIfConnected(`I've generated your shopping list for ${shoppingDays} days.`)
+              }}
+              className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium"
+              disabled={!state.currentPlan}
+            >
+              Shopping List
+            </button>
           </div>
           <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Reset Goals & Stats</button>
         </div>

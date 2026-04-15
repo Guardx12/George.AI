@@ -545,6 +545,82 @@ function scaleMeal(recipe: Recipe & { nutrition: Nutrition }, multiplier: number
     }),
   }
 }
+function scaleComputedMealFromIngredients(meal: ComputedMeal, availableFoods: Food[]): ComputedMeal {
+  const nutrition = roundNutrition(
+    meal.ingredients.reduce(
+      (acc, ingredient) => {
+        const food = availableFoods.find((entry) => entry.id === ingredient.foodId)
+        if (!food) return acc
+        const factor = ingredient.grams / 100
+        return {
+          calories: acc.calories + food.nutritionPer100g.calories * factor,
+          protein: acc.protein + food.nutritionPer100g.protein * factor,
+          carbs: acc.carbs + food.nutritionPer100g.carbs * factor,
+          fat: acc.fat + food.nutritionPer100g.fat * factor,
+        }
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    ),
+  )
+
+  return {
+    ...meal,
+    nutrition,
+  }
+}
+
+function finalCalorieAdjustmentPass(plan: ComputedMeal[], targets: Nutrition, availableFoods: Food[]) {
+  let workingPlan = [...plan]
+  let totals = sumNutrition(workingPlan.map((meal) => meal.nutrition))
+
+  const candidateMatchers = [
+    /olive oil|oil|butter|peanut butter|almond butter/,
+    /rice|pasta|noodle|oats|potato|bagel|bread|wrap|tortilla|granola/,
+  ]
+
+  for (let pass = 0; pass < 16; pass += 1) {
+    const diff = targets.calories - totals.calories
+    if (Math.abs(diff) <= 35) break
+
+    let bestPlan = workingPlan
+    let bestDelta = Math.abs(diff)
+
+    workingPlan.forEach((meal, mealIndex) => {
+      meal.ingredients.forEach((ingredient, ingredientIndex) => {
+        const food = availableFoods.find((entry) => entry.id === ingredient.foodId)
+        if (!food) return
+        const name = food.name.toLowerCase()
+        const candidateType = candidateMatchers.findIndex((pattern) => pattern.test(name))
+        if (candidateType === -1) return
+
+        const step = candidateType === 0 ? 3 : 8
+        const direction = diff > 0 ? 1 : -1
+        const nextGrams = ingredient.grams + step * direction
+        if (nextGrams < 0 || (direction < 0 && nextGrams < Math.max(10, ingredient.grams * 0.55))) return
+
+        const nextMeal = {
+          ...meal,
+          ingredients: meal.ingredients.map((entry, idx) => (idx === ingredientIndex ? { ...entry, grams: Math.round(nextGrams) } : entry)),
+        }
+        const recalculatedMeal = scaleComputedMealFromIngredients(nextMeal, availableFoods)
+        const nextPlan = workingPlan.map((entry, idx) => (idx === mealIndex ? recalculatedMeal : entry))
+        const nextTotals = sumNutrition(nextPlan.map((entry) => entry.nutrition))
+        const nextDelta = Math.abs(targets.calories - nextTotals.calories)
+
+        if (nextDelta < bestDelta) {
+          bestPlan = nextPlan
+          bestDelta = nextDelta
+        }
+      })
+    })
+
+    if (bestPlan === workingPlan) break
+    workingPlan = bestPlan
+    totals = sumNutrition(workingPlan.map((meal) => meal.nutrition))
+  }
+
+  return workingPlan
+}
 
 export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; recipes: Recipe[] }): MealPlanResult {
   const supportedPreference: DietaryPreference[] = ["omnivore", "vegetarian", "pescatarian", "vegan"]
@@ -621,7 +697,8 @@ export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; r
   const improvedPlan = improvePlanSelections(calorieFocusedPlan, sequence, recipesByType, targets, availableFoods)
   const macroPrioritizedPlan = prioritizeProteinAndCarbBalance(improvedPlan, sequence, recipesByType, targets, availableFoods)
   const initiallyScaledPlan = scalePlanToTargets(macroPrioritizedPlan, sequence, targets, availableFoods, normalizedProfile.mealsPerDay)
-  const scaledPlan = rebalanceScaledPlan(initiallyScaledPlan, macroPrioritizedPlan, targets, availableFoods, normalizedProfile.mealsPerDay)
+  const rebalancedPlan = rebalanceScaledPlan(initiallyScaledPlan, macroPrioritizedPlan, targets, availableFoods, normalizedProfile.mealsPerDay)
+  const scaledPlan = finalCalorieAdjustmentPass(rebalancedPlan, targets, availableFoods)
   const totals = sumNutrition(scaledPlan.map((recipe) => recipe.nutrition))
 
   return { plan: scaledPlan, totals, targets, profile: normalizedProfile }
