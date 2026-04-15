@@ -300,7 +300,7 @@ function normalizeText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
 }
 
-type GeorgeIntent = "show_plan" | "show_targets" | "build_plan" | "swap_meal" | "shopping_list" | "workout" | "eating_out" | "off_plan" | "motivation" | "unknown"
+type GeorgeIntent = "show_plan" | "show_targets" | "build_plan" | "swap_meal" | "shopping_list" | "update_weight" | "workout" | "eating_out" | "off_plan" | "motivation" | "unknown"
 
 function normalizeTranscript(value: string) {
   return value
@@ -343,6 +343,7 @@ function detectIntent(input: string, options?: { hasPlan?: boolean; lastIntent?:
   if (["build my plan", "new plan", "food plan", "make my plan", "build a new plan", "rebuild plan"].some((phrase) => input.includes(phrase))) return "build_plan"
   if (["swap", "change meal", "change lunch", "change breakfast", "change dinner", "replace"].some((phrase) => input.includes(phrase))) return "swap_meal"
   if (lastIntent === "swap_meal" && getMealIndexFromInput(input, 5) !== null) return "swap_meal"
+  if (["update weight", "change weight", "new weight", "my weight changed", "weigh", "weight update"].some((phrase) => input.includes(phrase))) return "update_weight"
   if (input.includes("shopping list")) return "shopping_list"
   if (input.includes("workout") || input.includes("training")) return "workout"
   if (input.includes("eating out") || input.includes("restaurant") || input.includes("takeaway")) return "eating_out"
@@ -631,16 +632,16 @@ function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRe
   }
 
   if (snapshot.currentPlan) {
-    return "Your plan’s just below — take a look. Want help with workouts or an adjustment?"
+    return "Your plan is ready. Check it in the plan section, then tell me if you want help staying on track."
   }
 
-  return "You’re all set — tap Build Plan below when you want one."
+  return "You’re all set — hit Build Plan when you want one."
 }
 
 function controlledFallback(plan: MealPlanResult | null) {
   return plan
-    ? "Your plan’s just below — take a look. Want help with workouts or an adjustment?"
-    : "You’re all set — tap Build Plan below when you want one."
+    ? "Your plan is ready. Check it in the plan section, then tell me if you want help staying on track."
+    : "You’re all set — hit Build Plan when you want one."
 }
 
 function buildWorkoutResponse(text: string) {
@@ -917,7 +918,7 @@ function buildDailyCoachingResponse(text: string) {
       latestPlan: planText,
     }))
     appendSystemMessage(planText)
-    respond("Nice — your plan’s ready. Take a look below.")
+    respond("Nice — your plan’s ready. Check the plan section and tell me what you want to work on next.")
   }
 
 
@@ -944,10 +945,10 @@ function handleUserInput(text: string) {
   switch (intent) {
     case "show_plan":
       if (!plan) {
-        respond("You don’t have a plan yet. Tap Build Plan below when you’re ready.")
+        respond("You don’t have a plan yet. Hit Build Plan when you’re ready.")
         return
       }
-      respond("Your full plan is right below — take a look. Want me to explain anything?")
+      respond("Your full plan is in the plan section now. Take a look, then I can help you stay on track or talk you through it.")
       return
     case "show_targets":
       if (!targets || !targets.calories) {
@@ -961,11 +962,11 @@ function handleUserInput(text: string) {
         respond("Complete setup first and I’ll guide you from there.")
         return
       }
-      respond("If you want a new plan, tap Build Plan below.")
+      respond("Hit Build Plan when you want a new plan. Once it’s there, I’ll help you follow it.")
       return
     case "swap_meal":
       if (!plan) {
-        respond("You don’t have a plan yet. Build one first, then use the Swap Meal button below.")
+        respond("You don’t have a plan yet. Hit Build Plan first, then use Swap Meal.")
         return
       }
       {
@@ -973,29 +974,36 @@ function handleUserInput(text: string) {
         if (targetIndex !== null) {
           setSelectedSwapMeal(targetIndex)
         }
-        respond(targetIndex === null ? "Want to swap something? Use the Swap Meal button below." : `Use the Swap Meal button below for meal ${targetIndex + 1}.`)
+        respond(targetIndex === null ? "Want to swap something? Use Swap Meal and pick the meal you want to change." : `Use Swap Meal and choose meal ${targetIndex + 1}. Keep the swap high protein and similar calories.`)
         return
       }
     case "shopping_list":
       if (!plan) {
-        respond("You don’t have an active plan yet. Build a plan first, then use the Shopping List button below.")
+        respond("You don’t have an active plan yet. Hit Build Plan first, then use Generate Shopping List.")
         return
       }
       const detectedDays = detectShoppingListDays(normalized)
       if (detectedDays) setShoppingDays(detectedDays)
-      respond("If you want a shopping list, use the Shopping List button below.")
+      respond("Set how many days you want, then use Generate Shopping List.")
+      return
+    case "update_weight":
+      if (!hasProfile) {
+        respond("Complete setup first, then use Update Weight when your weight changes.")
+        return
+      }
+      respond("Use Update Weight to log your new weight — that will adjust your targets.")
       return
     case "workout":
-      respond("I can help with that — home workout, gym workout, boxing, or something simple for today?")
+      respond("Perfect — let’s get a solid session in. What are you training today: home, gym, boxing, push, pull, or legs?")
       return
     case "eating_out":
-      respond("That’s fine — keep the next meals lighter and high protein, then carry on.")
+      respond("That’s fine — keep the next meals lighter and high protein, then get straight back on plan.")
       return
     case "off_plan":
-      respond("No problem — get straight back on plan next meal. Don’t try to overcorrect.")
+      respond("No problem — get straight back on plan next meal. Don’t try to overcorrect. Just be consistent from here.")
       return
     case "motivation":
-      respond("Keep it simple — just win the next meal or workout. That’s enough.")
+      respond("Keep it simple — win the next meal or the next workout. That’s enough. Next step, pick one and do it properly.")
       return
     case "unknown":
     default:
