@@ -5,6 +5,7 @@ import { Flame, Loader2, MessageSquareText, Mic } from "lucide-react"
 import {
   buildMealPlan,
   getDailyTargets,
+  getRecipeNutrition,
   type ActivityLevel,
   type DietaryPreference,
   type Food,
@@ -226,6 +227,30 @@ function formatComputedPlan(result: MealPlanResult, plannerData: PlannerPayload)
   return lines.join("\n").trim()
 }
 
+function sumPlanNutrition(plan: MealPlanResult["plan"]): Nutrition {
+  return plan.reduce(
+    (acc, meal) => ({
+      calories: acc.calories + meal.nutrition.calories,
+      protein: acc.protein + meal.nutrition.protein,
+      carbs: acc.carbs + meal.nutrition.carbs,
+      fat: acc.fat + meal.nutrition.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  )
+}
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
+}
+
+function buildRealtimeSessionPayload(instructions: string) {
+  return {
+    type: "realtime",
+    instructions,
+    output_modalities: ["audio"],
+  }
+}
+
 export function CoachGeorgeLiveAssistant() {
   const [state, setState] = useState<CoachState>(INITIAL_STATE)
   const [setupForm, setSetupForm] = useState<SetupFormState>(DEFAULT_SETUP_FORM)
@@ -263,7 +288,7 @@ export function CoachGeorgeLiveAssistant() {
   const speakIfConnected = (instructions: string) => {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return
-    channel.send(JSON.stringify({ type: "response.create", response: { instructions } }))
+    channel.send(JSON.stringify({ type: "response.create", response: { instructions, modalities: ["audio"] } }))
   }
 
   useEffect(() => {
@@ -387,6 +412,85 @@ export function CoachGeorgeLiveAssistant() {
       .join(". ")
   }
 
+  function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)) {
+    if (!snapshot.profileComplete || !snapshot.profile) {
+      return "You haven't finished setup yet. Complete the on-screen form first and then I can build your targets and meal plan properly."
+    }
+
+    if (snapshot.currentPlan) {
+      return "You’re all set. You’ve already got a saved plan here if you want to review it, swap a meal, or build a new one."
+    }
+
+    return "You’re all set — want me to build your plan or change anything?"
+  }
+
+  function findSwapTarget(text: string, plan: MealPlanResult) {
+    const lower = normalizeText(text)
+    const mealNumberMatch = lower.match(/(?:swap|change|replace)\s+(?:meal\s+)?(\d+)/)
+    if (mealNumberMatch) {
+      const index = Number(mealNumberMatch[1]) - 1
+      if (index >= 0 && index < plan.plan.length) return index
+    }
+
+    const mealTypeMap: Array<{ pattern: RegExp; index: number | null }> = [
+      { pattern: /breakfast/, index: plan.plan.findIndex((meal) => meal.mealType === "breakfast") },
+      { pattern: /lunch/, index: plan.plan.findIndex((meal) => meal.mealType === "lunch") },
+      { pattern: /dinner/, index: plan.plan.findIndex((meal) => meal.mealType === "dinner") },
+      { pattern: /snack/, index: plan.plan.findIndex((meal) => meal.mealType === "snack") },
+    ]
+
+    for (const entry of mealTypeMap) {
+      if (entry.pattern.test(lower) && entry.index !== null && entry.index >= 0) return entry.index
+    }
+
+    const namedIndex = plan.plan.findIndex((meal) => lower.includes(normalizeText(meal.name)))
+    return namedIndex >= 0 ? namedIndex : null
+  }
+
+  function selectReplacementMeal(profile: Profile, plan: MealPlanResult, targetIndex: number, requestText: string) {
+    const currentMeal = plan.plan[targetIndex]
+    const usedIds = new Set(plan.plan.map((meal) => meal.id))
+    const requestLower = normalizeText(requestText)
+    const blockedTerms = profile.dislikedFoods.map((item) => normalizeText(item)).filter(Boolean)
+
+    const candidatePool = plannerDataRef.current.recipes
+      .filter((recipe) => recipe.id !== currentMeal.id)
+      .filter((recipe) => recipe.mealType === currentMeal.mealType)
+      .filter((recipe) => recipe.dietary.includes(profile.dietaryPreference))
+      .map((recipe) => ({ ...recipe, nutrition: getRecipeNutrition(recipe, plannerDataRef.current.foods) }))
+      .filter((recipe) => recipe.ingredients.every((ingredient) => {
+        const food = plannerDataRef.current.foods.find((entry) => entry.id === ingredient.foodId)
+        if (!food) return false
+        const lowerName = normalizeText(food.name)
+        const blockedByDislike = blockedTerms.some((item) => lowerName.includes(item))
+        const blockedByAllergen = food.allergens.some((allergen) => profile.allergies.includes(allergen.toLowerCase()))
+        return !blockedByDislike && !blockedByAllergen
+      }))
+      .filter((recipe) => !usedIds.has(recipe.id) || recipe.id === currentMeal.id)
+
+    const scored = candidatePool
+      .map((candidate) => {
+        const calorieGap = Math.abs(candidate.nutrition.calories - currentMeal.nutrition.calories)
+        const proteinDelta = candidate.nutrition.protein - currentMeal.nutrition.protein
+        const carbGap = Math.abs(candidate.nutrition.carbs - currentMeal.nutrition.carbs)
+        const fatGap = Math.abs(candidate.nutrition.fat - currentMeal.nutrition.fat)
+        const avoidDuplicatePenalty = usedIds.has(candidate.id) ? 250 : 0
+        const requestPenalty = requestLower.includes("don t like") || requestLower.includes("dont like") || requestLower.includes("replace") ? 0 : 0
+        const score =
+          calorieGap * 1.2 +
+          carbGap * 0.8 +
+          fatGap * 0.5 +
+          Math.max(0, -proteinDelta) * 6 -
+          Math.max(0, proteinDelta) * 3 +
+          avoidDuplicatePenalty +
+          requestPenalty
+        return { candidate, score }
+      })
+      .sort((a, b) => a.score - b.score)
+
+    return scored[0]?.candidate ?? null
+  }
+
   function buildConnectedGeorgeInstructions() {
     const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
     const profile = snapshot.profile
@@ -409,7 +513,7 @@ export function CoachGeorgeLiveAssistant() {
   function syncGeorgeContext() {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return
-    channel.send(JSON.stringify({ type: "session.update", session: { instructions: buildConnectedGeorgeInstructions() } }))
+    channel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }))
   }
 
   function appendOrUpdateAssistantPartial(delta: string, isFinal = false) {
@@ -487,6 +591,56 @@ export function CoachGeorgeLiveAssistant() {
       return
     }
 
+    if (/\b(swap|change|replace)\b/.test(lower) || /\bi don'?t like this meal\b/.test(lower)) {
+      if (!savedPlan) {
+        const noPlan = `You don't have an active plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build me a new plan when you want me to generate it.`
+        appendAssistantMessage(noPlan)
+        speakIfConnected(noPlan)
+        return
+      }
+
+      const targetIndex = findSwapTarget(lower, savedPlan)
+      if (targetIndex === null) {
+        const clarify = "Tell me which meal you want changed — for example, swap meal 2 or change lunch."
+        appendAssistantMessage(clarify)
+        speakIfConnected(clarify)
+        return
+      }
+
+      const replacement = selectReplacementMeal(savedProfile, savedPlan, targetIndex, lower)
+      if (!replacement) {
+        const noSwap = "I couldn't find a clean replacement from your current meal dataset for that one. Try another meal or rebuild the full plan."
+        appendAssistantMessage(noSwap)
+        speakIfConnected(noSwap)
+        return
+      }
+
+      const updatedMeal = {
+        ...replacement,
+        servingMultiplier: 1,
+        nutrition: replacement.nutrition,
+        ingredients: replacement.ingredients,
+      }
+      const nextPlanMeals = savedPlan.plan.map((meal, index) => (index === targetIndex ? updatedMeal : meal))
+      const nextTotals = sumPlanNutrition(nextPlanMeals)
+      const nextPlan: MealPlanResult = {
+        ...savedPlan,
+        plan: nextPlanMeals,
+        totals: nextTotals,
+      }
+      const planText = formatComputedPlan(nextPlan, plannerDataRef.current)
+      const response = `No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Your updated totals are ${nextTotals.calories} calories, ${nextTotals.protein} grams of protein, ${nextTotals.carbs} grams of carbs, and ${nextTotals.fat} grams of fats.`
+      currentPlanRef.current = nextPlan
+      setState((prev) => ({
+        ...prev,
+        currentPlan: nextPlan,
+        latestPlan: planText,
+        messages: [...prev.messages, makeMessage("assistant", planText), makeMessage("assistant", response)],
+      }))
+      speakIfConnected(`${response} Describe the updated meals exactly as shown on screen.`)
+      return
+    }
+
     if (/\bwhat (plan am i on|are my meals)\b|\bcurrent plan\b|\bmy plan\b/.test(lower)) {
       if (!savedPlan) {
         const noPlan = `You have a saved profile and targets, but no active meal plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build me a new plan when you want me to generate it.`
@@ -501,7 +655,7 @@ export function CoachGeorgeLiveAssistant() {
       return
     }
 
-    if (/\bwhat are my targets\b|\bmy targets\b|\bcurrent targets\b|\bcalories\b|\bprotein\b|\bcarbs\b|\bfats\b/.test(lower)) {
+    if (/\bwhat are my targets\b|\bmy targets\b|\bcurrent targets\b|\bcalories\b|\bprotein\b|\bcarbs\b|\bfats\b|\bmacros\b/.test(lower)) {
       const targetAnswer = `Your current targets are ${formatTargetsForSpeech(savedTargets)}.`
       appendAssistantMessage(targetAnswer)
       speakIfConnected(targetAnswer)
@@ -619,7 +773,14 @@ export function CoachGeorgeLiveAssistant() {
         currentPlanRef.current = snapshot.currentPlan
         profileCompleteRef.current = snapshot.profileComplete
         setConnectionState("connected")
-        dataChannel.send(JSON.stringify({ type: "session.update", session: { instructions: buildConnectedGeorgeInstructions() } }))
+        dataChannel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }))
+        dataChannel.send(JSON.stringify({
+          type: "response.create",
+          response: {
+            instructions: getReturningUserPrompt(snapshot),
+            modalities: ["audio"],
+          },
+        }))
       })
 
       dataChannel.addEventListener("message", (event) => {
