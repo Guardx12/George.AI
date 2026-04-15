@@ -5,7 +5,7 @@ export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "ver
 export type Goal = "lose-fat" | "recomp" | "gain-muscle"
 export type Sex = "male" | "female"
 export type DietaryPreference = "omnivore" | "vegetarian" | "pescatarian" | "vegan"
-export type PlanMode = "balanced" | "flexible" | "performance" | "higher-carb" | "lower-carb"
+export type PlanMode = "balanced" | "higher-carb" | "lower-carb"
 
 export type Nutrition = { calories: number; protein: number; carbs: number; fat: number }
 export type Food = {
@@ -73,15 +73,14 @@ export function roundNutrition(input: Nutrition): Nutrition {
 }
 
 function getMacroStrategy(profile: Profile) {
-  const mode = profile.planMode === "higher-carb" ? "flexible" : profile.planMode === "lower-carb" ? "performance" : profile.planMode
-  if (mode === "flexible") {
+  if (profile.planMode === "higher-carb") {
     return {
       proteinPerKg: profile.goal === "gain-muscle" ? 2.05 : profile.goal === "lose-fat" ? 1.95 : 1.85,
       fatRatio: 0.2,
     }
   }
 
-  if (mode === "performance") {
+  if (profile.planMode === "lower-carb") {
     return {
       proteinPerKg: profile.goal === "gain-muscle" ? 2.3 : profile.goal === "lose-fat" ? 2.2 : 2.0,
       fatRatio: 0.35,
@@ -302,7 +301,6 @@ function rankRecipesForRemaining(
       const caloriesNeededBias = remaining.calories > 650 || targets.calories >= 3000
       const highTargetMode = targets.calories >= 3000 || mealsPerDay <= 3
       const fatLossMode = profile.goal === "lose-fat"
-      const planMode = profile.planMode === "higher-carb" ? "flexible" : profile.planMode === "lower-carb" ? "performance" : profile.planMode
       const tooSmallPenalty = calorieGap > 0 ? calorieGap * (highTargetMode ? 1.1 : 0.7) : 0
       if (fatLossMode && highCarb && highCarbMealsUsed >= 2) {
         return { recipe: { ...recipe, nutrition }, score: Number.POSITIVE_INFINITY }

@@ -62,13 +62,6 @@ type SetupFormState = {
   planMode: PlanMode
 }
 
-type WorkoutExperience = "beginner" | "intermediate" | "advanced"
-type WorkoutGoal = "fat-loss" | "muscle" | "sport-specific"
-type WorkoutProfile = {
-  experience: WorkoutExperience
-  goal: WorkoutGoal
-}
-
 type PlannerPayload = {
   foods: Food[]
   recipes: Recipe[]
@@ -295,69 +288,8 @@ function formatShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, d
   return lines.join("\n")
 }
 
-
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
-}
-
-type GeorgeIntent = "show_plan" | "show_targets" | "build_plan" | "swap_meal" | "shopping_list" | "workout" | "eating_out" | "off_plan" | "motivation" | "unknown"
-
-function normalizeTranscript(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/\bmill\b/g, "meal")
-    .replace(/\blaunch\b/g, "lunch")
-    .replace(/\bmeal to\b/g, "meal two")
-    .replace(/\bmeal too\b/g, "meal two")
-    .replace(/\bsecond meal\b/g, "meal two")
-    .replace(/\bthird meal\b/g, "meal three")
-    .replace(/\bfourth meal\b/g, "meal four")
-    .replace(/\bfifth meal\b/g, "meal five")
-    .replace(/\bbrekfast\b|\bbreak fast\b/g, "breakfast")
-    .replace(/\btea\b/g, "dinner")
-    .replace(/\s+/g, " ")
-}
-
-function normalizeTranscriptForIntent(value: string) {
-  return normalizeText(normalizeTranscript(value))
-}
-
-function detectIntent(input: string): GeorgeIntent {
-  if (["show my plan", "what is my plan", "what am i eating", "my meals", "show me my meals"].some((phrase) => input.includes(phrase))) return "show_plan"
-  if (["calories", "macros", "targets", "protein", "carbs", "fats"].some((phrase) => input.includes(phrase))) return "show_targets"
-  if (["build my plan", "new plan", "food plan", "make my plan"].some((phrase) => input.includes(phrase))) return "build_plan"
-  if (["swap", "change meal", "change lunch", "change breakfast", "change dinner", "replace"].some((phrase) => input.includes(phrase))) return "swap_meal"
-  if (input.includes("shopping list")) return "shopping_list"
-  if (input.includes("workout") || input.includes("training")) return "workout"
-  if (input.includes("eating out") || input.includes("restaurant") || input.includes("takeaway")) return "eating_out"
-  if (input.includes("fell off") || input.includes("messed up") || input.includes("off plan")) return "off_plan"
-  if (input.includes("struggling") || input.includes("motivation") || input.includes("can t be bothered") || input.includes("cant be bothered")) return "motivation"
-  return "unknown"
-}
-
-function getMealIndexFromInput(input: string, mealCount: number) {
-  if (input.includes("breakfast") || input.includes("meal one") || input.includes("meal 1")) return mealCount > 0 ? 0 : null
-  if (input.includes("lunch") || input.includes("meal two") || input.includes("meal 2")) return mealCount > 1 ? 1 : null
-  if (input.includes("dinner") || input.includes("meal three") || input.includes("meal 3")) return mealCount > 2 ? 2 : null
-  if (input.includes("meal four") || input.includes("meal 4")) return mealCount > 3 ? 3 : null
-  if (input.includes("meal five") || input.includes("meal 5")) return mealCount > 4 ? 4 : null
-  return null
-}
-
-function formatPlanSummary(result: MealPlanResult) {
-  const lines = [
-    formatTargetSummary(result.targets),
-    `Planned totals: ${result.totals.calories} kcal | Protein ${result.totals.protein}g | Carbs ${result.totals.carbs}g | Fats ${result.totals.fat}g.`,
-    "",
-    "Meals:",
-    ...result.plan.map((meal, index) => `Meal ${index + 1}: ${meal.name} — ${meal.nutrition.calories} kcal | P ${meal.nutrition.protein}g | C ${meal.nutrition.carbs}g | F ${meal.nutrition.fat}g`),
-  ]
-  return lines.join("\n")
-}
-
-function formatTargetsPlain(targets: Nutrition) {
-  return `${targets.calories} kcal | Protein ${targets.protein}g | Carbs ${targets.carbs}g | Fats ${targets.fat}g`
 }
 
 function buildRealtimeSessionPayload(instructions: string) {
@@ -409,11 +341,6 @@ export function CoachGeorgeLiveAssistant() {
   const liveStateRef = useRef<CoachState>(INITIAL_STATE)
   const plannerDataRef = useRef<PlannerPayload>(LOCAL_FALLBACK)
   const hydratedRef = useRef(false)
-  const workoutProfileRef = useRef<WorkoutProfile | null>(null)
-  const pendingWorkoutQuestionRef = useRef<"experience" | "goal" | null>(null)
-  const sessionPatternRef = useRef({ fallsOff: 0, swaps: 0, skippedMeals: 0 })
-  const greetedSessionRef = useRef(false)
-  const lastHandledInputRef = useRef<{ normalized: string; at: number } | null>(null)
 
   const canStart = useMemo(() => hydrated && (connectionState === "idle" || connectionState === "error"), [connectionState, hydrated])
   const showSetupModal = hydrated && !state.profileComplete
@@ -510,7 +437,9 @@ ${safeText}`,
       }
 
       const nextStreak = computeNextStreak(stored.lastActiveDate, stored.stats?.dayStreak || 0)
-      const restoredMessages = trimMessagesForStorage(stored.messages || INITIAL_MESSAGES)
+      const latestMessage = stored.messages?.[stored.messages.length - 1]?.content || ""
+      const needsWelcomeBack = !latestMessage.toLowerCase().includes("welcome back")
+      const restoredMessages = trimMessagesForStorage(stored.messages || [])
 
       const calculated = buildTargetsAndStats(stored.profile as Profile, nextStreak)
       setState({
@@ -523,7 +452,9 @@ ${safeText}`,
         weightInput: String((stored.profile as Profile).currentWeightKg || ""),
         currentPlan: stored.currentPlan || null,
         latestPlan: stored.latestPlan || null,
-        messages: restoredMessages,
+        messages: needsWelcomeBack
+          ? [...restoredMessages, makeMessage("assistant", stored.currentPlan ? "You’re already on a plan — want to adjust anything or build a new one?" : "You’re all set — want me to build your plan?")]
+          : restoredMessages,
       })
       setSetupForm({
         goal: (stored.profile as Profile).goal,
@@ -536,7 +467,7 @@ ${safeText}`,
         dislikedFoods: (stored.profile as Profile).dislikedFoods.join(", "),
         mealsPerDay: String((stored.profile as Profile).mealsPerDay) as "3" | "4" | "5",
         dietaryPreference: (stored.profile as Profile).dietaryPreference,
-        planMode: ((((stored.profile as Profile).planMode === "higher-carb") ? "flexible" : ((stored.profile as Profile).planMode === "lower-carb") ? "performance" : (stored.profile as Profile).planMode) || "balanced") as PlanMode,
+        planMode: ((stored.profile as Profile).planMode || "balanced") as PlanMode,
       })
     } catch {
       // ignore corrupted storage
@@ -583,116 +514,30 @@ ${safeText}`,
     plannerDataRef.current = plannerData
   }, [plannerData])
 
-
-function formatTargetsForSpeech(targets: Nutrition) {
-  return `${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats`
-}
-
-function summarizeMeals(result: MealPlanResult) {
-  return result.plan
-    .map((meal, index) => `${index + 1}. ${meal.name}`)
-    .join(". ")
-}
-
-function summarizePlan(plan: MealPlanResult) {
-  return `You’ve got ${plan.plan.length} meals today — ${plan.plan.map((meal) => meal.name).join(", ")}. Want the full breakdown or change something?`
-}
-
-function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)) {
-  if (!snapshot.profileComplete || !snapshot.profile) {
-    return "Complete the setup form first and I’ll take it from there."
+  function formatTargetsForSpeech(targets: Nutrition) {
+    return `${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats`
   }
 
-  if (snapshot.currentPlan) {
-    return "You’ve already got a plan — want to see it, swap something, or build a new one?"
+  function summarizeMeals(result: MealPlanResult) {
+    return result.plan
+      .map((meal, index) => `${index + 1}. ${meal.name}`)
+      .join(". ")
   }
 
-  return "You’re all set. Want me to build your plan or check your targets?"
-}
-
-function controlledFallback(plan: MealPlanResult | null) {
-  return plan
-    ? "You’ve already got a plan — want to see it, swap something, or build a new one?"
-    : "You’re all set. Want me to build your plan or check your targets?"
-}
-
-function buildWorkoutResponse(text: string) {
-  const lower = normalizeTranscriptForIntent(text)
-
-  if (!workoutProfileRef.current) {
-    if (pendingWorkoutQuestionRef.current === "experience") {
-      const match = lower.match(/beginner|intermediate|advanced/)
-      if (match) {
-        workoutProfileRef.current = { experience: match[0] as WorkoutExperience, goal: "fat-loss" }
-        pendingWorkoutQuestionRef.current = "goal"
-        return "Got it — and is the workout goal fat loss, muscle, or sport-specific?"
-      }
+  function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)) {
+    if (!snapshot.profileComplete || !snapshot.profile) {
+      return "Complete the setup form first and I’ll take it from there."
     }
 
-    if (pendingWorkoutQuestionRef.current === "goal") {
-      if (/fat loss|muscle|sport/.test(lower) && workoutProfileRef.current) {
-        workoutProfileRef.current = {
-          ...workoutProfileRef.current,
-          goal: /muscle/.test(lower) ? "muscle" : /sport/.test(lower) ? "sport-specific" : "fat-loss",
-        }
-        pendingWorkoutQuestionRef.current = null
-      }
+    if (snapshot.currentPlan) {
+      return "You’re already on a plan — want to adjust anything or build a new one?"
     }
 
-    if (!workoutProfileRef.current || pendingWorkoutQuestionRef.current) {
-      pendingWorkoutQuestionRef.current = "experience"
-      return "Before I build workouts, are you beginner, intermediate, or advanced?"
-    }
+    return "You’re set — want me to build your plan?"
   }
-
-  const workoutProfile = workoutProfileRef.current || { experience: "beginner" as WorkoutExperience, goal: "fat-loss" as WorkoutGoal }
-  const boxing = /boxing|bag|shadow|pad|spar/.test(lower)
-  const home = /home|at home/.test(lower)
-  const gym = /gym/.test(lower)
-
-  if (boxing || workoutProfile.goal === "sport-specific") {
-    return home
-      ? "Try this 30 minute boxing session: 5 minutes skipping or fast feet, then 6 rounds of 2 minutes shadowboxing or bag work with 1 minute rest, then 3 rounds of 10 push ups, 12 rows, and a 30 second plank."
-      : "Try this 35 minute boxing session: 5 minute warm up, then 8 rounds of 2 minutes on the bag with 1 minute rest, then 3 rounds of 8 goblet squats, 10 push ups, and 12 rows."
-  }
-
-  if (workoutProfile.goal === "muscle") {
-    return gym
-      ? "Run this 35 minute gym workout: 4 sets of 8 leg press, 4 sets of 8 chest press, 4 sets of 10 lat pulldowns, 3 sets of 10 shoulder press, then 8 minutes incline walk."
-      : "Run this 30 minute home session: 4 rounds of 12 goblet squats, 10 push ups, 12 one arm rows each side, 15 kettlebell swings, and a 40 second plank."
-  }
-
-  return home
-    ? "Keep it simple: 25 minutes, 5 rounds of 12 squats, 10 push ups, 12 rows, 15 swings, and 45 seconds brisk marching or step ups."
-    : "Try this 30 minute fat loss workout: 4 rounds of 10 leg press, 10 chest press, 10 rows, 12 walking lunges, then 10 minutes steady cardio."
-}
-
-function buildDailyCoachingResponse(text: string) {
-  const lower = normalizeTranscriptForIntent(text)
-  if (/fell off|messed up|ate badly|off plan|binged/.test(lower)) {
-    sessionPatternRef.current.fallsOff += 1
-    const nudge = sessionPatternRef.current.fallsOff >= 2 ? " Looks like consistency’s been tricky — want me to simplify your plan a bit?" : ""
-    return `No problem — just get back on plan next meal. Don’t try to overcorrect.${nudge}`
-  }
-
-  if (/eating out|restaurant|takeaway|ordered out/.test(lower)) {
-    return "That’s a higher calorie meal — keep the next meals lighter, keep protein high, and carry on."
-  }
-
-  if (/skip/.test(lower)) {
-    sessionPatternRef.current.skippedMeals += 1
-    const nudge = sessionPatternRef.current.skippedMeals >= 2 ? " If meals keep getting missed, I can simplify the plan a bit." : ""
-    return `No problem — just hit the next meal and keep protein high.${nudge}`
-  }
-
-  return "Keep it simple — stay close to plan, keep protein high, and focus on the next good decision."
-}
 
   function findSwapTarget(text: string, plan: MealPlanResult) {
-    const lower = normalizeTranscriptForIntent(text)
-    const directIndex = getMealIndexFromInput(lower, plan.plan.length)
-    if (directIndex !== null) return directIndex
-
+    const lower = normalizeText(text)
     const mealNumberMatch = lower.match(/(?:swap|change|replace)\s+(?:meal\s+)?(\d+)/)
     if (mealNumberMatch) {
       const index = Number(mealNumberMatch[1]) - 1
@@ -710,7 +555,7 @@ function buildDailyCoachingResponse(text: string) {
       if (entry.pattern.test(lower) && entry.index !== null && entry.index >= 0) return entry.index
     }
 
-    const namedIndex = plan.plan.findIndex((meal) => lower.includes(normalizeTranscriptForIntent(meal.name)))
+    const namedIndex = plan.plan.findIndex((meal) => lower.includes(normalizeText(meal.name)))
     return namedIndex >= 0 ? namedIndex : null
   }
 
@@ -812,12 +657,11 @@ function buildDailyCoachingResponse(text: string) {
     return buildMealPlan(profile, plannerData)
   }
 
-  function applyComputedPlan(result: MealPlanResult, leadMessage?: string, detailed = false) {
+  function applyComputedPlan(result: MealPlanResult, leadMessage?: string) {
     const planText = formatComputedPlan(result, plannerDataRef.current)
-    const assistantBody = detailed ? planText : formatPlanSummary(result)
     const assistantText = leadMessage ? `${leadMessage}
 
-${assistantBody}` : assistantBody
+${planText}` : planText
     currentPlanRef.current = result
     setState((prev) => ({
       ...prev,
@@ -827,116 +671,117 @@ ${assistantBody}` : assistantBody
     respond(assistantText)
   }
 
+  function handleUserTranscript(text: string) {
+    if (!hydratedRef.current) return
+    const cleaned = text.trim()
+    if (!cleaned) return
+    appendUserMessage(cleaned)
 
-function handleUserInput(text: string) {
-  if (!hydratedRef.current) return
-  const cleaned = text.trim()
-  if (!cleaned) return
-  appendUserMessage(cleaned)
+    const lower = cleaned.toLowerCase()
+    const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
+    const savedProfile = snapshot.profile
+    const savedTargets = snapshot.targets
+    const savedPlan = snapshot.currentPlan
+    const hasProfile = snapshot.profileComplete && Boolean(savedProfile)
 
-  const normalized = normalizeTranscriptForIntent(cleaned)
-  const lastHandled = lastHandledInputRef.current
-  if (lastHandled && lastHandled.normalized === normalized && Date.now() - lastHandled.at < 1500) {
-    return
+    if (/\b(reset|start over|clear)\b/.test(lower)) {
+      resetGoalsAndStats(false)
+      return
+    }
+
+    if (!hasProfile || !savedProfile) {
+      respondFromState("You haven't finished setup yet. Complete the on-screen form first so I can set your profile and targets.")
+      return
+    }
+
+    if (/\b(build( me)?|make|create|generate)\b.*\b(plan|meal plan|food plan)\b|\bnew plan\b|\bmake my plan\b/.test(lower)) {
+      const result = computePlanForProfile(savedProfile)
+      applyComputedPlan(result, "Built from your latest saved targets.")
+      return
+    }
+
+    if (/\bwhat are my targets\b|\bmy targets\b|\bcurrent targets\b|\bwhat are my calories\b|\bwhat are my macros\b|\bmacros\b/.test(lower)) {
+      respondFromState(`Your current targets are ${formatTargetsForSpeech(savedTargets)}.`)
+      return
+    }
+
+    if (/\bwhat am i eating\b|\bwhat plan am i on\b|\bwhat are my meals\b|\bcurrent plan\b/.test(lower)) {
+      if (!savedPlan) {
+        respondFromState(`You have a saved profile and targets, but no active meal plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build my plan when you want me to generate it.`)
+        return
+      }
+      respondFromState(formatComputedPlan(savedPlan, plannerDataRef.current))
+      return
+    }
+
+    if (/\bshopping list\b|\bwhat do i need to buy\b/.test(lower)) {
+      if (!savedPlan) {
+        respondFromState("You don't have an active plan yet, so there isn't a shopping list to generate. Say build my plan first.")
+        return
+      }
+      const days = detectShoppingListDays(lower) || shoppingDays
+      respondFromState(formatShoppingList(savedPlan, plannerDataRef.current, days))
+      return
+    }
+
+    if (/\b(swap|change|replace)\b|\bi don'?t like this meal\b/.test(lower)) {
+      if (!savedPlan) {
+        respondFromState(`You don't have an active plan yet. Your current targets are ${formatTargetsForSpeech(savedTargets)}. Say build my plan when you want me to generate it.`)
+        return
+      }
+
+      const targetIndex = findSwapTarget(lower, savedPlan)
+      if (targetIndex === null) {
+        respondFromState("Tell me which meal you want changed — for example, swap meal 2 or change lunch.")
+        return
+      }
+
+      const replacement = selectReplacementMeal(savedProfile, savedPlan, targetIndex, lower)
+      if (!replacement) {
+        respondFromState("I couldn't find a suitable replacement from your current meal dataset for that meal.")
+        return
+      }
+
+      const replacementBaseCalories = Math.max(1, replacement.nutrition.calories)
+      const targetCalories = Math.max(1, savedPlan.plan[targetIndex].nutrition.calories)
+      const replacementScale = Math.max(0.8, Math.min(1.6, targetCalories / replacementBaseCalories))
+      const updatedMeal = {
+        ...replacement,
+        servingMultiplier: Number(replacementScale.toFixed(2)),
+        nutrition: {
+          calories: Math.round(replacement.nutrition.calories * replacementScale),
+          protein: Math.round(replacement.nutrition.protein * replacementScale),
+          carbs: Math.round(replacement.nutrition.carbs * replacementScale),
+          fat: Math.round(replacement.nutrition.fat * replacementScale),
+        },
+        ingredients: replacement.ingredients.map((ingredient) => ({
+          ...ingredient,
+          grams: Math.round(ingredient.grams * replacementScale),
+        })),
+      }
+      const nextPlanMeals = savedPlan.plan.map((meal, index) => (index === targetIndex ? updatedMeal : meal))
+      const nextTotals = sumPlanNutrition(nextPlanMeals)
+      const nextPlan: MealPlanResult = {
+        ...savedPlan,
+        plan: nextPlanMeals,
+        totals: nextTotals,
+      }
+      const planText = formatComputedPlan(nextPlan, plannerDataRef.current)
+      const responseText = `No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Updated totals: ${nextTotals.calories} kcal | Protein ${nextTotals.protein}g | Carbs ${nextTotals.carbs}g | Fats ${nextTotals.fat}g.
+
+${planText}`
+      currentPlanRef.current = nextPlan
+      setState((prev) => ({
+        ...prev,
+        currentPlan: nextPlan,
+        latestPlan: planText,
+      }))
+      respond(responseText)
+      return
+    }
+
+    respondFromState(getReturningUserPrompt(snapshot))
   }
-  lastHandledInputRef.current = { normalized, at: Date.now() }
-
-  const profile = profileRef.current
-  const targets = targetsRef.current
-  const plan = currentPlanRef.current
-  const hasProfile = Boolean(profile && profileCompleteRef.current)
-  const intent = detectIntent(normalized)
-
-  switch (intent) {
-    case "show_plan":
-      if (!plan) {
-        respond("You don’t have a plan yet. Want me to build one from your saved targets?")
-        return
-      }
-      respond(summarizePlan(plan))
-      return
-    case "show_targets":
-      if (!targets || !targets.calories) {
-        respond("Your targets aren’t ready yet. Complete setup first and I’ll sort them.")
-        return
-      }
-      respond(`Your current targets are ${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats.`)
-      return
-    case "build_plan":
-      if (!hasProfile || !profile || !targets || !targets.calories) {
-        respond("Complete setup first and I’ll build your plan from there.")
-        return
-      }
-      applyComputedPlan(computePlanForProfile(profile), "Built from your latest saved targets.")
-      return
-    case "swap_meal":
-      if (!plan) {
-        respond("You don’t have a plan yet. Want me to build one first?")
-        return
-      }
-      {
-        const targetIndex = getMealIndexFromInput(normalized, plan.plan.length) ?? findSwapTarget(normalized, plan)
-        if (targetIndex === null) {
-          respond("Which meal do you want me to swap — breakfast, lunch, dinner, or a meal number?")
-          return
-        }
-        const replacement = selectReplacementMeal(profile as Profile, plan, targetIndex, cleaned)
-        if (!replacement) {
-          respond("I couldn’t find a good replacement for that meal from your current dataset.")
-          return
-        }
-        sessionPatternRef.current.swaps += 1
-        const replacementBaseCalories = Math.max(1, replacement.nutrition.calories)
-        const targetCalories = Math.max(1, plan.plan[targetIndex].nutrition.calories)
-        const replacementScale = Math.max(0.85, Math.min(1.45, targetCalories / replacementBaseCalories))
-        const updatedMeal = {
-          ...replacement,
-          servingMultiplier: Number(replacementScale.toFixed(2)),
-          nutrition: {
-            calories: Math.round(replacement.nutrition.calories * replacementScale),
-            protein: Math.round(replacement.nutrition.protein * replacementScale),
-            carbs: Math.round(replacement.nutrition.carbs * replacementScale),
-            fat: Math.round(replacement.nutrition.fat * replacementScale),
-          },
-          ingredients: replacement.ingredients.map((ingredient) => ({
-            ...ingredient,
-            grams: Math.round(ingredient.grams * replacementScale),
-          })),
-        }
-        const nextPlanMeals = plan.plan.map((meal, index) => (index === targetIndex ? updatedMeal : meal))
-        const nextTotals = sumPlanNutrition(nextPlanMeals)
-        const nextPlan: MealPlanResult = { ...plan, plan: nextPlanMeals, totals: nextTotals }
-        const planText = formatComputedPlan(nextPlan, plannerDataRef.current)
-        currentPlanRef.current = nextPlan
-        setState((prev) => ({ ...prev, currentPlan: nextPlan, latestPlan: planText }))
-        respond(`No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Your totals are now ${formatTargetsPlain(nextTotals)}.`)
-        return
-      }
-    case "shopping_list":
-      if (!plan) {
-        respond("You don’t have an active plan yet, so there isn’t a shopping list to generate.")
-        return
-      }
-      respond(formatShoppingList(plan, plannerDataRef.current, detectShoppingListDays(normalized) || shoppingDays))
-      return
-    case "workout":
-      respond("I can help with that — do you want a home workout, gym workout, boxing session, or something simple for today?")
-      return
-    case "eating_out":
-      respond("That’s fine — keep the next meals lighter, keep protein high, and get straight back on plan.")
-      return
-    case "off_plan":
-      respond("No problem — just get back on plan next meal. Don’t try to overcorrect.")
-      return
-    case "motivation":
-      respond("Keep it simple — just win the next meal or workout. You don’t need perfect, just back on track.")
-      return
-    case "unknown":
-    default:
-      respond(controlledFallback(plan))
-      return
-  }
-}
 
   function handleRealtimeEvent(event: any) {
     const type = event?.type
@@ -953,7 +798,7 @@ function handleUserInput(text: string) {
       case "response.done":
         return
       case "conversation.item.input_audio_transcription.completed":
-        handleUserInput(typeof event.transcript === "string" ? event.transcript : "")
+        handleUserTranscript(typeof event.transcript === "string" ? event.transcript : "")
         return
       case "error":
         console.error("[George realtime error]", event)
@@ -997,7 +842,6 @@ function handleUserInput(text: string) {
 
   async function startConversation() {
     if (!hydratedRef.current || !canStart) return
-    greetedSessionRef.current = false
     await cleanupConversation()
     setConnectionState("connecting")
     setError(null)
@@ -1053,8 +897,7 @@ function handleUserInput(text: string) {
         const payload = { type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }
         console.debug("[George realtime] session.update on open", payload)
         dataChannel.send(JSON.stringify(payload))
-        if (snapshot.profileComplete && snapshot.profile && !greetedSessionRef.current) {
-          greetedSessionRef.current = true
+        if (snapshot.profileComplete && snapshot.profile) {
           respond(getReturningUserPrompt(snapshot))
         }
       })
@@ -1091,7 +934,6 @@ function handleUserInput(text: string) {
   }
 
   async function stopConversation() {
-    greetedSessionRef.current = false
     await cleanupConversation()
     setError(null)
     setConnectionState("idle")
@@ -1123,8 +965,7 @@ function handleUserInput(text: string) {
     }
 
     const calculated = buildTargetsAndStats(profile, dayStreak)
-    const dietLabel = profile.dietaryPreference === "omnivore" ? "standard" : profile.dietaryPreference
-    const summary = `Profile saved: goal ${profile.goal.replace("-", " ")}, ${profile.currentWeightKg}kg, ${profile.mealsPerDay} meals/day, ${dietLabel}.`
+    const summary = `Profile saved: goal ${profile.goal.replace("-", " ")}, ${profile.currentWeightKg}kg, ${profile.mealsPerDay} meals/day, ${profile.dietaryPreference}.`
     const georgeLine = "Nice — I’ve got your targets set. I can build your plan now."
 
     profileRef.current = profile
@@ -1339,7 +1180,7 @@ ${confirm}`)
                     <option value="gain-muscle">Gain muscle</option>
                   </select>
                 </label>
-                <label className="text-sm text-[#d4e3ff]">Gender
+                <label className="text-sm text-[#d4e3ff]">Sex
                   <select value={setupForm.sex} onChange={(e) => setSetupForm((prev) => ({ ...prev, sex: e.target.value as Sex }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
                     <option value="male">Male</option>
                     <option value="female">Female</option>
@@ -1378,7 +1219,7 @@ ${confirm}`)
                 </label>
                 <label className="text-sm text-[#d4e3ff]">Dietary preference
                   <select value={setupForm.dietaryPreference} onChange={(e) => setSetupForm((prev) => ({ ...prev, dietaryPreference: e.target.value as DietaryPreference }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
-                    <option value="omnivore">Standard</option>
+                    <option value="omnivore">Omnivore</option>
                     <option value="vegetarian">Vegetarian</option>
                     <option value="pescatarian">Pescatarian</option>
                     <option value="vegan">Vegan</option>
@@ -1386,9 +1227,9 @@ ${confirm}`)
                 </label>
                 <label className="text-sm text-[#d4e3ff]">Plan mode
                   <select value={setupForm.planMode} onChange={(e) => setSetupForm((prev) => ({ ...prev, planMode: e.target.value as PlanMode }))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#111f36] px-3 py-2">
-                    <option value="flexible">Flexible</option>
                     <option value="balanced">Balanced</option>
-                    <option value="performance">Performance</option>
+                    <option value="higher-carb">Higher carb</option>
+                    <option value="lower-carb">Lower carb</option>
                   </select>
                 </label>
               </div>
