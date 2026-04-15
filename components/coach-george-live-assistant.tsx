@@ -216,7 +216,7 @@ function buildVoiceRendererInstructions() {
     "You are Coach George's voice renderer.",
     "You do not decide what to say.",
     "The app decides the exact reply text.",
-    "Only speak the exact text provided by the app in response.instructions.",
+    "Only speak the exact text provided by the app.",
     "Do not add, remove, summarise, paraphrase, or improvise anything.",
     "Never ask onboarding questions, build plans, swap meals, generate shopping lists, or generate your own coaching advice.",
   ].join(" ")
@@ -640,8 +640,8 @@ function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRe
 
 function controlledFallback(plan: MealPlanResult | null) {
   return plan
-    ? "Your plan is ready. Check it in the plan section, then tell me if you want help staying on track."
-    : "You’re all set — hit Build Plan when you want one."
+    ? "You’ve got a plan in place. Take a look through it, then tell me what you want to tighten up."
+    : "You’re set up. Hit Build Plan to get structure in place, then we’ll keep you on track."
 }
 
 function buildWorkoutResponse(text: string) {
@@ -653,7 +653,7 @@ function buildWorkoutResponse(text: string) {
       if (match) {
         workoutProfileRef.current = { experience: match[0] as WorkoutExperience, goal: "fat-loss" }
         pendingWorkoutQuestionRef.current = "goal"
-        return "Got it — and is the workout goal fat loss, muscle, or sport-specific?"
+        return "Good — and is the goal fat loss, muscle, or something sport-specific?"
       }
     }
 
@@ -669,7 +669,7 @@ function buildWorkoutResponse(text: string) {
 
     if (!workoutProfileRef.current || pendingWorkoutQuestionRef.current) {
       pendingWorkoutQuestionRef.current = "experience"
-      return "Before I build workouts, are you beginner, intermediate, or advanced?"
+      return "Perfect — before I set your training, are you beginner, intermediate, or advanced?"
     }
   }
 
@@ -680,43 +680,47 @@ function buildWorkoutResponse(text: string) {
 
   if (boxing || workoutProfile.goal === "sport-specific") {
     return home
-      ? "Try this 30 minute boxing session: 5 minutes skipping or fast feet, then 6 rounds of 2 minutes shadowboxing or bag work with 1 minute rest, then 3 rounds of 10 push ups, 12 rows, and a 30 second plank."
-      : "Try this 35 minute boxing session: 5 minute warm up, then 8 rounds of 2 minutes on the bag with 1 minute rest, then 3 rounds of 8 goblet squats, 10 push ups, and 12 rows."
+      ? "Perfect — let’s get some sharp work in. Do 5 minutes of fast feet, then 6 rounds of 2 minutes shadowboxing or bag work with 1 minute rest, then 3 rounds of 10 push ups, 12 rows, and a 30 second plank. Are you training now or planning ahead?"
+      : "Perfect — let’s train properly. Start with a 5 minute warm up, then 8 rounds of 2 minutes on the bag with 1 minute rest, then 3 rounds of 8 goblet squats, 10 push ups, and 12 rows. Are you training now or later?"
   }
 
   if (workoutProfile.goal === "muscle") {
     return gym
-      ? "Run this 35 minute gym workout: 4 sets of 8 leg press, 4 sets of 8 chest press, 4 sets of 10 lat pulldowns, 3 sets of 10 shoulder press, then 8 minutes incline walk."
-      : "Run this 30 minute home session: 4 rounds of 12 goblet squats, 10 push ups, 12 one arm rows each side, 15 kettlebell swings, and a 40 second plank."
+      ? "Good — let’s make it productive. Hit 4 sets of 8 leg press, 4 sets of 8 chest press, 4 sets of 10 lat pulldowns, 3 sets of 10 shoulder press, then 8 minutes incline walk. Do you want push, pull, or legs next time?"
+      : "Good — keep it simple and hard. Do 4 rounds of 12 goblet squats, 10 push ups, 12 one arm rows each side, 15 kettlebell swings, and a 40 second plank. Want a gym version next?"
   }
 
   return home
-    ? "Keep it simple: 25 minutes, 5 rounds of 12 squats, 10 push ups, 12 rows, 15 swings, and 45 seconds brisk marching or step ups."
-    : "Try this 30 minute fat loss workout: 4 rounds of 10 leg press, 10 chest press, 10 rows, 12 walking lunges, then 10 minutes steady cardio."
+    ? "Nice — keep this simple. Do 5 rounds of 12 squats, 10 push ups, 12 rows, 15 swings, and 45 seconds brisk marching or step ups. Get it done properly, then we sort food next."
+    : "Perfect — run 4 rounds of 10 leg press, 10 chest press, 10 rows, 12 walking lunges, then 10 minutes steady cardio. Focus on controlled reps and decent effort. Want another session after that?"
 }
 
 function buildDailyCoachingResponse(text: string) {
   const lower = normalizeTranscriptForIntent(text)
   if (/fell off|messed up|ate badly|off plan|binged/.test(lower)) {
     sessionPatternRef.current.fallsOff += 1
-    const nudge = sessionPatternRef.current.fallsOff >= 2 ? " Looks like consistency’s been tricky — want me to simplify your plan a bit?" : ""
-    return `No problem — just get back on plan next meal. Don’t try to overcorrect.${nudge}`
+    const nudge = sessionPatternRef.current.fallsOff >= 2 ? " Looks like consistency’s been a bit shaky — we can simplify things if you need it." : ""
+    return `No drama — get straight back on plan next meal and move on. Don’t try to punish it.${nudge} Want to tighten up today?`
   }
 
   if (/eating out|restaurant|takeaway|ordered out/.test(lower)) {
-    return "That’s a higher calorie meal — keep the next meals lighter, keep protein high, and carry on."
+    return "That’s fine — keep the next meals lighter, keep protein high, and stay in control of the rest of the day. Want help choosing a better option?"
   }
 
   if (/skip/.test(lower)) {
     sessionPatternRef.current.skippedMeals += 1
-    const nudge = sessionPatternRef.current.skippedMeals >= 2 ? " If meals keep getting missed, I can simplify the plan a bit." : ""
-    return `No problem — just hit the next meal and keep protein high.${nudge}`
+    const nudge = sessionPatternRef.current.skippedMeals >= 2 ? " If that keeps happening, we’ll make the plan easier to stick to." : ""
+    return `No problem — just hit the next meal properly and keep protein high.${nudge} Let’s get the next decision right.`
   }
 
-  return "Keep it simple — stay close to plan, keep protein high, and focus on the next good decision."
+  if (/bored|boring|fed up|same meals|repetitive|repeat/.test(lower)) {
+    return "That’s normal. We can rotate beef, turkey, eggs, fish, or yogurt into the same structure and keep the plan working. Want to freshen it up?"
+  }
+
+  return "Keep it simple — stay close to plan, keep protein high, and focus on the next good decision. Want to sort today out properly?"
 }
 
-  function findSwapTarget(text: string, plan: MealPlanResult) {
+function findSwapTarget(text: string, plan: MealPlanResult) {
     const lower = normalizeTranscriptForIntent(text)
     const directIndex = getMealIndexFromInput(lower, plan.plan.length)
     if (directIndex !== null) return directIndex
@@ -948,25 +952,25 @@ function handleUserInput(text: string) {
         respond("You don’t have a plan yet. Hit Build Plan when you’re ready.")
         return
       }
-      respond("Your full plan is in the plan section now. Take a look, then I can help you stay on track or talk you through it.")
+      respond("Your plan is there now — take a look through it. If anything feels off, we’ll tighten it up.")
       return
     case "show_targets":
       if (!targets || !targets.calories) {
         respond("Your targets aren’t ready yet. Complete setup first and I’ll sort them.")
         return
       }
-      respond(`Your current targets are ${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats.`)
+      respond(`You’re currently set at ${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats. That’s your structure — now we stick to it.`)
       return
     case "build_plan":
       if (!hasProfile || !profile || !targets || !targets.calories) {
         respond("Complete setup first and I’ll guide you from there.")
         return
       }
-      respond("Hit Build Plan when you want a new plan. Once it’s there, I’ll help you follow it.")
+      respond("Hit Build Plan and it’ll show up in the plan section. Then I’ll help you stick to it properly.")
       return
     case "swap_meal":
       if (!plan) {
-        respond("You don’t have a plan yet. Hit Build Plan first, then use Swap Meal.")
+        respond("You haven’t got a plan in place yet. Hit Build Plan first, then we can change meals if we need to.")
         return
       }
       {
@@ -974,7 +978,7 @@ function handleUserInput(text: string) {
         if (targetIndex !== null) {
           setSelectedSwapMeal(targetIndex)
         }
-        respond(targetIndex === null ? "Want to swap something? Use Swap Meal and pick the meal you want to change." : `Use Swap Meal and choose meal ${targetIndex + 1}. Keep the swap high protein and similar calories.`)
+        respond(targetIndex === null ? "Use Swap Meal and pick the meal you want to change. Keep it high protein and keep the calories sensible." : `Use Swap Meal and choose meal ${targetIndex + 1}. Keep that swap high protein and close on calories.`)
         return
       }
     case "shopping_list":
@@ -984,26 +988,26 @@ function handleUserInput(text: string) {
       }
       const detectedDays = detectShoppingListDays(normalized)
       if (detectedDays) setShoppingDays(detectedDays)
-      respond("Set how many days you want, then use Generate Shopping List.")
+      respond("Set how many days you want, then hit Generate Shopping List. Let’s get your food sorted.")
       return
     case "update_weight":
       if (!hasProfile) {
         respond("Complete setup first, then use Update Weight when your weight changes.")
         return
       }
-      respond("Use Update Weight to log your new weight — that will adjust your targets.")
+      respond("Use Update Weight to log the new number. That’ll tighten your targets and keep the plan accurate.")
       return
     case "workout":
-      respond("Perfect — let’s get a solid session in. What are you training today: home, gym, boxing, push, pull, or legs?")
+      respond("Perfect — let’s get a solid session in. What are you training today — home, gym, boxing, push, pull, or legs?")
       return
     case "eating_out":
-      respond("That’s fine — keep the next meals lighter and high protein, then get straight back on plan.")
+      respond("That’s fine — keep the next meals lighter, keep protein high, and get straight back on track.")
       return
     case "off_plan":
-      respond("No problem — get straight back on plan next meal. Don’t try to overcorrect. Just be consistent from here.")
+      respond("No problem — get straight back on plan next meal. Don’t overcorrect. Just win the rest of the day.")
       return
     case "motivation":
-      respond("Keep it simple — win the next meal or the next workout. That’s enough. Next step, pick one and do it properly.")
+      respond("Keep it simple — win the next meal or the next workout. That’s enough for now. Which one are you doing next?")
       return
     case "unknown":
     default:
