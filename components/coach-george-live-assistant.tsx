@@ -216,7 +216,7 @@ function buildVoiceRendererInstructions() {
     "You are Coach George's voice renderer.",
     "You do not decide what to say.",
     "The app decides the exact reply text.",
-    "Only speak the exact text provided by the app.",
+    "Only speak the exact text provided by the app in response.instructions.",
     "Do not add, remove, summarise, paraphrase, or improvise anything.",
     "Never ask onboarding questions, build plans, swap meals, generate shopping lists, or generate your own coaching advice.",
   ].join(" ")
@@ -628,20 +628,20 @@ function summarizePlan(plan: MealPlanResult) {
 
 function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)) {
   if (!snapshot.profileComplete || !snapshot.profile) {
-    return "Complete the setup form first and I’ll take it from there."
+    return "Complete the setup form first and we’ll get you moving properly."
   }
 
   if (snapshot.currentPlan) {
-    return "Your plan is ready. Check it in the plan section, then tell me if you want help staying on track."
+    return "You’ve already got structure in place. Check your plan and we’ll tighten anything that needs work."
   }
 
-  return "You’re all set — hit Build Plan when you want one."
+  return "You’re set — hit Build Plan and it’ll show up. Once it’s there, we’ll tighten it up if needed."
 }
 
 function controlledFallback(plan: MealPlanResult | null) {
   return plan
-    ? "You’ve got a plan in place. Take a look through it, then tell me what you want to tighten up."
-    : "You’re set up. Hit Build Plan to get structure in place, then we’ll keep you on track."
+    ? "You’ve already got a plan in place. Check it through and we’ll adjust anything that needs work."
+    : "You’re set — hit Build Plan and it’ll show up. After that, we’ll shape it properly."
 }
 
 function buildWorkoutResponse(text: string) {
@@ -653,7 +653,7 @@ function buildWorkoutResponse(text: string) {
       if (match) {
         workoutProfileRef.current = { experience: match[0] as WorkoutExperience, goal: "fat-loss" }
         pendingWorkoutQuestionRef.current = "goal"
-        return "Good — and is the goal fat loss, muscle, or something sport-specific?"
+        return "Good — and what’s the goal with training: fat loss, muscle, or something sport-specific?"
       }
     }
 
@@ -669,7 +669,7 @@ function buildWorkoutResponse(text: string) {
 
     if (!workoutProfileRef.current || pendingWorkoutQuestionRef.current) {
       pendingWorkoutQuestionRef.current = "experience"
-      return "Perfect — before I set your training, are you beginner, intermediate, or advanced?"
+      return "Before we set training up properly, are you beginner, intermediate, or advanced?"
     }
   }
 
@@ -680,47 +680,43 @@ function buildWorkoutResponse(text: string) {
 
   if (boxing || workoutProfile.goal === "sport-specific") {
     return home
-      ? "Perfect — let’s get some sharp work in. Do 5 minutes of fast feet, then 6 rounds of 2 minutes shadowboxing or bag work with 1 minute rest, then 3 rounds of 10 push ups, 12 rows, and a 30 second plank. Are you training now or planning ahead?"
-      : "Perfect — let’s train properly. Start with a 5 minute warm up, then 8 rounds of 2 minutes on the bag with 1 minute rest, then 3 rounds of 8 goblet squats, 10 push ups, and 12 rows. Are you training now or later?"
+      ? "Perfect — let’s keep it sharp. Do 5 minutes of skipping or fast feet, then 6 rounds of 2 minutes shadowboxing or bag work with 1 minute rest, then 3 rounds of 10 push ups, 12 rows, and a 30 second plank. Are you training now or planning ahead?"
+      : "Perfect — let’s get a proper boxing session in. Start with a 5 minute warm up, then 8 rounds of 2 minutes on the bag with 1 minute rest, then 3 rounds of 8 goblet squats, 10 push ups, and 12 rows. Are you training now or later?"
   }
 
   if (workoutProfile.goal === "muscle") {
     return gym
-      ? "Good — let’s make it productive. Hit 4 sets of 8 leg press, 4 sets of 8 chest press, 4 sets of 10 lat pulldowns, 3 sets of 10 shoulder press, then 8 minutes incline walk. Do you want push, pull, or legs next time?"
-      : "Good — keep it simple and hard. Do 4 rounds of 12 goblet squats, 10 push ups, 12 one arm rows each side, 15 kettlebell swings, and a 40 second plank. Want a gym version next?"
+      ? "Perfect — let’s get a solid muscle session in. Do 4 sets of 8 leg press, 4 sets of 8 chest press, 4 sets of 10 lat pulldowns, 3 sets of 10 shoulder press, then 8 minutes incline walk. Are you training now or planning ahead?"
+      : "Perfect — keep it simple at home. Run 4 rounds of 12 goblet squats, 10 push ups, 12 one arm rows each side, 15 kettlebell swings, and a 40 second plank. Want another session after this one?"
   }
 
   return home
-    ? "Nice — keep this simple. Do 5 rounds of 12 squats, 10 push ups, 12 rows, 15 swings, and 45 seconds brisk marching or step ups. Get it done properly, then we sort food next."
-    : "Perfect — run 4 rounds of 10 leg press, 10 chest press, 10 rows, 12 walking lunges, then 10 minutes steady cardio. Focus on controlled reps and decent effort. Want another session after that?"
+    ? "Perfect — here’s a simple home fat loss session: 5 rounds of 12 squats, 10 push ups, 12 rows, 15 swings, and 45 seconds brisk marching or step ups. Keep it controlled and keep moving. Want a gym version too?"
+    : "Perfect — let’s get you training. Do 4 rounds of 10 leg press, 10 chest press, 10 rows, 12 walking lunges, then 10 minutes steady cardio. Keep the pace up and push yourself. Are you training now or planning ahead?"
 }
 
 function buildDailyCoachingResponse(text: string) {
   const lower = normalizeTranscriptForIntent(text)
   if (/fell off|messed up|ate badly|off plan|binged/.test(lower)) {
     sessionPatternRef.current.fallsOff += 1
-    const nudge = sessionPatternRef.current.fallsOff >= 2 ? " Looks like consistency’s been a bit shaky — we can simplify things if you need it." : ""
-    return `No drama — get straight back on plan next meal and move on. Don’t try to punish it.${nudge} Want to tighten up today?`
+    const nudge = sessionPatternRef.current.fallsOff >= 2 ? " Looks like consistency’s been tricky — want me to simplify your plan a bit?" : ""
+    return `No problem — get straight back on plan next meal and keep it simple. Don’t try to overcorrect.${nudge}`
   }
 
   if (/eating out|restaurant|takeaway|ordered out/.test(lower)) {
-    return "That’s fine — keep the next meals lighter, keep protein high, and stay in control of the rest of the day. Want help choosing a better option?"
+    return "That’s fine — just steady the rest of the day. Keep the next meals lighter, keep protein high, and move on."
   }
 
   if (/skip/.test(lower)) {
     sessionPatternRef.current.skippedMeals += 1
-    const nudge = sessionPatternRef.current.skippedMeals >= 2 ? " If that keeps happening, we’ll make the plan easier to stick to." : ""
-    return `No problem — just hit the next meal properly and keep protein high.${nudge} Let’s get the next decision right.`
+    const nudge = sessionPatternRef.current.skippedMeals >= 2 ? " If meals keep getting missed, I can simplify the plan a bit." : ""
+    return `No problem — just nail the next meal and keep protein high.${nudge}`
   }
 
-  if (/bored|boring|fed up|same meals|repetitive|repeat/.test(lower)) {
-    return "That’s normal. We can rotate beef, turkey, eggs, fish, or yogurt into the same structure and keep the plan working. Want to freshen it up?"
-  }
-
-  return "Keep it simple — stay close to plan, keep protein high, and focus on the next good decision. Want to sort today out properly?"
+  return "Keep it simple — stay close to plan, keep protein high, and focus on the next good decision. Want me to sort training next?"
 }
 
-function findSwapTarget(text: string, plan: MealPlanResult) {
+  function findSwapTarget(text: string, plan: MealPlanResult) {
     const lower = normalizeTranscriptForIntent(text)
     const directIndex = getMealIndexFromInput(lower, plan.plan.length)
     if (directIndex !== null) return directIndex
@@ -922,7 +918,7 @@ function findSwapTarget(text: string, plan: MealPlanResult) {
       latestPlan: planText,
     }))
     appendSystemMessage(planText)
-    respond("Nice — your plan’s ready. Check the plan section and tell me what you want to work on next.")
+    respond("Nice — your plan’s ready. Take a look through it. Next step — we’ll either tweak meals or get your training sorted.")
   }
 
 
@@ -949,28 +945,28 @@ function handleUserInput(text: string) {
   switch (intent) {
     case "show_plan":
       if (!plan) {
-        respond("You don’t have a plan yet. Hit Build Plan when you’re ready.")
+        respond("No plan there yet — hit Build Plan and it’ll show up. Once it’s there, we’ll tighten it up if needed.")
         return
       }
-      respond("Your plan is there now — take a look through it. If anything feels off, we’ll tighten it up.")
+      respond("Your full plan is right there in the plan section. Take a look through it, then we’ll adjust anything that needs work.")
       return
     case "show_targets":
       if (!targets || !targets.calories) {
-        respond("Your targets aren’t ready yet. Complete setup first and I’ll sort them.")
+        respond("Your targets aren’t ready yet. Finish setup first and then we’ll get everything lined up properly.")
         return
       }
-      respond(`You’re currently set at ${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats. That’s your structure — now we stick to it.`)
+      respond(`You’re currently set at ${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats. That gives us a clear target to work from.`)
       return
     case "build_plan":
       if (!hasProfile || !profile || !targets || !targets.calories) {
-        respond("Complete setup first and I’ll guide you from there.")
+        respond("Complete setup first and we’ll get you moving properly from there.")
         return
       }
-      respond("Hit Build Plan and it’ll show up in the plan section. Then I’ll help you stick to it properly.")
+      respond("Hit Build Plan and it’ll show up. Once it’s there, we’ll tighten it up and keep it practical.")
       return
     case "swap_meal":
       if (!plan) {
-        respond("You haven’t got a plan in place yet. Hit Build Plan first, then we can change meals if we need to.")
+        respond("You need a plan in place first. Hit Build Plan, then use Swap Meal and we’ll tidy it up from there.")
         return
       }
       {
@@ -978,39 +974,47 @@ function handleUserInput(text: string) {
         if (targetIndex !== null) {
           setSelectedSwapMeal(targetIndex)
         }
-        respond(targetIndex === null ? "Use Swap Meal and pick the meal you want to change. Keep it high protein and keep the calories sensible." : `Use Swap Meal and choose meal ${targetIndex + 1}. Keep that swap high protein and close on calories.`)
+        respond(targetIndex === null ? "Yeah — use Swap Meal and pick the one you want to change. We’ll keep it high protein and on track." : `Yeah — swap Meal ${targetIndex + 1} using the Swap Meal button. Keep it similar calories and high protein, then we’ll check it over.`)
         return
       }
     case "shopping_list":
       if (!plan) {
-        respond("You don’t have an active plan yet. Hit Build Plan first, then use Generate Shopping List.")
+        respond("You need a plan there first. Hit Build Plan, then set your days and generate the shopping list.")
         return
       }
       const detectedDays = detectShoppingListDays(normalized)
       if (detectedDays) setShoppingDays(detectedDays)
-      respond("Set how many days you want, then hit Generate Shopping List. Let’s get your food sorted.")
+      respond("Set how many days you want, then generate your shopping list. Once that’s done, you’re organised for the week.")
       return
     case "update_weight":
       if (!hasProfile) {
-        respond("Complete setup first, then use Update Weight when your weight changes.")
+        respond("Finish setup first, then use Update Weight when your weight changes. That keeps your targets accurate.")
         return
       }
-      respond("Use Update Weight to log the new number. That’ll tighten your targets and keep the plan accurate.")
+      respond("Use Update Weight and your targets will adjust straight away. Once that’s done, we’ll make sure the setup still looks right.")
       return
     case "workout":
-      respond("Perfect — let’s get a solid session in. What are you training today — home, gym, boxing, push, pull, or legs?")
+      respond("Perfect — let’s get you training. What are you doing today: home, gym, boxing, push, pull, or legs?")
       return
     case "eating_out":
-      respond("That’s fine — keep the next meals lighter, keep protein high, and get straight back on track.")
+      respond("That’s fine — keep the next meals lighter, keep protein high, and move straight back onto plan. Next step — steady the rest of the day.")
       return
     case "off_plan":
-      respond("No problem — get straight back on plan next meal. Don’t overcorrect. Just win the rest of the day.")
+      respond("No problem — get straight back on plan next meal. Don’t overcorrect. Just tighten the next decision and move on.")
       return
     case "motivation":
-      respond("Keep it simple — win the next meal or the next workout. That’s enough for now. Which one are you doing next?")
+      respond("Keep it simple — win the next meal or the next workout. That’s enough for today. Pick one now and do it properly.")
       return
     case "unknown":
     default:
+      if (normalized.includes("chicken") || normalized.includes("bored") || normalized.includes("same food") || normalized.includes("everything is chicken") || normalized.includes("repetitive")) {
+        respond("Yeah — fair, we’ll mix that up. We can rotate beef, turkey, eggs, fish, or yogurt and keep the same structure. If you want a change, use Swap Meal and we’ll start with one meal at a time.")
+        return
+      }
+      if (normalized.includes("can t see") || normalized.includes("cant see") || normalized.includes("not showing") || normalized.includes("isn t showing") || normalized.includes("isnt showing")) {
+        respond("It should be showing above — if not, hit Build Plan again and it should load properly. Once it’s there, we’ll tighten it up if needed.")
+        return
+      }
       respond(controlledFallback(plan))
       return
   }
@@ -1278,13 +1282,13 @@ ${georgeLine}`)
   function swapSelectedMeal() {
     appendUserMessage(`Swap Meal ${selectedSwapMeal + 1}`)
     if (!state.profileComplete || !state.profile || !state.currentPlan) {
-      respond("Build a plan first, then use swap.")
+      respond("Build a plan first, then use Swap Meal and we’ll tighten it from there.")
       return
     }
 
     const swapResult = buildValidatedSwapPlan(state.profile, state.currentPlan, selectedSwapMeal, `swap meal ${selectedSwapMeal + 1}`)
     if (!swapResult || !swapResult.valid) {
-      respond("I couldn’t find a good swap that keeps your plan on track.")
+      respond("That swap would throw the plan off a bit too much. Pick another one and we’ll keep it tighter.")
       return
     }
 
@@ -1297,7 +1301,7 @@ ${georgeLine}`)
       latestPlan: planText,
     }))
     appendSystemMessage(planText)
-    respond("Done — I’ve swapped that for you. You’re still on track.")
+    respond("Done — that’s swapped. You’re still on track. Next step — check it over and we’ll adjust anything else if needed.")
   }
 
   function resetGoalsAndStats(announce = true) {
@@ -1385,7 +1389,7 @@ ${georgeLine}`)
                 }
                 const list = formatShoppingList(state.currentPlan, plannerData, shoppingDays)
                 appendSystemMessage(list)
-                respond("There’s your shopping list.")
+                respond("There’s your shopping list. Get that sorted and you’re set.")
               }}
               className="w-full whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium sm:w-auto"
               disabled={!state.currentPlan}
