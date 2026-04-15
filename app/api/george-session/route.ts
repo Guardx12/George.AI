@@ -27,7 +27,8 @@ export async function GET() {
         session: {
           type: "realtime",
           model: "gpt-realtime",
-          output_modalities: ["audio"],
+          modalities: ["text", "audio"],
+          voice: "cedar",
           instructions: GEORGE_INSTRUCTIONS,
           audio: {
             input: {

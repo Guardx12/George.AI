@@ -270,7 +270,8 @@ function buildRealtimeSessionPayload(instructions: string) {
   return {
     type: "realtime",
     instructions,
-    output_modalities: ["audio"],
+    modalities: ["text", "audio"],
+    voice: "cedar",
     audio: {
       output: {
         voice: "cedar",
@@ -318,7 +319,16 @@ export function CoachGeorgeLiveAssistant() {
   const speakIfConnected = (instructions: string) => {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return
-    channel.send(JSON.stringify({ type: "response.create", response: { instructions, modalities: ["audio"] } }))
+    channel.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          instructions,
+          modalities: ["text", "audio"],
+          voice: "cedar",
+        },
+      }),
+    )
   }
 
   useEffect(() => {
@@ -766,6 +776,10 @@ export function CoachGeorgeLiveAssistant() {
 
       const remoteAudio = document.createElement("audio")
       remoteAudio.autoplay = true
+      remoteAudio.playsInline = true
+      remoteAudio.preload = "auto"
+      remoteAudio.style.display = "none"
+      document.body.appendChild(remoteAudio)
       audioRef.current = remoteAudio
 
       pc.ontrack = (event) => {
