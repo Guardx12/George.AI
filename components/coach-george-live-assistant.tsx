@@ -166,6 +166,37 @@ function computeNextStreak(lastActiveDate: string | null, previousStreak: number
   return 1
 }
 
+
+function readPersistedCoachState(): CoachState | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as CoachState
+  } catch {
+    return null
+  }
+}
+
+function getLiveCoachStateSnapshot(liveState: CoachState, livePlannerData: PlannerPayload) {
+  const persisted = readPersistedCoachState()
+  const persistedProfile = persisted?.profileComplete && persisted.profile ? (persisted.profile as Profile) : null
+  const profile = persistedProfile || liveState.profile
+  const profileComplete = Boolean(profile)
+  const baseStreak = persisted?.stats?.dayStreak || liveState.stats.dayStreak || 0
+  const nextStreak = profile ? computeNextStreak(persisted?.lastActiveDate ?? liveState.lastActiveDate, baseStreak) : 0
+  const calculated = profile ? buildTargetsAndStats(profile, nextStreak) : { targets: ZERO_TARGETS, stats: ZERO_STATS }
+  const currentPlan = (persisted?.currentPlan || persisted?.latestPlan ? persisted?.currentPlan || liveState.currentPlan : liveState.currentPlan) || null
+  return {
+    profile,
+    profileComplete,
+    targets: calculated.targets,
+    stats: calculated.stats,
+    currentPlan,
+    plannerData: livePlannerData,
+  }
+}
+
 function getPlannerSourceLabel(plannerData: PlannerPayload) {
   if (plannerData.source === "uploaded_csv") return "Uploaded CSV data"
   if (plannerData.source === "google_sheets") return "Live Google Sheets"
@@ -214,6 +245,8 @@ export function CoachGeorgeLiveAssistant() {
   const targetsRef = useRef<Nutrition>(INITIAL_STATE.targets)
   const currentPlanRef = useRef<MealPlanResult | null>(INITIAL_STATE.currentPlan)
   const profileCompleteRef = useRef<boolean>(INITIAL_STATE.profileComplete)
+  const liveStateRef = useRef<CoachState>(INITIAL_STATE)
+  const plannerDataRef = useRef<PlannerPayload>(LOCAL_FALLBACK)
 
   const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
   const showSetupModal = !state.profileComplete
@@ -286,7 +319,7 @@ export function CoachGeorgeLiveAssistant() {
         currentPlan: stored.currentPlan || null,
         latestPlan: stored.latestPlan || null,
         messages: needsWelcomeBack
-          ? [...restoredMessages, makeMessage("assistant", "Welcome back — ready to carry on?")]
+          ? [...restoredMessages, makeMessage("assistant", stored.currentPlan ? "You’re all set. You’ve already got a saved plan here if you want to review it or build a new one." : "You’re all set. Want me to build your plan or adjust anything?")]
           : restoredMessages,
       })
       setSetupForm({
@@ -333,11 +366,16 @@ export function CoachGeorgeLiveAssistant() {
 
 
   useEffect(() => {
+    liveStateRef.current = state
     profileRef.current = state.profile
     targetsRef.current = state.targets
     currentPlanRef.current = state.currentPlan
     profileCompleteRef.current = state.profileComplete
-  }, [state.profile, state.targets, state.currentPlan, state.profileComplete])
+  }, [state])
+
+  useEffect(() => {
+    plannerDataRef.current = plannerData
+  }, [plannerData])
 
   function formatTargetsForSpeech(targets: Nutrition) {
     return `${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats`
@@ -350,11 +388,12 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function buildConnectedGeorgeInstructions() {
-    const profile = profileRef.current
-    const targets = targetsRef.current
-    const currentPlan = currentPlanRef.current
+    const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
+    const profile = snapshot.profile
+    const targets = snapshot.targets
+    const currentPlan = snapshot.currentPlan
 
-    if (!profileCompleteRef.current || !profile) {
+    if (!snapshot.profileComplete || !profile) {
       return `You are Coach George. There is no saved profile yet. Ask the user to complete the on-screen setup form before you discuss targets or meal plans. Never ask for setup details if the app already has a saved profile. ${buildVoicePlannerSummary(plannerData)}`
     }
 
@@ -424,10 +463,11 @@ export function CoachGeorgeLiveAssistant() {
     appendUserMessage(cleaned)
 
     const lower = cleaned.toLowerCase()
-    const savedProfile = profileRef.current
-    const savedTargets = targetsRef.current
-    const savedPlan = currentPlanRef.current
-    const hasProfile = profileCompleteRef.current && Boolean(savedProfile)
+    const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
+    const savedProfile = snapshot.profile
+    const savedTargets = snapshot.targets
+    const savedPlan = snapshot.currentPlan
+    const hasProfile = snapshot.profileComplete && Boolean(savedProfile)
 
     if (/\b(reset|start over|clear)\b/.test(lower)) {
       resetGoalsAndStats(false)
@@ -573,6 +613,11 @@ export function CoachGeorgeLiveAssistant() {
       const dataChannel = pc.createDataChannel("oai-events")
       dcRef.current = dataChannel
       dataChannel.addEventListener("open", () => {
+        const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
+        profileRef.current = snapshot.profile
+        targetsRef.current = snapshot.targets
+        currentPlanRef.current = snapshot.currentPlan
+        profileCompleteRef.current = snapshot.profileComplete
         setConnectionState("connected")
         dataChannel.send(JSON.stringify({ type: "session.update", session: { instructions: buildConnectedGeorgeInstructions() } }))
       })
