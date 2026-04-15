@@ -323,11 +323,26 @@ function normalizeTranscriptForIntent(value: string) {
   return normalizeText(normalizeTranscript(value))
 }
 
-function detectIntent(input: string): GeorgeIntent {
-  if (["show my plan", "what is my plan", "what am i eating", "my meals", "show me my meals"].some((phrase) => input.includes(phrase))) return "show_plan"
+function detectIntent(input: string, options?: { hasPlan?: boolean; lastIntent?: GeorgeIntent | null }): GeorgeIntent {
+  const hasPlan = Boolean(options?.hasPlan)
+  const lastIntent = options?.lastIntent || null
+
+  if (["show my plan", "what is my plan", "what am i eating", "my meals", "show me my meals", "view my plan", "show plan", "where is my plan", "let me see it", "show it", "where is it", "see it"].some((phrase) => input.includes(phrase))) {
+    return "show_plan"
+  }
+
+  if (hasPlan && /(plan|meals?)/.test(input) && /show|see|view|where/.test(input)) {
+    return "show_plan"
+  }
+
+  if (hasPlan && ["yeah i d like to see it", "yes i d like to see it", "i d like to see it", "can i see it"].some((phrase) => input.includes(phrase))) {
+    return "show_plan"
+  }
+
   if (["calories", "macros", "targets", "protein", "carbs", "fats"].some((phrase) => input.includes(phrase))) return "show_targets"
-  if (["build my plan", "new plan", "food plan", "make my plan"].some((phrase) => input.includes(phrase))) return "build_plan"
+  if (["build my plan", "new plan", "food plan", "make my plan", "build a new plan", "rebuild plan"].some((phrase) => input.includes(phrase))) return "build_plan"
   if (["swap", "change meal", "change lunch", "change breakfast", "change dinner", "replace"].some((phrase) => input.includes(phrase))) return "swap_meal"
+  if (lastIntent === "swap_meal" && getMealIndexFromInput(input, 5) !== null) return "swap_meal"
   if (input.includes("shopping list")) return "shopping_list"
   if (input.includes("workout") || input.includes("training")) return "workout"
   if (input.includes("eating out") || input.includes("restaurant") || input.includes("takeaway")) return "eating_out"
@@ -337,11 +352,11 @@ function detectIntent(input: string): GeorgeIntent {
 }
 
 function getMealIndexFromInput(input: string, mealCount: number) {
-  if (input.includes("breakfast") || input.includes("meal one") || input.includes("meal 1")) return mealCount > 0 ? 0 : null
-  if (input.includes("lunch") || input.includes("meal two") || input.includes("meal 2")) return mealCount > 1 ? 1 : null
-  if (input.includes("dinner") || input.includes("meal three") || input.includes("meal 3")) return mealCount > 2 ? 2 : null
-  if (input.includes("meal four") || input.includes("meal 4")) return mealCount > 3 ? 3 : null
-  if (input.includes("meal five") || input.includes("meal 5")) return mealCount > 4 ? 4 : null
+  if (input.includes("breakfast") || input.includes("meal one") || input.includes("meal 1") || input.includes("number one")) return mealCount > 0 ? 0 : null
+  if (input.includes("lunch") || input.includes("meal two") || input.includes("meal 2") || input.includes("number two") || /meal to/.test(input)) return mealCount > 1 ? 1 : null
+  if (input.includes("dinner") || input.includes("meal three") || input.includes("meal 3") || input.includes("number three")) return mealCount > 2 ? 2 : null
+  if (input.includes("meal four") || input.includes("meal 4") || input.includes("number four")) return mealCount > 3 ? 3 : null
+  if (input.includes("meal five") || input.includes("meal 5") || input.includes("number five")) return mealCount > 4 ? 4 : null
   return null
 }
 
@@ -414,6 +429,7 @@ export function CoachGeorgeLiveAssistant() {
   const sessionPatternRef = useRef({ fallsOff: 0, swaps: 0, skippedMeals: 0 })
   const greetedSessionRef = useRef(false)
   const lastHandledInputRef = useRef<{ normalized: string; at: number } | null>(null)
+  const lastIntentRef = useRef<GeorgeIntent | null>(null)
 
   const canStart = useMemo(() => hydrated && (connectionState === "idle" || connectionState === "error"), [connectionState, hydrated])
   const showSetupModal = hydrated && !state.profileComplete
@@ -758,6 +774,75 @@ function buildDailyCoachingResponse(text: string) {
     return scored[0]?.candidate ?? null
   }
 
+  function calculateSwapValidationScore(totals: Nutrition, targets: Nutrition) {
+    const calorieTolerance = Math.max(40, Math.round(targets.calories * 0.02))
+    const calorieMiss = Math.max(0, Math.abs(totals.calories - targets.calories) - calorieTolerance)
+    const proteinMiss = Math.max(0, targets.protein * 0.95 - totals.protein)
+    const carbMiss = Math.max(0, Math.abs(totals.carbs - targets.carbs) - Math.max(20, Math.round(targets.carbs * 0.12)))
+    const fatMiss = Math.max(0, Math.abs(totals.fat - targets.fat) - Math.max(10, Math.round(targets.fat * 0.12)))
+    return calorieMiss * 8 + proteinMiss * 16 + carbMiss * 4 + fatMiss * 5
+  }
+
+  function buildValidatedSwapPlan(profile: Profile, plan: MealPlanResult, targetIndex: number, requestText: string) {
+    const currentMeal = plan.plan[targetIndex]
+    const usedIds = new Set(plan.plan.map((meal) => meal.id))
+    const blockedTerms = profile.dislikedFoods.map((item) => normalizeText(item)).filter(Boolean)
+    const targetTotals = plan.targets
+
+    const candidatePool = plannerDataRef.current.recipes
+      .filter((recipe) => recipe.id !== currentMeal.id)
+      .filter((recipe) => recipe.mealType === currentMeal.mealType)
+      .filter((recipe) => recipe.dietary.includes(profile.dietaryPreference))
+      .map((recipe) => ({ ...recipe, nutrition: getRecipeNutrition(recipe, plannerDataRef.current.foods) }))
+      .filter((recipe) => recipe.ingredients.every((ingredient) => {
+        const food = plannerDataRef.current.foods.find((entry) => entry.id === ingredient.foodId)
+        if (!food) return false
+        const lowerName = normalizeText(food.name)
+        const blockedByDislike = blockedTerms.some((item) => lowerName.includes(item))
+        const blockedByAllergen = food.allergens.some((allergen) => profile.allergies.includes(allergen.toLowerCase()))
+        return !blockedByDislike && !blockedByAllergen
+      }))
+      .filter((recipe) => !usedIds.has(recipe.id))
+
+    let best: { plan: MealPlanResult; replacementName: string; score: number; valid: boolean } | null = null
+
+    for (const candidate of candidatePool) {
+      const baseCalories = Math.max(1, candidate.nutrition.calories)
+      const targetMealCalories = Math.max(1, currentMeal.nutrition.calories)
+      const preferredScale = Math.max(0.8, Math.min(1.55, targetMealCalories / baseCalories))
+
+      for (const adjustment of [-0.12, -0.06, 0, 0.06, 0.12]) {
+        const scale = Math.max(0.78, Math.min(1.7, preferredScale + adjustment))
+        const updatedMeal = {
+          ...candidate,
+          servingMultiplier: Number(scale.toFixed(2)),
+          nutrition: {
+            calories: Math.round(candidate.nutrition.calories * scale),
+            protein: Math.round(candidate.nutrition.protein * scale),
+            carbs: Math.round(candidate.nutrition.carbs * scale),
+            fat: Math.round(candidate.nutrition.fat * scale),
+          },
+          ingredients: candidate.ingredients.map((ingredient) => ({
+            ...ingredient,
+            grams: Math.round(ingredient.grams * scale),
+          })),
+        }
+
+        const nextMeals = plan.plan.map((meal, index) => (index === targetIndex ? updatedMeal : meal))
+        const nextTotals = sumPlanNutrition(nextMeals)
+        const score = calculateSwapValidationScore(nextTotals, targetTotals)
+        const valid = Math.abs(nextTotals.calories - targetTotals.calories) <= Math.max(40, Math.round(targetTotals.calories * 0.02)) && nextTotals.protein >= targetTotals.protein * 0.95
+        const nextPlan: MealPlanResult = { ...plan, plan: nextMeals, totals: nextTotals }
+
+        if (!best || score < best.score || (valid && !best.valid)) {
+          best = { plan: nextPlan, replacementName: candidate.name, score, valid }
+        }
+      }
+    }
+
+    return best
+  }
+
   function buildConnectedGeorgeInstructions() {
     return buildVoiceRendererInstructions()
   }
@@ -845,7 +930,8 @@ function handleUserInput(text: string) {
   const targets = targetsRef.current
   const plan = currentPlanRef.current
   const hasProfile = Boolean(profile && profileCompleteRef.current)
-  const intent = detectIntent(normalized)
+  const intent = detectIntent(normalized, { hasPlan: Boolean(plan), lastIntent: lastIntentRef.current })
+  lastIntentRef.current = intent === "unknown" ? lastIntentRef.current : intent
 
   switch (intent) {
     case "show_plan":
@@ -853,7 +939,7 @@ function handleUserInput(text: string) {
         respond("You don’t have a plan yet. Want me to build one from your saved targets?")
         return
       }
-      respond(summarizePlan(plan))
+      respond("Your full plan is right below — take a look. Want me to adjust anything?")
       return
     case "show_targets":
       if (!targets || !targets.calories) {
@@ -877,39 +963,20 @@ function handleUserInput(text: string) {
       {
         const targetIndex = getMealIndexFromInput(normalized, plan.plan.length) ?? findSwapTarget(normalized, plan)
         if (targetIndex === null) {
+          lastIntentRef.current = "swap_meal"
           respond("Which meal do you want me to swap — breakfast, lunch, dinner, or a meal number?")
           return
         }
-        const replacement = selectReplacementMeal(profile as Profile, plan, targetIndex, cleaned)
-        if (!replacement) {
-          respond("I couldn’t find a good replacement for that meal from your current dataset.")
+        const swapResult = buildValidatedSwapPlan(profile as Profile, plan, targetIndex, cleaned)
+        if (!swapResult || !swapResult.valid) {
+          respond("I couldn’t find a swap that keeps your plan on track. Want me to try a different meal?")
           return
         }
         sessionPatternRef.current.swaps += 1
-        const replacementBaseCalories = Math.max(1, replacement.nutrition.calories)
-        const targetCalories = Math.max(1, plan.plan[targetIndex].nutrition.calories)
-        const replacementScale = Math.max(0.85, Math.min(1.45, targetCalories / replacementBaseCalories))
-        const updatedMeal = {
-          ...replacement,
-          servingMultiplier: Number(replacementScale.toFixed(2)),
-          nutrition: {
-            calories: Math.round(replacement.nutrition.calories * replacementScale),
-            protein: Math.round(replacement.nutrition.protein * replacementScale),
-            carbs: Math.round(replacement.nutrition.carbs * replacementScale),
-            fat: Math.round(replacement.nutrition.fat * replacementScale),
-          },
-          ingredients: replacement.ingredients.map((ingredient) => ({
-            ...ingredient,
-            grams: Math.round(ingredient.grams * replacementScale),
-          })),
-        }
-        const nextPlanMeals = plan.plan.map((meal, index) => (index === targetIndex ? updatedMeal : meal))
-        const nextTotals = sumPlanNutrition(nextPlanMeals)
-        const nextPlan: MealPlanResult = { ...plan, plan: nextPlanMeals, totals: nextTotals }
-        const planText = formatComputedPlan(nextPlan, plannerDataRef.current)
-        currentPlanRef.current = nextPlan
-        setState((prev) => ({ ...prev, currentPlan: nextPlan, latestPlan: planText }))
-        respond(`No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Your totals are now ${formatTargetsPlain(nextTotals)}.`)
+        const planText = formatComputedPlan(swapResult.plan, plannerDataRef.current)
+        currentPlanRef.current = swapResult.plan
+        setState((prev) => ({ ...prev, currentPlan: swapResult.plan, latestPlan: planText }))
+        respond(`Swapped meal ${targetIndex + 1} — you’re still on target. Want another change?`)
         return
       }
     case "shopping_list":
@@ -920,16 +987,16 @@ function handleUserInput(text: string) {
       respond(formatShoppingList(plan, plannerDataRef.current, detectShoppingListDays(normalized) || shoppingDays))
       return
     case "workout":
-      respond("I can help with that — do you want a home workout, gym workout, boxing session, or something simple for today?")
+      respond("I can help with that — home workout, gym workout, boxing, or something simple for today?")
       return
     case "eating_out":
-      respond("That’s fine — keep the next meals lighter, keep protein high, and get straight back on plan.")
+      respond("That’s fine — keep the next meals lighter and high protein, then carry on.")
       return
     case "off_plan":
-      respond("No problem — just get back on plan next meal. Don’t try to overcorrect.")
+      respond("No problem — get straight back on plan next meal. Don’t try to overcorrect.")
       return
     case "motivation":
-      respond("Keep it simple — just win the next meal or workout. You don’t need perfect, just back on track.")
+      respond("Keep it simple — just win the next meal or workout. That’s enough.")
       return
     case "unknown":
     default:
