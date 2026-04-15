@@ -212,6 +212,51 @@ function sumNutrition(entries: Nutrition[]) {
   )
 }
 
+
+
+type PlanValidation = {
+  valid: boolean
+  calorieTolerance: number
+  carbTolerance: number
+  fatTolerance: number
+  issues: string[]
+}
+
+function getValidationTolerances(targets: Nutrition) {
+  return {
+    calories: Math.max(40, Math.round(targets.calories * 0.02)),
+    carbs: Math.max(20, Math.round(targets.carbs * 0.1)),
+    fat: Math.max(10, Math.round(targets.fat * 0.1)),
+  }
+}
+
+function validatePlanTotals(totals: Nutrition, targets: Nutrition): PlanValidation {
+  const tolerances = getValidationTolerances(targets)
+  const issues: string[] = []
+
+  if (Math.abs(totals.calories - targets.calories) > tolerances.calories) issues.push("calories")
+  if (totals.protein < targets.protein * 0.95) issues.push("protein")
+  if (Math.abs(totals.carbs - targets.carbs) > tolerances.carbs) issues.push("carbs")
+  if (Math.abs(totals.fat - targets.fat) > tolerances.fat) issues.push("fat")
+
+  return {
+    valid: issues.length === 0,
+    calorieTolerance: tolerances.calories,
+    carbTolerance: tolerances.carbs,
+    fatTolerance: tolerances.fat,
+    issues,
+  }
+}
+
+function validationPenalty(totals: Nutrition, targets: Nutrition) {
+  const tolerances = getValidationTolerances(targets)
+  const calorieMiss = Math.max(0, Math.abs(totals.calories - targets.calories) - tolerances.calories)
+  const proteinMiss = Math.max(0, targets.protein * 0.95 - totals.protein)
+  const carbMiss = Math.max(0, Math.abs(totals.carbs - targets.carbs) - tolerances.carbs)
+  const fatMiss = Math.max(0, Math.abs(totals.fat - targets.fat) - tolerances.fat)
+  return calorieMiss * 8 + proteinMiss * 18 + carbMiss * 7 + fatMiss * 8
+}
+
 function scorePlan(totals: Nutrition, targets: Nutrition, uniqueRecipeCount: number, highCarbMeals = 0) {
   const calorieGap = targets.calories - totals.calories
   const calorieUndershoot = Math.max(0, calorieGap)
@@ -220,15 +265,16 @@ function scorePlan(totals: Nutrition, targets: Nutrition, uniqueRecipeCount: num
   const carbOvershoot = Math.max(0, totals.carbs - targets.carbs)
   const fatOvershoot = Math.max(0, totals.fat - targets.fat)
   const hardConstraintPenalty = Math.max(0, highCarbMeals - 2) * 320
-  const proteinFloorPenalty = Math.max(0, targets.protein * 0.95 - totals.protein) * 24
+  const proteinFloorPenalty = Math.max(0, targets.protein * 0.95 - totals.protein) * 28
 
   return (
     scoreNutritionFit(totals, targets) +
-    calorieUndershoot * 2.0 +
-    calorieOvershoot * 1.15 +
-    proteinGap * 7.4 +
-    carbOvershoot * 3.6 +
-    fatOvershoot * 2.9 +
+    validationPenalty(totals, targets) +
+    calorieUndershoot * 2.6 +
+    calorieOvershoot * 1.35 +
+    proteinGap * 8.8 +
+    carbOvershoot * 3.8 +
+    fatOvershoot * 3.3 +
     proteinFloorPenalty +
     hardConstraintPenalty -
     uniqueRecipeCount * 8
@@ -725,6 +771,213 @@ function finalCalorieAdjustmentPass(plan: ComputedMeal[], targets: Nutrition, av
   return workingPlan
 }
 
+
+
+function finalizeCandidatePlan(
+  basePlan: Array<Recipe & { nutrition: Nutrition }>,
+  sequence: Array<Recipe["mealType"]>,
+  recipesByType: Record<Recipe["mealType"], Recipe[]>,
+  targets: Nutrition,
+  availableFoods: Food[],
+  mealsPerDay: Profile["mealsPerDay"],
+) {
+  const calorieFocusedPlan = improvePlanSelections(basePlan, sequence, recipesByType, {
+    ...targets,
+    protein: Math.max(0, targets.protein * 0.92),
+    carbs: targets.carbs,
+    fat: targets.fat,
+  }, availableFoods)
+  const improvedPlan = improvePlanSelections(calorieFocusedPlan, sequence, recipesByType, targets, availableFoods)
+  const macroPrioritizedPlan = prioritizeProteinAndCarbBalance(improvedPlan, sequence, recipesByType, targets, availableFoods)
+  const initiallyScaledPlan = scalePlanToTargets(macroPrioritizedPlan, sequence, targets, availableFoods, mealsPerDay)
+  const rebalancedPlan = rebalanceScaledPlan(initiallyScaledPlan, macroPrioritizedPlan, targets, availableFoods, mealsPerDay)
+  const macroRepairedPlan = repairProteinAndMacroFloor(rebalancedPlan, sequence, recipesByType, targets, availableFoods)
+  const scaledPlan = finalCalorieAdjustmentPass(macroRepairedPlan, targets, availableFoods)
+  const totals = sumNutrition(scaledPlan.map((recipe) => recipe.nutrition))
+  return { plan: scaledPlan, totals }
+}
+
+function hardRepairComputedPlan(
+  plan: ComputedMeal[],
+  sequence: Array<Recipe["mealType"]>,
+  recipesByType: Record<Recipe["mealType"], Recipe[]>,
+  targets: Nutrition,
+  availableFoods: Food[],
+  mealsPerDay: Profile["mealsPerDay"],
+) {
+  let workingPlan = [...plan]
+  let workingTotals = sumNutrition(workingPlan.map((item) => item.nutrition))
+  let workingPenalty = validationPenalty(workingTotals, targets)
+  const globalPool = Object.values(recipesByType)
+    .flat()
+    .map((recipe) => ({ ...recipe, nutrition: getRecipeNutrition(recipe, availableFoods) }))
+
+  for (let pass = 0; pass < 10; pass += 1) {
+    const validation = validatePlanTotals(workingTotals, targets)
+    if (validation.valid) break
+
+    let bestPlan = workingPlan
+    let bestPenalty = workingPenalty
+
+    workingPlan.forEach((meal, index) => {
+      const issueProtein = workingTotals.protein < targets.protein * 0.95
+      const issueCaloriesLow = workingTotals.calories < targets.calories - validation.calorieTolerance
+      const targetMealCalories =
+        meal.nutrition.calories +
+        (issueCaloriesLow ? Math.min(220, targets.calories - workingTotals.calories) / Math.max(1, workingPlan.length) : 0)
+
+      const pool = globalPool
+        .filter((candidate) => candidate.id !== meal.id)
+        .sort((a, b) => {
+          const scoreA =
+            Math.abs(a.nutrition.calories - targetMealCalories) +
+            (issueProtein ? -a.nutrition.protein * 6 : 0) +
+            (workingTotals.carbs > targets.carbs ? a.nutrition.carbs * 3 : 0) +
+            (workingTotals.fat > targets.fat ? a.nutrition.fat * 3 : 0)
+          const scoreB =
+            Math.abs(b.nutrition.calories - targetMealCalories) +
+            (issueProtein ? -b.nutrition.protein * 6 : 0) +
+            (workingTotals.carbs > targets.carbs ? b.nutrition.carbs * 3 : 0) +
+            (workingTotals.fat > targets.fat ? b.nutrition.fat * 3 : 0)
+          return scoreA - scoreB
+        })
+        .slice(0, 12)
+
+      pool.forEach((candidateRecipe) => {
+        const preferredCalories =
+          issueProtein && isProteinForwardRecipe(candidateRecipe, availableFoods)
+            ? targetMealCalories + Math.max(40, (targets.protein * 0.95 - workingTotals.protein) * 2.5)
+            : targetMealCalories
+
+        const baseCalories = Math.max(1, candidateRecipe.nutrition.calories)
+        const maxScale =
+          targets.calories >= 4200 ? 2.8 : mealsPerDay <= 3 || targets.calories >= 3000 ? 2.35 : 1.7
+        const minScale = mealsPerDay <= 3 ? 0.85 : 0.78
+        const multiplier = clamp(preferredCalories / baseCalories, minScale, maxScale)
+        const candidateMeal = scaleMeal(candidateRecipe, multiplier)
+        const nextPlan = workingPlan.map((entry, idx) => (idx === index ? candidateMeal : entry))
+        const nextTotals = sumNutrition(nextPlan.map((entry) => entry.nutrition))
+        const nextPenalty = validationPenalty(nextTotals, targets)
+
+        if (nextPenalty < bestPenalty) {
+          bestPlan = nextPlan
+          bestPenalty = nextPenalty
+        }
+      })
+    })
+
+    if (bestPlan === workingPlan) break
+    workingPlan = finalCalorieAdjustmentPass(bestPlan, targets, availableFoods)
+    workingTotals = sumNutrition(workingPlan.map((item) => item.nutrition))
+    workingPenalty = validationPenalty(workingTotals, targets)
+  }
+
+  return { plan: workingPlan, totals: sumNutrition(workingPlan.map((item) => item.nutrition)) }
+}
+
+function repairPlanUntilValid(
+  candidatePlans: Array<Array<Recipe & { nutrition: Nutrition }>>,
+  sequence: Array<Recipe["mealType"]>,
+  recipesByType: Record<Recipe["mealType"], Recipe[]>,
+  targets: Nutrition,
+  availableFoods: Food[],
+  mealsPerDay: Profile["mealsPerDay"],
+) {
+  const rankedBases = candidatePlans
+    .slice()
+    .sort((a, b) => {
+      const totalA = sumNutrition(a.map((item) => item.nutrition))
+      const totalB = sumNutrition(b.map((item) => item.nutrition))
+      return (
+        scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size, countHighCarbMeals(a, availableFoods)) -
+        scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size, countHighCarbMeals(b, availableFoods))
+      )
+    })
+    .slice(0, 12)
+
+  let bestResult = finalizeCandidatePlan(rankedBases[0] || [], sequence, recipesByType, targets, availableFoods, mealsPerDay)
+  bestResult = hardRepairComputedPlan(bestResult.plan, sequence, recipesByType, targets, availableFoods, mealsPerDay)
+  let bestValidationPenalty = validationPenalty(bestResult.totals, targets)
+  let bestScore = scorePlan(
+    bestResult.totals,
+    targets,
+    new Set(bestResult.plan.map((item) => item.id)).size,
+    countHighCarbMeals(bestResult.plan, availableFoods),
+  )
+
+  for (const candidate of rankedBases) {
+    let workingBase = candidate
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      let result = finalizeCandidatePlan(workingBase, sequence, recipesByType, targets, availableFoods, mealsPerDay)
+      result = hardRepairComputedPlan(result.plan, sequence, recipesByType, targets, availableFoods, mealsPerDay)
+      const validation = validatePlanTotals(result.totals, targets)
+      const resultValidationPenalty = validationPenalty(result.totals, targets)
+      const resultScore = scorePlan(
+        result.totals,
+        targets,
+        new Set(result.plan.map((item) => item.id)).size,
+        countHighCarbMeals(result.plan, availableFoods),
+      )
+
+      if (
+        resultValidationPenalty < bestValidationPenalty ||
+        (resultValidationPenalty === bestValidationPenalty && resultScore < bestScore)
+      ) {
+        bestResult = result
+        bestValidationPenalty = resultValidationPenalty
+        bestScore = resultScore
+      }
+
+      if (validation.valid) {
+        return result
+      }
+
+      const repairedBase = result.plan.map((meal, index) => {
+        const pool = Object.values(recipesByType)
+          .flat()
+          .map((recipe) => ({ ...recipe, nutrition: getRecipeNutrition(recipe, availableFoods) }))
+          .filter((recipe) => recipe.id !== meal.id)
+
+        let bestReplacement = { ...meal, nutrition: meal.nutrition }
+        let bestReplacementScore = resultScore
+
+        for (const candidateRecipe of pool) {
+          const baseCalories = Math.max(1, candidateRecipe.nutrition.calories)
+          const targetCalories = Math.max(1, meal.nutrition.calories)
+          const multiplier = clamp(
+            targetCalories / baseCalories,
+            0.78,
+            targets.calories >= 4200 ? 2.6 : mealsPerDay <= 3 || targets.calories >= 3000 ? 2.05 : 1.45,
+          )
+          const candidateMeal = scaleMeal(candidateRecipe, multiplier)
+          const nextPlan = result.plan.map((entry, idx) => (idx === index ? candidateMeal : entry))
+          const nextTotals = sumNutrition(nextPlan.map((entry) => entry.nutrition))
+          const nextScore =
+            scorePlan(
+              nextTotals,
+              targets,
+              new Set(nextPlan.map((entry) => entry.id)).size,
+              countHighCarbMeals(nextPlan, availableFoods),
+            ) +
+            validationPenalty(nextTotals, targets) * 2
+
+          if (nextScore < bestReplacementScore) {
+            bestReplacement = { ...candidateRecipe, nutrition: candidateRecipe.nutrition }
+            bestReplacementScore = nextScore
+          }
+        }
+
+        return bestReplacement
+      })
+
+      workingBase = repairedBase
+    }
+  }
+
+  return bestResult
+}
+
 export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; recipes: Recipe[] }): MealPlanResult {
   const supportedPreference: DietaryPreference[] = ["omnivore", "vegetarian", "pescatarian", "vegan"]
   const normalizedProfile = {
@@ -787,26 +1040,14 @@ export function buildMealPlan(profile: Profile, plannerData?: { foods: Food[]; r
       .slice(0, 18)
   })
 
-  const basePlan =
-    candidatePlans.sort((a, b) => {
-      const totalA = sumNutrition(a.map((item) => item.nutrition))
-      const totalB = sumNutrition(b.map((item) => item.nutrition))
-      return scorePlan(totalA, targets, new Set(a.map((item) => item.id)).size, countHighCarbMeals(a, availableFoods)) - scorePlan(totalB, targets, new Set(b.map((item) => item.id)).size, countHighCarbMeals(b, availableFoods))
-    })[0] || []
+  const { plan: finalPlan, totals } = repairPlanUntilValid(
+    candidatePlans,
+    sequence,
+    recipesByType,
+    targets,
+    availableFoods,
+    normalizedProfile.mealsPerDay,
+  )
 
-  const calorieFocusedPlan = improvePlanSelections(basePlan, sequence, recipesByType, {
-    ...targets,
-    protein: Math.max(0, targets.protein * 0.9),
-    carbs: targets.carbs,
-    fat: targets.fat,
-  }, availableFoods)
-  const improvedPlan = improvePlanSelections(calorieFocusedPlan, sequence, recipesByType, targets, availableFoods)
-  const macroPrioritizedPlan = prioritizeProteinAndCarbBalance(improvedPlan, sequence, recipesByType, targets, availableFoods)
-  const initiallyScaledPlan = scalePlanToTargets(macroPrioritizedPlan, sequence, targets, availableFoods, normalizedProfile.mealsPerDay)
-  const rebalancedPlan = rebalanceScaledPlan(initiallyScaledPlan, macroPrioritizedPlan, targets, availableFoods, normalizedProfile.mealsPerDay)
-  const macroRepairedPlan = repairProteinAndMacroFloor(rebalancedPlan, sequence, recipesByType, targets, availableFoods)
-  const scaledPlan = finalCalorieAdjustmentPass(macroRepairedPlan, targets, availableFoods)
-  const totals = sumNutrition(scaledPlan.map((recipe) => recipe.nutrition))
-
-  return { plan: scaledPlan, totals, targets, profile: normalizedProfile }
+  return { plan: finalPlan, totals, targets, profile: normalizedProfile }
 }
