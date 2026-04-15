@@ -290,9 +290,19 @@ function buildRealtimeSessionPayload(instructions: string) {
   return {
     type: "realtime",
     instructions,
-    modalities: ["text", "audio"],
-    voice: "cedar",
     audio: {
+      input: {
+        transcription: {
+          model: "gpt-4o-mini-transcribe",
+          language: "en",
+        },
+        turn_detection: {
+          type: "semantic_vad",
+          eagerness: "high",
+          create_response: false,
+          interrupt_response: true,
+        },
+      },
       output: {
         voice: "cedar",
         speed: 1.0,
@@ -309,6 +319,7 @@ export function CoachGeorgeLiveAssistant() {
   const [plannerData, setPlannerData] = useState<PlannerPayload>(LOCAL_FALLBACK)
   const [plannerLoading, setPlannerLoading] = useState(true)
   const [shoppingDays, setShoppingDays] = useState<1 | 3 | 5 | 7>(3)
+  const [hydrated, setHydrated] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -323,9 +334,10 @@ export function CoachGeorgeLiveAssistant() {
   const profileCompleteRef = useRef<boolean>(INITIAL_STATE.profileComplete)
   const liveStateRef = useRef<CoachState>(INITIAL_STATE)
   const plannerDataRef = useRef<PlannerPayload>(LOCAL_FALLBACK)
+  const hydratedRef = useRef(false)
 
-  const canStart = useMemo(() => connectionState === "idle" || connectionState === "error", [connectionState])
-  const showSetupModal = !state.profileComplete
+  const canStart = useMemo(() => hydrated && (connectionState === "idle" || connectionState === "error"), [connectionState, hydrated])
+  const showSetupModal = hydrated && !state.profileComplete
   const plannerSourceLabel = getPlannerSourceLabel(plannerData)
 
   const appendAssistantMessage = (content: string) => {
@@ -339,16 +351,18 @@ export function CoachGeorgeLiveAssistant() {
   const speakIfConnected = (instructions: string) => {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return
-    channel.send(
-      JSON.stringify({
-        type: "response.create",
-        response: {
-          instructions,
-          modalities: ["text", "audio"],
-          voice: "cedar",
-        },
-      }),
-    )
+    const payload = {
+      type: "response.create",
+      response: {
+        instructions,
+      },
+    }
+    try {
+      console.debug("[George realtime] response.create", payload)
+      channel.send(JSON.stringify(payload))
+    } catch (error) {
+      console.error("[George realtime] response.create failed", error)
+    }
   }
 
   useEffect(() => {
@@ -376,6 +390,11 @@ export function CoachGeorgeLiveAssistant() {
   }, [])
 
   useEffect(() => {
+    hydratedRef.current = hydrated
+  }, [hydrated])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
     try {
       const raw = window.localStorage.getItem(SESSION_KEY)
       if (!raw) return
@@ -404,7 +423,7 @@ export function CoachGeorgeLiveAssistant() {
         currentPlan: stored.currentPlan || null,
         latestPlan: stored.latestPlan || null,
         messages: needsWelcomeBack
-          ? [...restoredMessages, makeMessage("assistant", stored.currentPlan ? "You’re all set. You’ve already got a saved plan here if you want to review it or build a new one." : "You’re all set. Want me to build your plan or adjust anything?")]
+          ? [...restoredMessages, makeMessage("assistant", stored.currentPlan ? "You’re already on a plan — want to adjust anything or build a new one?" : "You’re all set — want me to build your plan?")]
           : restoredMessages,
       })
       setSetupForm({
@@ -422,10 +441,13 @@ export function CoachGeorgeLiveAssistant() {
       })
     } catch {
       // ignore corrupted storage
+    } finally {
+      setHydrated(true)
     }
   }, [])
 
   useEffect(() => {
+    if (!hydrated) return
     try {
       const payload: CoachState = {
         ...state,
@@ -436,7 +458,7 @@ export function CoachGeorgeLiveAssistant() {
     } catch {
       // ignore
     }
-  }, [state])
+  }, [hydrated, state])
 
   useEffect(() => {
     return () => {
@@ -474,14 +496,14 @@ export function CoachGeorgeLiveAssistant() {
 
   function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)) {
     if (!snapshot.profileComplete || !snapshot.profile) {
-      return "You haven't finished setup yet. Complete the on-screen form first and then I can build your targets and meal plan properly."
+      return "Complete the setup form first and I’ll take it from there."
     }
 
     if (snapshot.currentPlan) {
-      return "You’re all set. You’ve already got a saved plan here if you want to review it, swap a meal, or build a new one."
+      return "You’re already on a plan — want to adjust anything or build a new one?"
     }
 
-    return "You’re all set — want me to build your plan or change anything?"
+    return "You’re set — want me to build your plan?"
   }
 
   function findSwapTarget(text: string, plan: MealPlanResult) {
@@ -573,7 +595,9 @@ export function CoachGeorgeLiveAssistant() {
   function syncGeorgeContext() {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return
-    channel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }))
+    const payload = { type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }
+    console.debug("[George realtime] session.update", payload)
+    channel.send(JSON.stringify(payload))
   }
 
   function respondFromState(text: string) {
@@ -633,6 +657,7 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function handleUserTranscript(text: string) {
+    if (!hydratedRef.current) return
     const cleaned = text.trim()
     if (!cleaned) return
     appendUserMessage(cleaned)
@@ -702,11 +727,22 @@ export function CoachGeorgeLiveAssistant() {
         return
       }
 
+      const replacementBaseCalories = Math.max(1, replacement.nutrition.calories)
+      const targetCalories = Math.max(1, savedPlan.plan[targetIndex].nutrition.calories)
+      const replacementScale = Math.max(0.8, Math.min(1.6, targetCalories / replacementBaseCalories))
       const updatedMeal = {
         ...replacement,
-        servingMultiplier: 1,
-        nutrition: replacement.nutrition,
-        ingredients: replacement.ingredients,
+        servingMultiplier: Number(replacementScale.toFixed(2)),
+        nutrition: {
+          calories: Math.round(replacement.nutrition.calories * replacementScale),
+          protein: Math.round(replacement.nutrition.protein * replacementScale),
+          carbs: Math.round(replacement.nutrition.carbs * replacementScale),
+          fat: Math.round(replacement.nutrition.fat * replacementScale),
+        },
+        ingredients: replacement.ingredients.map((ingredient) => ({
+          ...ingredient,
+          grams: Math.round(ingredient.grams * replacementScale),
+        })),
       }
       const nextPlanMeals = savedPlan.plan.map((meal, index) => (index === targetIndex ? updatedMeal : meal))
       const nextTotals = sumPlanNutrition(nextPlanMeals)
@@ -734,15 +770,25 @@ export function CoachGeorgeLiveAssistant() {
     const type = event?.type
     if (!type) return
 
+    if (/^session\./.test(type) || /^response\./.test(type)) {
+      console.debug("[George realtime event]", type, event)
+    }
+
     switch (type) {
+      case "session.created":
+      case "session.updated":
+      case "response.created":
+      case "response.done":
+        return
       case "conversation.item.input_audio_transcription.completed":
         handleUserTranscript(typeof event.transcript === "string" ? event.transcript : "")
-        break
+        return
       case "error":
+        console.error("[George realtime error]", event)
         setError(event?.error?.message || "George hit a voice error.")
-        break
+        return
       default:
-        break
+        return
     }
   }
 
@@ -778,7 +824,7 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   async function startConversation() {
-    if (!canStart) return
+    if (!hydratedRef.current || !canStart) return
     await cleanupConversation()
     setConnectionState("connecting")
     setError(null)
@@ -803,10 +849,14 @@ export function CoachGeorgeLiveAssistant() {
       audioRef.current = remoteAudio
 
       pc.ontrack = (event) => {
+        console.debug("[George realtime] audio track received", event)
         const [remoteStream] = event.streams
         if (remoteStream) {
           remoteAudio.srcObject = remoteStream
-          void remoteAudio.play().catch(() => {})
+          void remoteAudio.play().then(() => console.debug("[George realtime] playback started")).catch((error) => {
+            console.error("[George realtime] playback blocked", error)
+            setError("George audio was returned but playback was blocked by the browser.")
+          })
         }
       }
 
@@ -818,13 +868,21 @@ export function CoachGeorgeLiveAssistant() {
       dcRef.current = dataChannel
       dataChannel.addEventListener("open", () => {
         const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
+        if (!hydratedRef.current) {
+          console.warn("[George realtime] data channel opened before hydration completed")
+          return
+        }
         profileRef.current = snapshot.profile
         targetsRef.current = snapshot.targets
         currentPlanRef.current = snapshot.currentPlan
         profileCompleteRef.current = snapshot.profileComplete
         setConnectionState("connected")
-        dataChannel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }))
-        speakIfConnected(getReturningUserPrompt(snapshot))
+        const payload = { type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }
+        console.debug("[George realtime] session.update on open", payload)
+        dataChannel.send(JSON.stringify(payload))
+        if (snapshot.profileComplete && snapshot.profile) {
+          speakIfConnected(getReturningUserPrompt(snapshot))
+        }
       })
 
       dataChannel.addEventListener("message", (event) => {
@@ -986,7 +1044,7 @@ export function CoachGeorgeLiveAssistant() {
           <button
             type="button"
             onClick={connectionState === "connected" ? stopConversation : startConversation}
-            disabled={connectionState === "connecting"}
+            disabled={connectionState === "connecting" || !hydrated}
             className={`mx-auto flex h-[152px] w-[152px] items-center justify-center rounded-full border border-[#95bcff]/50 shadow-[0_0_40px_rgba(85,141,255,0.55)] transition ${connectionState === "connected" ? "animate-pulse" : ""}`}
             style={{ background: "radial-gradient(circle at 32% 26%, #3a5f98 0%, #1e3157 52%, #0d1a33 100%)" }}
           >
