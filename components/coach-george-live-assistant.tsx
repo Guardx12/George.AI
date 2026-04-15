@@ -218,7 +218,7 @@ function buildVoiceRendererInstructions() {
     "The app decides the exact reply text.",
     "Only speak the exact text provided by the app in response.instructions.",
     "Do not add, remove, summarise, paraphrase, or improvise anything.",
-    "Never ask onboarding questions or generate your own coaching advice.",
+    "Never ask onboarding questions, build plans, swap meals, generate shopping lists, or generate your own coaching advice.",
   ].join(" ")
 }
 
@@ -408,6 +408,7 @@ export function CoachGeorgeLiveAssistant() {
   const [plannerData, setPlannerData] = useState<PlannerPayload>(LOCAL_FALLBACK)
   const [plannerLoading, setPlannerLoading] = useState(true)
   const [shoppingDays, setShoppingDays] = useState<1 | 3 | 5 | 7>(3)
+  const [selectedSwapMeal, setSelectedSwapMeal] = useState(0)
   const [hydrated, setHydrated] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -433,10 +434,13 @@ export function CoachGeorgeLiveAssistant() {
 
   const canStart = useMemo(() => hydrated && (connectionState === "idle" || connectionState === "error"), [connectionState, hydrated])
   const showSetupModal = hydrated && !state.profileComplete
-  const plannerSourceLabel = getPlannerSourceLabel(plannerData)
 
   const appendAssistantMessage = (content: string) => {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
+  }
+
+  const appendSystemMessage = (content: string) => {
+    setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("system", content)] }))
   }
 
   const respond = (content: string) => {
@@ -599,6 +603,13 @@ ${safeText}`,
     plannerDataRef.current = plannerData
   }, [plannerData])
 
+  useEffect(() => {
+    const mealCount = state.profile?.mealsPerDay || state.currentPlan?.plan.length || 3
+    if (selectedSwapMeal > Math.max(0, mealCount - 1)) {
+      setSelectedSwapMeal(Math.max(0, mealCount - 1))
+    }
+  }, [selectedSwapMeal, state.currentPlan, state.profile])
+
 
 function formatTargetsForSpeech(targets: Nutrition) {
   return `${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats`
@@ -620,16 +631,16 @@ function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRe
   }
 
   if (snapshot.currentPlan) {
-    return "You’ve already got a plan — want to see it, swap something, or build a new one?"
+    return "Your plan’s just below — take a look. Want help with workouts or an adjustment?"
   }
 
-  return "You’re all set. Want me to build your plan or check your targets?"
+  return "You’re all set — tap Build Plan below when you want one."
 }
 
 function controlledFallback(plan: MealPlanResult | null) {
   return plan
-    ? "You’ve already got a plan — want to see it, swap something, or build a new one?"
-    : "You’re all set. Want me to build your plan or check your targets?"
+    ? "Your plan’s just below — take a look. Want help with workouts or an adjustment?"
+    : "You’re all set — tap Build Plan below when you want one."
 }
 
 function buildWorkoutResponse(text: string) {
@@ -897,19 +908,16 @@ function buildDailyCoachingResponse(text: string) {
     return buildMealPlan(profile, plannerData)
   }
 
-  function applyComputedPlan(result: MealPlanResult, leadMessage?: string, detailed = false) {
+  function applyComputedPlan(result: MealPlanResult) {
     const planText = formatComputedPlan(result, plannerDataRef.current)
-    const assistantBody = detailed ? planText : formatPlanSummary(result)
-    const assistantText = leadMessage ? `${leadMessage}
-
-${assistantBody}` : assistantBody
     currentPlanRef.current = result
     setState((prev) => ({
       ...prev,
       currentPlan: result,
       latestPlan: planText,
     }))
-    respond(assistantText)
+    appendSystemMessage(planText)
+    respond("Nice — your plan’s ready. Take a look below.")
   }
 
 
@@ -936,10 +944,10 @@ function handleUserInput(text: string) {
   switch (intent) {
     case "show_plan":
       if (!plan) {
-        respond("You don’t have a plan yet. Want me to build one from your saved targets?")
+        respond("You don’t have a plan yet. Tap Build Plan below when you’re ready.")
         return
       }
-      respond("Your full plan is right below — take a look. Want me to adjust anything?")
+      respond("Your full plan is right below — take a look. Want me to explain anything?")
       return
     case "show_targets":
       if (!targets || !targets.calories) {
@@ -950,41 +958,32 @@ function handleUserInput(text: string) {
       return
     case "build_plan":
       if (!hasProfile || !profile || !targets || !targets.calories) {
-        respond("Complete setup first and I’ll build your plan from there.")
+        respond("Complete setup first and I’ll guide you from there.")
         return
       }
-      applyComputedPlan(computePlanForProfile(profile), "Built from your latest saved targets.")
+      respond("If you want a new plan, tap Build Plan below.")
       return
     case "swap_meal":
       if (!plan) {
-        respond("You don’t have a plan yet. Want me to build one first?")
+        respond("You don’t have a plan yet. Build one first, then use the Swap Meal button below.")
         return
       }
       {
         const targetIndex = getMealIndexFromInput(normalized, plan.plan.length) ?? findSwapTarget(normalized, plan)
-        if (targetIndex === null) {
-          lastIntentRef.current = "swap_meal"
-          respond("Which meal do you want me to swap — breakfast, lunch, dinner, or a meal number?")
-          return
+        if (targetIndex !== null) {
+          setSelectedSwapMeal(targetIndex)
         }
-        const swapResult = buildValidatedSwapPlan(profile as Profile, plan, targetIndex, cleaned)
-        if (!swapResult || !swapResult.valid) {
-          respond("I couldn’t find a swap that keeps your plan on track. Want me to try a different meal?")
-          return
-        }
-        sessionPatternRef.current.swaps += 1
-        const planText = formatComputedPlan(swapResult.plan, plannerDataRef.current)
-        currentPlanRef.current = swapResult.plan
-        setState((prev) => ({ ...prev, currentPlan: swapResult.plan, latestPlan: planText }))
-        respond(`Swapped meal ${targetIndex + 1} — you’re still on target. Want another change?`)
+        respond(targetIndex === null ? "Want to swap something? Use the Swap Meal button below." : `Use the Swap Meal button below for meal ${targetIndex + 1}.`)
         return
       }
     case "shopping_list":
       if (!plan) {
-        respond("You don’t have an active plan yet, so there isn’t a shopping list to generate.")
+        respond("You don’t have an active plan yet. Build a plan first, then use the Shopping List button below.")
         return
       }
-      respond(formatShoppingList(plan, plannerDataRef.current, detectShoppingListDays(normalized) || shoppingDays))
+      const detectedDays = detectShoppingListDays(normalized)
+      if (detectedDays) setShoppingDays(detectedDays)
+      respond("If you want a shopping list, use the Shopping List button below.")
       return
     case "workout":
       respond("I can help with that — home workout, gym workout, boxing, or something simple for today?")
@@ -1216,7 +1215,7 @@ ${georgeLine}`)
   }
 
   function buildMyPlan() {
-    appendUserMessage("Build My Plan")
+    appendUserMessage("Build Plan")
     if (!state.profileComplete || !state.profile) {
       const gate = "Please complete setup first so I can build this correctly."
       respond(gate)
@@ -1260,13 +1259,37 @@ ${georgeLine}`)
       latestPlan: null,
     }))
 
-    respond(`${targetLine}
+    appendSystemMessage(targetLine)
+    respond(confirm)
+  }
 
-${confirm}`)
+  function swapSelectedMeal() {
+    appendUserMessage(`Swap Meal ${selectedSwapMeal + 1}`)
+    if (!state.profileComplete || !state.profile || !state.currentPlan) {
+      respond("Build a plan first, then use swap.")
+      return
+    }
+
+    const swapResult = buildValidatedSwapPlan(state.profile, state.currentPlan, selectedSwapMeal, `swap meal ${selectedSwapMeal + 1}`)
+    if (!swapResult || !swapResult.valid) {
+      respond("I couldn’t find a good swap that keeps your plan on track.")
+      return
+    }
+
+    sessionPatternRef.current.swaps += 1
+    const planText = formatComputedPlan(swapResult.plan, plannerDataRef.current)
+    currentPlanRef.current = swapResult.plan
+    setState((prev) => ({
+      ...prev,
+      currentPlan: swapResult.plan,
+      latestPlan: planText,
+    }))
+    appendSystemMessage(planText)
+    respond("Done — I’ve swapped that for you. You’re still on track.")
   }
 
   function resetGoalsAndStats(announce = true) {
-    appendUserMessage("Reset Goals & Stats")
+    appendUserMessage("Reset")
     const resetText = "Everything is cleared. Complete setup to continue."
     profileRef.current = null
     targetsRef.current = ZERO_TARGETS
@@ -1283,14 +1306,14 @@ ${confirm}`)
   }
 
   return (
-    <section className="bg-[#060a12] px-3 py-4 text-white sm:px-4 sm:py-8">
-      <div className="relative mx-auto w-full max-w-[860px] rounded-[28px] border border-white/10 bg-gradient-to-b from-[#101b31] via-[#0b1323] to-[#090f1a] p-4 shadow-[0_20px_100px_rgba(72,132,255,0.2)] sm:p-5">
+    <section className="overflow-x-hidden bg-[#060a12] px-3 py-4 text-white sm:px-4 sm:py-8">
+      <div className="relative mx-auto w-full max-w-[860px] overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-b from-[#101b31] via-[#0b1323] to-[#090f1a] p-4 shadow-[0_20px_100px_rgba(72,132,255,0.2)] sm:p-5">
         <div className="rounded-3xl border border-white/10 bg-[#0a1120]/90 p-4 shadow-[inset_0_0_40px_rgba(123,166,255,0.15)]">
           <button
             type="button"
             onClick={connectionState === "connected" ? stopConversation : startConversation}
             disabled={connectionState === "connecting" || !hydrated}
-            className={`mx-auto flex h-[152px] w-[152px] items-center justify-center rounded-full border border-[#95bcff]/50 shadow-[0_0_40px_rgba(85,141,255,0.55)] transition ${connectionState === "connected" ? "animate-pulse" : ""}`}
+            className={`mx-auto flex h-[132px] w-[132px] items-center justify-center sm:h-[152px] sm:w-[152px] rounded-full border border-[#95bcff]/50 shadow-[0_0_40px_rgba(85,141,255,0.55)] transition ${connectionState === "connected" ? "animate-pulse" : ""}`}
             style={{ background: "radial-gradient(circle at 32% 26%, #3a5f98 0%, #1e3157 52%, #0d1a33 100%)" }}
           >
             {connectionState === "connecting" ? <Loader2 className="h-10 w-10 animate-spin" /> : <Mic className="h-10 w-10" />}
@@ -1298,31 +1321,21 @@ ${confirm}`)
           <p className="mt-3 text-center text-lg font-semibold">Tap to Talk</p>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Total Calories</p><p className="text-xl font-semibold">{state.stats.totalCalories}</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Current Weight</p><p className="text-xl font-semibold">{state.stats.currentWeightKg}kg</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Day Streak</p><p className="inline-flex items-center gap-1 text-xl font-semibold"><Flame className="h-4 w-4 text-orange-300" />{state.stats.dayStreak}</p></div>
         </div>
 
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Protein</p><p className="text-lg font-semibold">{state.stats.protein}g</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Carbs</p><p className="text-lg font-semibold">{state.stats.carbs}g</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[inset_0_0_20px_rgba(124,162,255,0.08)]"><p className="text-xs text-[#8ea5cc]">Fats</p><p className="text-lg font-semibold">{state.stats.fats}g</p></div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#b5c9ee]">
-          <span>Food source: {plannerSourceLabel}</span>
-          <span>{plannerLoading ? "Syncing..." : `${plannerData.recipes.length} recipes loaded`}</span>
-        </div>
-
-        <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#b5c9ee]">
-          <div>{plannerData.statusMessage}</div>
-          {plannerData.fallbackReason ? <div className="mt-1 text-[#ffb4bb]">Fallback reason: {plannerData.fallbackReason}</div> : null}
-        </div>
-
-        <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
-          <button onClick={buildMyPlan} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Build My Plan</button>
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
+        <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+          <button onClick={buildMyPlan} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Build Plan</button>
+          <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)] sm:flex-row sm:items-center">
             <input
               value={state.weightInput}
               onChange={(e) => setState((prev) => ({ ...prev, weightInput: e.target.value }))}
@@ -1336,9 +1349,9 @@ ${confirm}`)
               disabled={!state.profileComplete}
               className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm disabled:opacity-50"
             />
-            <button onClick={updateWeight} className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium">Update Weight</button>
+            <button onClick={updateWeight} className="w-full whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium sm:w-auto">Update Weight</button>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)]">
+          <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)] sm:flex-row sm:items-center">
             <select
               value={shoppingDays}
               onChange={(e) => setShoppingDays(Number(e.target.value) as 1 | 3 | 5 | 7)}
@@ -1359,26 +1372,50 @@ ${confirm}`)
                   return
                 }
                 const list = formatShoppingList(state.currentPlan, plannerData, shoppingDays)
-                respond(list)
+                appendSystemMessage(list)
+                respond("There’s your shopping list.")
               }}
-              className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium"
+              className="w-full whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium sm:w-auto"
               disabled={!state.currentPlan}
             >
-              Shopping List
+              Generate Shopping List
             </button>
           </div>
-          <button onClick={resetGoalsAndStats} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Reset Goals & Stats</button>
+          <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[inset_0_0_20px_rgba(87,130,255,0.08)] sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Swap Meal</p>
+              <select
+                value={selectedSwapMeal}
+                onChange={(e) => setSelectedSwapMeal(Number(e.target.value))}
+                disabled={!state.currentPlan}
+                className="w-full min-w-0 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm disabled:opacity-50"
+              >
+                {Array.from({ length: state.profile?.mealsPerDay || state.currentPlan?.plan.length || 3 }).map((_, index) => (
+                  <option key={index} value={index}>{`Meal ${index + 1}`}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={swapSelectedMeal}
+              className="w-full whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium sm:w-auto"
+              disabled={!state.currentPlan}
+            >
+              Swap Selected Meal
+            </button>
+          </div>
+          <button onClick={resetGoalsAndStats} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 font-medium text-[#d5e3ff] shadow-[0_6px_20px_rgba(80,124,255,0.2)]">Reset</button>
         </div>
 
         <div className="mt-4 rounded-3xl border border-white/10 bg-[#0a1222] p-3 shadow-[inset_0_0_35px_rgba(105,154,255,0.08)]">
           <div className="mb-3 flex items-center gap-2 px-1"><MessageSquareText className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9fb4dc]">Conversation</p></div>
 
-          <div ref={chatScrollRef} className="h-[360px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:h-[440px]">
+          <div ref={chatScrollRef} className="h-[360px] space-y-3 overflow-x-hidden overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:h-[440px]">
             {state.messages.map((message) => {
               const isUser = message.role === "user"
+              const isSystem = message.role === "system"
               return (
                 <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${isUser ? "bg-[#365fa5] text-white" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"}`}>
+                  <div className={`max-w-full whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm leading-6 sm:max-w-[90%] ${isUser ? "bg-[#365fa5] text-white" : isSystem ? "border border-[#8fb4ff]/15 bg-[#0d1728] text-[#bcd1f5]" : "border border-white/10 bg-[#121f35] text-[#dce8ff]"}`}>
                     {message.content}
                   </div>
                 </div>
