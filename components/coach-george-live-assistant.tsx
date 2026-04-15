@@ -350,7 +350,7 @@ export function CoachGeorgeLiveAssistant() {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
   }
 
-  const appendAssistantMessageAndSpeak = (content: string) => {
+  const respond = (content: string) => {
     appendAssistantMessage(content)
     speakIfConnected(content)
   }
@@ -364,17 +364,32 @@ export function CoachGeorgeLiveAssistant() {
     if (!channel || channel.readyState !== "open") return
     const safeText = textToSpeak.trim()
     if (!safeText) return
-    const payload = {
+
+    const responsePayload = {
       type: "response.create",
       response: {
-        instructions: `Speak the following text exactly as written. Do not add, remove, summarise, paraphrase, or change anything.
+        conversation: "none",
+        output_modalities: ["audio"],
+        input: [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: `Speak the following text exactly as written. Do not add, remove, summarise, paraphrase, change, or answer anything else.
 
 ${safeText}`,
+              },
+            ],
+          },
+        ],
       },
     }
+
     try {
-      console.debug("[George realtime] response.create", payload)
-      channel.send(JSON.stringify(payload))
+      console.debug("[George realtime] response.create", responsePayload)
+      channel.send(JSON.stringify(responsePayload))
     } catch (error) {
       console.error("[George realtime] response.create failed", error)
     }
@@ -601,7 +616,7 @@ ${safeText}`,
   }
 
   function respondFromState(text: string) {
-    appendAssistantMessageAndSpeak(text)
+    respond(text)
   }
 
   function detectShoppingListDays(text: string) {
@@ -652,9 +667,8 @@ ${planText}` : planText
       ...prev,
       currentPlan: result,
       latestPlan: planText,
-      messages: [...prev.messages, makeMessage("assistant", assistantText)],
     }))
-    speakIfConnected(assistantText)
+    respond(assistantText)
   }
 
   function handleUserTranscript(text: string) {
@@ -753,14 +767,16 @@ ${planText}` : planText
         totals: nextTotals,
       }
       const planText = formatComputedPlan(nextPlan, plannerDataRef.current)
+      const responseText = `No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Updated totals: ${nextTotals.calories} kcal | Protein ${nextTotals.protein}g | Carbs ${nextTotals.carbs}g | Fats ${nextTotals.fat}g.
+
+${planText}`
       currentPlanRef.current = nextPlan
       setState((prev) => ({
         ...prev,
         currentPlan: nextPlan,
         latestPlan: planText,
-        messages: [...prev.messages, makeMessage("assistant", `No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Updated totals: ${nextTotals.calories} kcal | Protein ${nextTotals.protein}g | Carbs ${nextTotals.carbs}g | Fats ${nextTotals.fat}g.\n\n${planText}`)],
       }))
-      speakIfConnected(`No problem — I’ve swapped meal ${targetIndex + 1} for ${replacement.name}. Your updated totals are ${nextTotals.calories} calories, ${nextTotals.protein} grams of protein, ${nextTotals.carbs} grams of carbs, and ${nextTotals.fat} grams of fats.`)
+      respond(responseText)
       return
     }
 
@@ -882,7 +898,7 @@ ${planText}` : planText
         console.debug("[George realtime] session.update on open", payload)
         dataChannel.send(JSON.stringify(payload))
         if (snapshot.profileComplete && snapshot.profile) {
-          speakIfConnected(getReturningUserPrompt(snapshot))
+          respond(getReturningUserPrompt(snapshot))
         }
       })
 
@@ -965,16 +981,19 @@ ${planText}` : planText
       weightInput: String(profile.currentWeightKg),
       currentPlan: null,
       latestPlan: null,
-      messages: [...prev.messages, makeMessage("assistant", `${formatTargetSummary(calculated.targets)}\n\n${summary}\n\n${georgeLine}`)],
     }))
-    speakIfConnected(georgeLine)
+    respond(`${formatTargetSummary(calculated.targets)}
+
+${summary}
+
+${georgeLine}`)
   }
 
   function buildMyPlan() {
     appendUserMessage("Build My Plan")
     if (!state.profileComplete || !state.profile) {
       const gate = "Please complete setup first so I can build this correctly."
-      appendAssistantMessageAndSpeak(gate)
+      respond(gate)
       return
     }
 
@@ -986,7 +1005,7 @@ ${planText}` : planText
     appendUserMessage("Update Weight")
     if (!state.profileComplete || !state.profile) {
       const gate = "Finish setup first — weight updates are for after setup."
-      appendAssistantMessageAndSpeak(gate)
+      respond(gate)
       return
     }
 
@@ -1013,27 +1032,28 @@ ${planText}` : planText
       stats: calculated.stats,
       currentPlan: null,
       latestPlan: null,
-      messages: [...prev.messages, makeMessage("assistant", `${targetLine}\n\n${confirm}`)],
     }))
 
-    speakIfConnected(confirm)
+    respond(`${targetLine}
+
+${confirm}`)
   }
 
   function resetGoalsAndStats(announce = true) {
     appendUserMessage("Reset Goals & Stats")
-    const resetLine = makeMessage("assistant", "Everything is cleared. Complete setup to continue.")
+    const resetText = "Everything is cleared. Complete setup to continue."
     profileRef.current = null
     targetsRef.current = ZERO_TARGETS
     currentPlanRef.current = null
     profileCompleteRef.current = false
     setState({
       ...INITIAL_STATE,
-      messages: [resetLine],
+      messages: announce ? [] : [makeMessage("assistant", resetText)],
     })
     setSetupForm(DEFAULT_SETUP_FORM)
     window.localStorage.removeItem(SESSION_KEY)
     setError(null)
-    if (announce) speakIfConnected("Everything is cleared. Complete setup to continue.")
+    if (announce) respond(resetText)
   }
 
   return (
@@ -1109,11 +1129,11 @@ ${planText}` : planText
                 appendUserMessage(`Shopping List ${shoppingDays} day`)
                 if (!state.currentPlan) {
                   const message = "You don't have an active plan yet, so there isn't a shopping list to generate."
-                  appendAssistantMessageAndSpeak(message)
+                  respond(message)
                   return
                 }
                 const list = formatShoppingList(state.currentPlan, plannerData, shoppingDays)
-                appendAssistantMessageAndSpeak(list)
+                respond(list)
               }}
               className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium"
               disabled={!state.currentPlan}

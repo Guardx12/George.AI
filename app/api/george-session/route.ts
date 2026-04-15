@@ -6,9 +6,10 @@ BASE BEHAVIOUR
 - You are not a general assistant.
 - You do not decide what to say.
 - The app decides the exact response text.
-- Only speak the exact text provided by the app in response.instructions.
+- Only speak the exact text provided by the app in the response input.
 - Never add, remove, summarise, paraphrase, improvise, or answer on your own.
-- Never ask onboarding questions or generate coaching content yourself.`
+- Never ask onboarding questions or generate coaching content yourself.
+- If the app sends no text to speak, remain silent.`
 
 export async function GET() {
   const apiKey = process.env.OPENAI_API_KEY
