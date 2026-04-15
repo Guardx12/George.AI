@@ -204,9 +204,15 @@ function getPlannerSourceLabel(plannerData: PlannerPayload) {
   return "Local fallback data"
 }
 
-function buildVoicePlannerSummary(plannerData: PlannerPayload) {
-  const names = plannerData.recipes.slice(0, 12).map((recipe) => recipe.name).join(", ")
-  return `Plan source: ${getPlannerSourceLabel(plannerData)}. ${plannerData.statusMessage} Available recipes include: ${names || "standard meals"}.`
+function buildVoiceRendererInstructions() {
+  return [
+    "You are Coach George's voice renderer.",
+    "You do not decide what to say.",
+    "The app decides the exact reply text.",
+    "Only speak the exact text provided by the app in response.instructions.",
+    "Do not add, remove, summarise, paraphrase, or improvise anything.",
+    "Never ask onboarding questions or generate your own coaching advice.",
+  ].join(" ")
 }
 
 function formatComputedPlan(result: MealPlanResult, plannerData: PlannerPayload) {
@@ -344,17 +350,26 @@ export function CoachGeorgeLiveAssistant() {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("assistant", content)] }))
   }
 
+  const appendAssistantMessageAndSpeak = (content: string) => {
+    appendAssistantMessage(content)
+    speakIfConnected(content)
+  }
+
   const appendUserMessage = (content: string) => {
     setState((prev) => ({ ...prev, messages: [...prev.messages, makeMessage("user", content)] }))
   }
 
-  const speakIfConnected = (instructions: string) => {
+  const speakIfConnected = (textToSpeak: string) => {
     const channel = dcRef.current
     if (!channel || channel.readyState !== "open") return
+    const safeText = textToSpeak.trim()
+    if (!safeText) return
     const payload = {
       type: "response.create",
       response: {
-        instructions,
+        instructions: `Speak the following text exactly as written. Do not add, remove, summarise, paraphrase, or change anything.
+
+${safeText}`,
       },
     }
     try {
@@ -574,22 +589,7 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function buildConnectedGeorgeInstructions() {
-    const snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)
-    const profile = snapshot.profile
-    const targets = snapshot.targets
-    const currentPlan = snapshot.currentPlan
-
-    if (!snapshot.profileComplete || !profile) {
-      return `You are Coach George. There is no saved profile yet. Ask the user to complete the on-screen setup form before you discuss targets or meal plans. Never ask for setup details if the app already has a saved profile. ${buildVoicePlannerSummary(plannerData)}`
-    }
-
-    const profileSummary = `Saved profile: sex ${profile.sex}, age ${profile.age}, height ${profile.heightCm}cm, weight ${profile.currentWeightKg}kg, goal ${profile.goal}, activity ${profile.activityLevel}, meals per day ${profile.mealsPerDay}, diet ${profile.dietaryPreference}, plan mode ${profile.planMode}.`
-    const targetSummary = `Current targets: ${formatTargetsForSpeech(targets)}.`
-    const planSummary = currentPlan
-      ? `There is an active computed meal plan. Planned totals are ${formatTargetsForSpeech(currentPlan.totals)}. Meals are: ${summarizeMeals(currentPlan)}.`
-      : 'There is no active computed meal plan yet.'
-
-    return `You are Coach George. Act as the connected voice interface for the Coach George app, not as a separate chatbot. Never ask onboarding questions again when a saved profile exists. Never invent a separate meal plan. If the user asks about their targets or current plan, answer from the saved app state. If asked to build a new plan, the app will generate the real plan and you should then speak from that exact computed plan only. Keep spoken replies short, practical, and consistent with the app state. ${profileSummary} ${targetSummary} ${planSummary} ${buildVoicePlannerSummary(plannerData)}`
+    return buildVoiceRendererInstructions()
   }
 
   function syncGeorgeContext() {
@@ -601,8 +601,7 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function respondFromState(text: string) {
-    appendAssistantMessage(text)
-    speakIfConnected(text)
+    appendAssistantMessageAndSpeak(text)
   }
 
   function detectShoppingListDays(text: string) {
@@ -645,15 +644,17 @@ export function CoachGeorgeLiveAssistant() {
 
   function applyComputedPlan(result: MealPlanResult, leadMessage?: string) {
     const planText = formatComputedPlan(result, plannerDataRef.current)
-    const spoken = `${leadMessage ? `${leadMessage} ` : ""}I've built your plan. Your targets are ${formatTargetsForSpeech(result.targets)}. Planned totals are ${result.totals.calories} calories, ${result.totals.protein} grams of protein, ${result.totals.carbs} grams of carbs, and ${result.totals.fat} grams of fats. Your meals are ${summarizeMeals(result)}.`
+    const assistantText = leadMessage ? `${leadMessage}
+
+${planText}` : planText
     currentPlanRef.current = result
     setState((prev) => ({
       ...prev,
       currentPlan: result,
       latestPlan: planText,
-      messages: [...prev.messages, makeMessage("assistant", planText)],
+      messages: [...prev.messages, makeMessage("assistant", assistantText)],
     }))
-    speakIfConnected(spoken)
+    speakIfConnected(assistantText)
   }
 
   function handleUserTranscript(text: string) {
@@ -973,8 +974,7 @@ export function CoachGeorgeLiveAssistant() {
     appendUserMessage("Build My Plan")
     if (!state.profileComplete || !state.profile) {
       const gate = "Please complete setup first so I can build this correctly."
-      appendAssistantMessage(gate)
-      speakIfConnected(gate)
+      appendAssistantMessageAndSpeak(gate)
       return
     }
 
@@ -986,8 +986,7 @@ export function CoachGeorgeLiveAssistant() {
     appendUserMessage("Update Weight")
     if (!state.profileComplete || !state.profile) {
       const gate = "Finish setup first — weight updates are for after setup."
-      appendAssistantMessage(gate)
-      speakIfConnected(gate)
+      appendAssistantMessageAndSpeak(gate)
       return
     }
 
@@ -1034,7 +1033,7 @@ export function CoachGeorgeLiveAssistant() {
     setSetupForm(DEFAULT_SETUP_FORM)
     window.localStorage.removeItem(SESSION_KEY)
     setError(null)
-    if (announce) speakIfConnected("I’ve reset everything. Complete your setup form when you’re ready.")
+    if (announce) speakIfConnected("Everything is cleared. Complete setup to continue.")
   }
 
   return (
@@ -1110,13 +1109,11 @@ export function CoachGeorgeLiveAssistant() {
                 appendUserMessage(`Shopping List ${shoppingDays} day`)
                 if (!state.currentPlan) {
                   const message = "You don't have an active plan yet, so there isn't a shopping list to generate."
-                  appendAssistantMessage(message)
-                  speakIfConnected(message)
+                  appendAssistantMessageAndSpeak(message)
                   return
                 }
                 const list = formatShoppingList(state.currentPlan, plannerData, shoppingDays)
-                appendAssistantMessage(list)
-                speakIfConnected(`I've generated your shopping list for ${shoppingDays} days.`)
+                appendAssistantMessageAndSpeak(list)
               }}
               className="whitespace-nowrap rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium"
               disabled={!state.currentPlan}
