@@ -87,7 +87,7 @@ const INITIAL_MESSAGES: LiveMessage[] = [
   {
     id: "intro",
     role: "assistant",
-    content: "Welcome — complete your quick setup and I’ll take it from there.",
+    content: "Tap to talk when you need help with food, training, motivation, or getting back on track.",
   },
 ]
 
@@ -218,7 +218,7 @@ function buildVoiceRendererInstructions() {
     "The app decides the exact reply text.",
     "Only speak the exact text provided by the app in response.instructions.",
     "Do not add, remove, summarise, paraphrase, or improvise anything.",
-    "Never ask onboarding questions, build plans, swap meals, generate shopping lists, or generate your own coaching advice.",
+    "Never build exact calorie plans, swap meal-plan items, generate shopping lists, or generate your own coaching advice.",
   ].join(" ")
 }
 
@@ -290,7 +290,7 @@ function buildShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, da
 
 function formatShoppingList(plan: MealPlanResult, plannerData: PlannerPayload, days: number) {
   const items = buildShoppingList(plan, plannerData, days)
-  const lines = [`Shopping List (${days} Day${days === 1 ? "" : "s"})`, ""]
+  const lines = [`Food ideas (${days} Day${days === 1 ? "" : "s"})`, ""]
   items.forEach((item) => lines.push(`- ${item.name}: ${formatWeight(item.grams)}`))
   return lines.join("\n")
 }
@@ -679,20 +679,15 @@ function summarizePlan(plan: MealPlanResult) {
 
 function getReturningUserPrompt(snapshot = getLiveCoachStateSnapshot(liveStateRef.current, plannerDataRef.current)) {
   if (!snapshot.profileComplete || !snapshot.profile) {
-    return "Complete the setup form first and we’ll get you moving properly."
+    return "Hi, I’m George. Complete the coaching profile first so I know your goal, then use me for food decisions, training, motivation, and getting back on track."
   }
 
-  if (snapshot.currentPlan) {
-    return "You’ve already got structure in place. Check your plan and we’ll tighten anything that needs work."
-  }
-
-  return "You’re set — hit Build Plan and it’ll show up. Once it’s there, we’ll tighten it up if needed."
+  const goal = snapshot.profile.goal.replace("-", " ")
+  return `You’re set. Current focus: ${goal}. Tell me what you need right now — food ideas, training, hunger, a bad day, or what to do next.`
 }
 
 function controlledFallback(plan: MealPlanResult | null) {
-  return plan
-    ? "You’ve already got a plan in place. Check it through and we’ll adjust anything that needs work."
-    : "You’re set — hit Build Plan and it’ll show up. After that, we’ll shape it properly."
+  return "I’m here to coach the next decision. Ask me what to eat tonight, what to do if you’re hungry, how to handle a bad day, why your weight jumped, or what training to do today."
 }
 
 function buildWorkoutResponse(text: string) {
@@ -1005,28 +1000,28 @@ function handleUserInput(text: string) {
   switch (intent) {
     case "show_plan":
       if (!plan) {
-        respond("No plan there yet — hit Build Plan and it’ll show up. Once it’s there, we’ll tighten it up if needed.")
+        respond("I don’t build fixed meal plans anymore. Use your tracker for exact amounts, and ask me what to eat next, what to have tonight, or how to stay on track today.")
         return
       }
-      respond("Your full plan is in the plan section now. Take a look through it, then we’ll adjust anything that needs work.")
+      respond("Rather than a fixed plan, I’ll coach the next decision. Tell me what you’ve eaten, what you’re craving, or what you need help with now.")
       return
     case "show_targets":
       if (!targets || !targets.calories) {
         respond("Your targets aren’t ready yet. Finish setup first and then we’ll get everything lined up properly.")
         return
       }
-      respond(`You’re currently set at ${targets.calories} calories, ${targets.protein} grams of protein, ${targets.carbs} grams of carbs, and ${targets.fat} grams of fats. That gives us a clear target to work from.`)
+      respond(`Your guidance range is currently around ${targets.calories} calories with ${targets.protein} grams of protein as the main priority. Use NutriCheck or MyFitnessPal for exact logging, then use me to decide what to do next.`)
       return
     case "build_plan":
       if (!hasProfile || !profile || !targets || !targets.calories) {
-        respond("Complete setup first and we’ll get you moving properly from there.")
+        respond("Complete your coaching profile first so I know the goal, then I’ll guide your next decision properly.")
         return
       }
-      respond("Hit Build Plan and it’ll show up. Once it’s there, we’ll tighten it up and keep it practical.")
+      respond("I’m not going to build a rigid meal plan. Tell me what you need next — breakfast, lunch, dinner, a high-protein option, a takeaway rescue, or a simple food idea — and I’ll guide you.")
       return
     case "swap_meal":
       if (!plan) {
-        respond("You need a plan in place first. Hit Build Plan, then use Swap Meal and we’ll tidy it up from there.")
+        respond("There’s no fixed plan to swap now. Just ask what to have instead and I’ll give you a practical option for your goal.")
         return
       }
       {
@@ -1034,18 +1029,18 @@ function handleUserInput(text: string) {
         if (targetIndex !== null) {
           setSelectedSwapMeal(targetIndex)
         }
-        respond(targetIndex === null ? "Yeah — use Swap Meal and pick the one you want to change. We’ll keep it high protein and on track." : `Yeah — swap Meal ${targetIndex + 1} using the Swap Meal button. That’ll update it straight away, then we’ll check it over.`)
+        respond("Tell me what meal you want to change and what you fancy instead. I’ll keep it aligned with your goal, and you can log the exact amounts in your tracker.")
         return
       }
     case "shopping_list":
       if (!plan) {
-        respond("You need a plan there first. Hit Build Plan, then set your days and generate the shopping list.")
+        respond("Rather than a fixed shopping list, ask me for simple food ideas for the week and I’ll suggest easy high-protein options to buy.")
         return
       }
       {
         const detectedDays = detectShoppingListDays(normalized)
         if (detectedDays) setShoppingDays(detectedDays)
-        respond("Set how many days you want, then generate your shopping list. Once that’s done, you’re organised for the week.")
+        respond("Tell me how many days you want to cover and whether you want easy meals, budget meals, or high-protein options, and I’ll guide the shop.")
         return
       }
     case "update_weight":
@@ -1057,7 +1052,7 @@ function handleUserInput(text: string) {
       return
     case "workout":
       if (normalized.includes("workout plan")) {
-        respond("No — that’s your meal plan. For training, tell me home, gym, boxing, push, pull, or legs and I’ll set it up simply.")
+        respond("For training, tell me home, gym, boxing, push, pull, or legs and I’ll keep the next session simple and practical.")
         pendingWorkoutPromptRef.current = "type"
         return
       }
@@ -1080,12 +1075,28 @@ function handleUserInput(text: string) {
       return
     case "unknown":
     default:
+      if (normalized.includes("what should i eat") || normalized.includes("what to eat") || normalized.includes("eat tonight") || normalized.includes("for dinner") || normalized.includes("next meal")) {
+        respond("Good — keep it simple. For tonight, make protein the anchor first: chicken, mince, eggs, fish, Greek yogurt, or tofu. Then add veg or salad, and add carbs based on how hard you’ve trained and what your tracker says you’ve got left. Use NutriCheck or MyFitnessPal for exact grams — I’ll help you choose the right direction.")
+        return
+      }
+      if (normalized.includes("hungry") || normalized.includes("starving") || normalized.includes("craving")) {
+        respond("No panic — hunger is a signal, not a failure. First move: protein and volume. Go for Greek yogurt, lean meat, eggs, soup, salad, veg, or a protein shake. Don’t slash tomorrow’s food as punishment. Win the next decision.")
+        return
+      }
+      if (normalized.includes("weight went up") || normalized.includes("scale went up") || normalized.includes("gained weight") || normalized.includes("heavier")) {
+        respond("Don’t panic. A sudden jump is usually water, carbs, salt, stress, soreness, or digestion — not instant fat gain. Look at the 7 day trend, not one weigh-in. Stay steady for the next 3 days before changing anything.")
+        return
+      }
+      if (normalized.includes("reset") || normalized.includes("change goal") || normalized.includes("new goal") || normalized.includes("start again")) {
+        respond("We can do that safely. Small changes adjust the current phase. A new goal starts a new phase. A full reset clears everything. Don’t reset from a bad mood — decide whether this is a real direction change or just a rough day.")
+        return
+      }
       if (normalized.includes("chicken") || normalized.includes("bored") || normalized.includes("same food") || normalized.includes("everything is chicken") || normalized.includes("repetitive")) {
-        respond("Yeah — fair, we’ll mix that up. We can rotate beef, turkey, eggs, fish, or yogurt and keep the same structure. If you want a change, use Swap Meal and we’ll start with one meal at a time.")
+        respond("Yeah — fair, we’ll mix that up. We can rotate beef, turkey, eggs, fish, or yogurt and keep the same structure. If you want a change, use Meal changes and we’ll start with one meal at a time.")
         return
       }
       if (normalized.includes("can t see") || normalized.includes("cant see") || normalized.includes("not showing") || normalized.includes("isn t showing") || normalized.includes("isnt showing")) {
-        respond("It should be in the plan section above. If it still isn’t there, hit Build Plan again and it should load properly. Once it’s there, we’ll tighten it up if needed.")
+        respond("There isn’t a fixed plan section anymore. Ask me what to eat next, what to train today, or how to handle the situation you’re in right now.")
         return
       }
       if (pendingWorkoutPromptRef.current === "type") {
@@ -1212,7 +1223,7 @@ function handleUserInput(text: string) {
         const payload = { type: "session.update", session: buildRealtimeSessionPayload(buildConnectedGeorgeInstructions()) }
         console.debug("[George realtime] session.update on open", payload)
         dataChannel.send(JSON.stringify(payload))
-        if (snapshot.profileComplete && snapshot.profile && !greetedSessionRef.current) {
+        if (!greetedSessionRef.current) {
           greetedSessionRef.current = true
           respond(getReturningUserPrompt(snapshot))
         }
@@ -1283,8 +1294,8 @@ function handleUserInput(text: string) {
 
     const calculated = buildTargetsAndStats(profile, dayStreak)
     const dietLabel = profile.dietaryPreference === "omnivore" ? "standard" : profile.dietaryPreference
-    const summary = `Profile saved: goal ${profile.goal.replace("-", " ")}, ${profile.currentWeightKg}kg, ${profile.mealsPerDay} meals/day, ${dietLabel}.`
-    const georgeLine = "Nice — I’ve got your targets set. I can build your plan now."
+    const summary = `Coaching profile saved: goal ${profile.goal.replace("-", " ")}, ${profile.currentWeightKg}kg, ${profile.mealsPerDay} preferred meals/day, ${dietLabel}.`
+    const georgeLine = "Nice — I’ve got your coaching profile. Use your tracker for exact food logging, and use me for what to eat next, training, motivation, and staying on track."
 
     profileRef.current = profile
     targetsRef.current = calculated.targets
@@ -1308,15 +1319,17 @@ ${georgeLine}`)
   }
 
   function buildMyPlan() {
-    appendUserMessage("Build Plan")
+    appendUserMessage("Get today’s guidance")
     if (!state.profileComplete || !state.profile) {
-      const gate = "Please complete setup first so I can build this correctly."
-      respond(gate)
+      respond("Complete your coaching profile first so I can guide you properly.")
       return
     }
 
-    const result = computePlanForProfile(state.profile)
-    applyComputedPlan(result)
+    respond("Today’s job is simple: stay close to your calorie target in your tracker, make protein the anchor of each meal, get some movement in, and don’t let one imperfect decision become a bad day. Ask me what to eat next, what training to do, or how to handle anything that throws you off.")
+  }
+
+  function handleQuickPrompt(prompt: string) {
+    handleUserInput(prompt)
   }
 
   function updateWeight() {
@@ -1357,9 +1370,9 @@ ${georgeLine}`)
   }
 
   function swapSelectedMeal() {
-    appendUserMessage(`Swap Meal ${selectedSwapMeal + 1}`)
+    appendUserMessage(`Meal changes ${selectedSwapMeal + 1}`)
     if (!state.profileComplete || !state.profile || !state.currentPlan) {
-      respond("Build a plan first, then use Swap Meal and we’ll tighten it from there.")
+      respond("Build a plan first, then use Meal changes and we’ll tighten it from there.")
       return
     }
 
@@ -1382,8 +1395,13 @@ ${georgeLine}`)
   }
 
   function resetGoalsAndStats(announce = true) {
-    appendUserMessage("Reset")
-    const resetText = "Everything is cleared. Complete setup to continue."
+    const confirmed = typeof window === "undefined" ? false : window.confirm("This clears the current Coach George profile on this device. Use this only for a full reset, not a bad day. Continue?")
+    if (!confirmed) {
+      respond("No reset done. If you just need to change direction, ask me to start a new phase instead.")
+      return
+    }
+    appendUserMessage("Full reset confirmed")
+    const resetText = "Current profile cleared. Start a new coaching profile when you’re ready."
     profileRef.current = null
     targetsRef.current = ZERO_TARGETS
     currentPlanRef.current = null
@@ -1416,7 +1434,7 @@ ${georgeLine}`)
             <header className="mb-6 text-center">
               <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">Coach George</h1>
               <p className="mt-2 text-sm text-[rgba(255,255,255,0.7)] sm:text-lg">
-                Your coach for meals, training, and daily guidance.
+                Your coach for meals, training, staying on track, and getting back on it when life happens.
               </p>
             </header>
 
@@ -1439,10 +1457,28 @@ ${georgeLine}`)
               </button>
             </div>
 
+            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                "What should I eat tonight?",
+                "I’m hungry",
+                "My weight went up",
+                "I messed up",
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handleQuickPrompt(prompt)}
+                  className="rounded-2xl border border-white/12 bg-[rgba(255,255,255,0.06)] px-3 py-3 text-xs font-semibold text-white/90 backdrop-blur-[20px] transition hover:bg-[rgba(255,255,255,0.1)] sm:text-sm"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+
             <div className="mt-8 space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-[24px] border border-white/12 bg-[rgba(255,255,255,0.06)] px-5 py-4 shadow-[0_0_24px_rgba(77,163,255,0.14)] backdrop-blur-[20px]">
-                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Total Calories</p>
+                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Guidance Target</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight text-white">{state.stats.totalCalories.toLocaleString()}</p>
                 </div>
                 <div className="rounded-[24px] border border-white/12 bg-[rgba(255,255,255,0.06)] px-5 py-4 shadow-[0_0_24px_rgba(77,163,255,0.14)] backdrop-blur-[20px]">
@@ -1450,7 +1486,7 @@ ${georgeLine}`)
                   <p className="mt-2 text-3xl font-semibold tracking-tight text-white">{state.stats.currentWeightKg}kg</p>
                 </div>
                 <div className="rounded-[24px] border border-white/12 bg-[rgba(255,255,255,0.06)] px-5 py-4 shadow-[0_0_24px_rgba(77,163,255,0.14)] backdrop-blur-[20px]">
-                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Day Streak</p>
+                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Check-in Streak</p>
                   <p className="mt-2 inline-flex items-center gap-2 text-3xl font-semibold tracking-tight text-white">
                     <Flame className="h-5 w-5 text-[#7FD6FF]" />
                     {state.stats.dayStreak}
@@ -1460,15 +1496,15 @@ ${georgeLine}`)
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.05)] px-5 py-4 backdrop-blur-[20px]">
-                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Protein</p>
+                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Protein Focus</p>
                   <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{state.stats.protein}g</p>
                 </div>
                 <div className="rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.05)] px-5 py-4 backdrop-blur-[20px]">
-                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Carbs</p>
+                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Carb Guide</p>
                   <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{state.stats.carbs}g</p>
                 </div>
                 <div className="rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.05)] px-5 py-4 backdrop-blur-[20px]">
-                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Fats</p>
+                  <p className="text-sm text-[rgba(255,255,255,0.7)]">Fat Guide</p>
                   <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{state.stats.fats}g</p>
                 </div>
               </div>
@@ -1479,14 +1515,14 @@ ${georgeLine}`)
                 onClick={buildMyPlan}
                 className="w-full rounded-[24px] border border-[rgba(127,214,255,0.5)] bg-[linear-gradient(180deg,rgba(77,163,255,0.34),rgba(77,163,255,0.18))] px-5 py-4 text-base font-semibold text-white shadow-[0_0_30px_rgba(77,163,255,0.35),0_12px_24px_rgba(0,0,0,0.24)] transition hover:bg-[linear-gradient(180deg,rgba(77,163,255,0.42),rgba(77,163,255,0.22))]"
               >
-                Build / Update Plan
+                Get Today’s Guidance
               </button>
             </div>
 
             <div className="mt-5 space-y-4">
               <div className="rounded-[26px] border border-white/12 bg-[rgba(255,255,255,0.06)] p-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)] backdrop-blur-[20px]">
                 <div className="mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[rgba(255,255,255,0.72)]">Tools</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[rgba(255,255,255,0.72)]">Profile & Controls</p>
                 </div>
 
                 <div className="space-y-3">
@@ -1516,8 +1552,8 @@ ${georgeLine}`)
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.04)] p-3">
-                    <label className="mb-2 block text-sm font-medium text-white">Swap Meal</label>
+                  <div className="hidden rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.04)] p-3">
+                    <label className="mb-2 block text-sm font-medium text-white">Meal changes</label>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <select
                         value={selectedSwapMeal}
@@ -1535,13 +1571,13 @@ ${georgeLine}`)
                         disabled={!state.currentPlan}
                       >
                         <UtensilsCrossed className="h-4 w-4" />
-                        Swap Selected Meal
+                        Ask George Instead
                       </button>
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.04)] p-3">
-                    <label className="mb-2 block text-sm font-medium text-white">Shopping List</label>
+                  <div className="hidden rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.04)] p-3">
+                    <label className="mb-2 block text-sm font-medium text-white">Food ideas</label>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <select
                         value={shoppingDays}
@@ -1556,21 +1592,21 @@ ${georgeLine}`)
                       </select>
                       <button
                         onClick={() => {
-                          appendUserMessage(`Shopping List ${shoppingDays} day`)
+                          appendUserMessage(`Food ideas ${shoppingDays} day`)
                           if (!state.currentPlan) {
-                            const message = "You don't have an active plan yet, so there isn't a shopping list to generate."
+                            const message = "Ask me what foods to buy for your goal and I’ll suggest practical options. Use your tracker for exact portions."
                             respond(message)
                             return
                           }
                           const list = formatShoppingList(state.currentPlan, plannerData, shoppingDays)
                           appendSystemMessage(list)
-                          respond("There’s your shopping list. Get that sorted and you’re set.")
+                          respond("There are your food ideas. Use your tracker for exact portions and keep it simple.")
                         }}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/12 bg-[rgba(255,255,255,0.08)] px-4 py-3 text-sm font-semibold text-white sm:w-auto"
                         disabled={!state.currentPlan}
                       >
                         <ShoppingBag className="h-4 w-4" />
-                        Generate Shopping List
+                        Generate Food ideas
                       </button>
                     </div>
                   </div>
@@ -1615,7 +1651,7 @@ ${georgeLine}`)
                 onClick={resetGoalsAndStats}
                 className="w-full rounded-[22px] border border-white/12 bg-[rgba(255,255,255,0.05)] px-4 py-3 text-sm font-semibold text-white backdrop-blur-[20px]"
               >
-                Reset
+                Full Reset
               </button>
             </div>
 
@@ -1625,9 +1661,9 @@ ${georgeLine}`)
               <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[32px] bg-[rgba(2,5,12,0.76)] p-4 backdrop-blur-sm">
                 <div className="w-full max-w-2xl rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(11,18,32,0.9),rgba(15,31,58,0.82))] p-5 shadow-[0_10px_40px_rgba(0,0,0,0.4),0_0_30px_rgba(77,163,255,0.22)] backdrop-blur-[20px] sm:p-6">
                   <div className="mb-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[rgba(255,255,255,0.72)]">Quick setup</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-white">Set your targets</h2>
-                    <p className="mt-1 text-sm text-[rgba(255,255,255,0.7)]">Fast profile setup so George can coach you properly.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[rgba(255,255,255,0.72)]">Coaching profile</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-white">Set up George</h2>
+                    <p className="mt-1 text-sm text-[rgba(255,255,255,0.7)]">Give George enough context to coach you. Use your normal tracker for exact calories and grams.</p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1683,7 +1719,7 @@ ${georgeLine}`)
                         <option value="vegan">Vegan</option>
                       </select>
                     </label>
-                    <label className="text-sm text-white">Plan mode
+                    <label className="text-sm text-white">Coaching mode
                       <select value={setupForm.planMode} onChange={(e) => setSetupForm((prev) => ({ ...prev, planMode: e.target.value as PlanMode }))} className="mt-1 w-full rounded-2xl border border-white/12 bg-[rgba(255,255,255,0.08)] px-3 py-3 text-white">
                         <option value="flexible">Flexible</option>
                         <option value="balanced">Balanced</option>
@@ -1693,7 +1729,7 @@ ${georgeLine}`)
                   </div>
 
                   <button onClick={saveTargetsFromSetup} className="mt-5 w-full rounded-[22px] border border-[rgba(127,214,255,0.44)] bg-[linear-gradient(180deg,rgba(77,163,255,0.34),rgba(77,163,255,0.18))] px-4 py-3 font-semibold text-white shadow-[0_0_30px_rgba(77,163,255,0.35)]">
-                    Save Targets
+                    Save Coaching Profile
                   </button>
                 </div>
               </div>
