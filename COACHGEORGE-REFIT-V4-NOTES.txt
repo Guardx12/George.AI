@@ -1,0 +1,25 @@
+CoachGeorge refit v4
+
+Main changes:
+- Cleaned the CoachGeorge homepage so it feels less like a prototype and more like a premium coaching app.
+- Reduced the main quick prompts from six random-looking buttons to three core prompts:
+  1. What should I eat tonight?
+  2. I’m struggling today
+  3. My weight went up
+- Changed the hero copy so George is positioned as a coach for food, training, daily guidance, and staying on track.
+- Replaced brand-specific tracker wording with generic tracker guidance:
+  users can use NutriCheck, MyFitnessPal, Cronometer, Lose It, or whatever tracker they prefer for exact numbers.
+- George now explains that trackers are for exact calories/grams, while George is for decisions, context, and staying on track.
+- Improved onboarding continuation so if the user says “fat loss”, George asks the next useful question instead of falling back to a generic reply.
+- Added a simple scope filter so George pushes off-topic questions back toward food, training, progress, motivation, and staying on track.
+- Shortened and humanised several coaching replies.
+- Collapsed coaching memory/check-in information so it is not fighting for attention on the main screen.
+- Replaced the three chunky dashboard action cards with a subtler control strip.
+- Added Cronometer and Lose It as tracker options in the profile panel.
+
+Still local/MVP:
+- Memory is still stored in localStorage for now.
+- No backend user accounts yet.
+- No Stripe/paywall yet.
+- Voice still requires the user to tap first because browsers block autoplay/mic access.
+- Full build could not be run in this environment because node_modules/Next are not installed in the extracted ZIP, but the edited files are included.

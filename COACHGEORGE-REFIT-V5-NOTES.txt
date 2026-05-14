@@ -1,0 +1,25 @@
+CoachGeorge Refit V5
+
+Main changes:
+- Rebuilt CoachGeorge as a mobile-first, premium dark voice app rather than a dashboard.
+- Added cinematic blurred gym background, bronze/titanium accents, centred George avatar/orb, and streamlined single-column layout.
+- Removed visible profile percentage, large dashboard cards, training/reset clutter, and old dashboard feel.
+- George's latest reply now appears directly under the avatar in a premium message card.
+- Main interaction is voice-first: large centred Tap to Talk button.
+- Text input sits underneath as a fallback for users who would rather type.
+- Typed messages and quick prompts now trigger spoken replies when voice replies are enabled, using the browser speech fallback if the live voice session is not connected.
+- Added Voice on/off toggle.
+- Kept only three subtle suggestion chips: hungry, weight went up, what should I eat?
+- Reworked Coach George tone to be shorter, more human, and less system-prompt sounding.
+- Replaced repeated NutriCheck language with generic tracker positioning: use any tracker for exact numbers; use George for decisions.
+- Strengthened off-topic guardrails so George keeps the conversation focused on food, training, progress, motivation, recovery, and staying on track.
+- Improved onboarding flow so George asks the next relevant question instead of falling back when the user answers simply.
+- Added pattern recognition memory: George stores useful coaching signals/patterns like hunger risk, scale anxiety, late-night eating, motivation dips, rescue-mode needs, and boxing identity.
+- Memory is stored as summaries/patterns, not full transcript analysis.
+- My Coaching panel contains profile, active phase changes, recognised patterns, and delete-all-data controls.
+
+Still local/MVP:
+- Memory is still localStorage only. Real app will need Supabase or another backend for account-based memory.
+- Browser speech fallback voice quality depends on the user's device/browser.
+- Proper push notifications/proactive check-ins require backend + notification permissions.
+- Exact mobile testing on a real phone is still recommended after deployment.
