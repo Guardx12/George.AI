@@ -1,102 +1,84 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import { Mic, Send, Square } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { Mic, Send, Square, Volume2, VolumeX } from "lucide-react"
 
-type ConnectionState = "idle" | "connecting" | "connected" | "error";
-type MessageRole = "assistant" | "user";
-type Goal = "fat-loss" | "strength" | "boxing" | "running" | "general-health" | "maintenance" | "muscle" | "unknown";
-type TrackerApp = "NutriCheck" | "MyFitnessPal" | "Cronometer" | "Lose It" | "Other" | "None yet" | "unknown";
-type OnboardingStep = "goal" | "weight" | "target" | "training" | "struggle" | "tracker" | "ready";
+type Role = "assistant" | "user"
 
-type LiveMessage = { id: string; role: MessageRole; content: string; createdAt: string };
-
-type CoachProfile = {
-  name: string;
-  goal: Goal;
-  currentWeightKg: string;
-  targetWeightKg: string;
-  trainingFocus: string;
-  biggestStruggle: string;
-  foodStyle: string;
-  trackerApp: TrackerApp;
-  calorieTarget: string;
-  proteinTarget: string;
-  onboardingStep: OnboardingStep;
-};
-
-type CoachingMemory = {
-  notes: string[];
-  patterns: string[];
-  lastSummary: string;
-  updatedAt: string | null;
-};
-
-type CoachState = {
-  profile: CoachProfile;
-  memory: CoachingMemory;
-  messages: LiveMessage[];
-  voiceReplies: boolean;
-};
-
-const STORAGE_KEY = "coach-george-conversation-v1";
-const LEGACY_KEYS = ["coach-george-voice-first-v1", "coach-george-transformation-v5", "coach-george-transformation-v3"];
-
-const GOAL_LABELS: Record<Goal, string> = {
-  "fat-loss": "fat loss",
-  strength: "strength",
-  boxing: "boxing fitness",
-  running: "running fitness",
-  "general-health": "general health",
-  maintenance: "maintenance",
-  muscle: "building muscle",
-  unknown: "your goal",
-};
-
-function uid(prefix = "id") {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+type ChatMessage = {
+  id: string
+  role: Role
+  content: string
 }
 
-function makeMessage(role: MessageRole, content: string): LiveMessage {
-  return { id: uid(role), role, content, createdAt: new Date().toISOString() };
+type CoachMemory = {
+  name?: string
+  goal?: string
+  currentWeightKg?: string
+  targetWeightKg?: string
+  trainingFocus?: string
+  tracker?: string
+  foodPreferences?: string[]
+  struggles?: string[]
+  patterns?: string[]
+  coachingStyle?: string
+  lastSummary?: string
 }
 
-function normalize(input: string) {
-  return input.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+type ConnectionState = "idle" | "connecting" | "connected" | "error"
+
+type ChatResponse = {
+  reply: string
+  memory: CoachMemory
+  memoryNote?: string
+  outOfScope?: boolean
 }
 
-function defaultProfile(): CoachProfile {
+const STORAGE_KEY = "coach-george-conversation-v1"
+const MEMORY_KEY = "coach-george-memory-v1"
+const VOICE_KEY = "coach-george-voice-enabled-v1"
+
+const INTRO_MESSAGE = "Hey, I’m George. Tell me what we’re working towards and I’ll coach you from there."
+
+function makeId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function makeMessage(role: Role, content: string): ChatMessage {
+  return { id: makeId(role), role, content }
+}
+
+function trimMessages(messages: ChatMessage[]) {
+  return messages.slice(-60)
+}
+
+function mergeMemory(existing: CoachMemory, incoming: CoachMemory): CoachMemory {
+  const mergeList = (a?: string[], b?: string[]) => Array.from(new Set([...(a || []), ...(b || [])].filter(Boolean))).slice(0, 12)
   return {
-    name: "",
-    goal: "unknown",
-    currentWeightKg: "",
-    targetWeightKg: "",
-    trainingFocus: "",
-    biggestStruggle: "",
-    foodStyle: "",
-    trackerApp: "unknown",
-    calorieTarget: "",
-    proteinTarget: "",
-    onboardingStep: "goal",
-  };
+    ...existing,
+    ...Object.fromEntries(Object.entries(incoming || {}).filter(([, value]) => value !== undefined && value !== null && value !== "")),
+    foodPreferences: mergeList(existing.foodPreferences, incoming.foodPreferences),
+    struggles: mergeList(existing.struggles, incoming.struggles),
+    patterns: mergeList(existing.patterns, incoming.patterns),
+  }
 }
 
-const INITIAL_STATE: CoachState = {
-  profile: defaultProfile(),
-  memory: { notes: [], patterns: [], lastSummary: "", updatedAt: null },
-  messages: [makeMessage("assistant", "Before I coach you properly, let me learn a bit about you. What are we working towards?")],
-  voiceReplies: true,
-};
+function memoryBadges(memory: CoachMemory) {
+  const badges = [memory.goal, memory.currentWeightKg, memory.trainingFocus, ...(memory.patterns || []).slice(0, 2)]
+    .filter(Boolean)
+    .map(String)
+  return badges.slice(0, 3)
+}
 
 function buildVoiceRendererInstructions() {
   return [
     "You are Coach George's voice renderer.",
-    "Only speak the exact text provided by the app.",
-    "Do not add, remove, reword, explain, diagnose, or improvise.",
-    "Sound warm, calm, straight-talking and human. Never sound robotic.",
-  ].join(" ");
+    "The app decides the exact words.",
+    "Only speak the exact text provided to you.",
+    "Do not add, remove, paraphrase, answer, or improvise.",
+    "Use a calm, warm, direct coach tone.",
+  ].join(" ")
 }
 
 function buildRealtimeSessionPayload(instructions: string) {
@@ -105,491 +87,419 @@ function buildRealtimeSessionPayload(instructions: string) {
     instructions,
     audio: {
       input: {
-        transcription: { model: "gpt-4o-mini-transcribe", language: "en" },
-        turn_detection: { type: "semantic_vad", eagerness: "high", create_response: false, interrupt_response: true },
+        transcription: {
+          model: "gpt-4o-mini-transcribe",
+          language: "en",
+        },
+        turn_detection: {
+          type: "semantic_vad",
+          eagerness: "high",
+          create_response: false,
+          interrupt_response: true,
+        },
       },
-      output: { voice: "cedar", speed: 0.98 },
+      output: {
+        voice: "cedar",
+        speed: 1.0,
+      },
     },
-  };
-}
-
-function isInScope(text: string) {
-  return /(food|meal|eat|eating|hungry|hunger|craving|snack|calorie|macro|protein|carb|fat|tracker|nutricheck|myfitnesspal|fitness pal|cronometer|lose it|weight|scale|weigh|gain|lost|loss|fat|muscle|training|workout|gym|run|running|boxing|cardio|strength|steps|walk|motivation|struggling|quit|give up|reset|goal|routine|habit|sleep|stress|water|takeaway|restaurant|off plan|bad day|binge|injury|pain|hurt|tired|energy|recovery|breakfast|lunch|dinner|tonight|today|tomorrow|weekend|start|learn|coach|track|progress|body|shape|fit|fitness|health|diet|cut|bulk|maintain|kilogram|kg|stone)/.test(text);
-}
-
-function detectGoal(text: string): Goal | null {
-  if (/fat loss|lose weight|lose fat|weight loss|cut|slim/.test(text)) return "fat-loss";
-  if (/boxing|fight|bag work|pads/.test(text)) return "boxing";
-  if (/strength|stronger|weights|powerlifting/.test(text)) return "strength";
-  if (/running|run|10k|5k|marathon/.test(text)) return "running";
-  if (/maintenance|maintain/.test(text)) return "maintenance";
-  if (/muscle|bulk|build size|hypertrophy/.test(text)) return "muscle";
-  if (/general health|healthier|fitness|fit/.test(text)) return "general-health";
-  return null;
-}
-
-function detectTracker(text: string): TrackerApp | null {
-  if (/nutricheck/.test(text)) return "NutriCheck";
-  if (/myfitnesspal|fitness pal/.test(text)) return "MyFitnessPal";
-  if (/cronometer/.test(text)) return "Cronometer";
-  if (/lose it/.test(text)) return "Lose It";
-  if (/no tracker|none yet|don t track|dont track|not tracking/.test(text)) return "None yet";
-  if (/tracker|tracking app|food app/.test(text)) return "Other";
-  return null;
-}
-
-function detectWeight(text: string) {
-  const kg = text.match(/\b(\d{2,3}(?:\.\d)?)\s*(kg|kilos|kilograms)\b/);
-  if (kg) return kg[1];
-  const plain = text.match(/(?:weigh|weight|currently|i m|im|i am|about|around|roughly)\s*(\d{2,3}(?:\.\d)?)/);
-  if (plain) return plain[1];
-  const number = text.match(/\b(\d{2,3}(?:\.\d)?)\b/);
-  return number?.[1] || "";
-}
-
-function updateProfileFromText(raw: string, current: CoachProfile): CoachProfile {
-  const text = normalize(raw);
-  const next = { ...current };
-  const goal = detectGoal(text);
-  const tracker = detectTracker(text);
-  const weight = detectWeight(text);
-
-  if (goal) next.goal = goal;
-  if (tracker) next.trackerApp = tracker;
-
-  if (/(target|goal weight|want to be|get to|down to|aiming for|eventually)/.test(text) && weight) next.targetWeightKg = weight;
-  else if (weight && !next.currentWeightKg && next.onboardingStep === "weight") next.currentWeightKg = weight;
-  else if (weight && !next.targetWeightKg && next.onboardingStep === "target") next.targetWeightKg = weight;
-
-  if (/boxing|bag|pads|fight/.test(text)) next.trainingFocus = "boxing and conditioning";
-  else if (/running|run|10k|5k|marathon/.test(text)) next.trainingFocus = "running";
-  else if (/gym|weights|strength/.test(text)) next.trainingFocus = "gym strength training";
-  else if (/home|kettlebell|bodyweight/.test(text)) next.trainingFocus = "home training";
-  else if (/walking|steps/.test(text)) next.trainingFocus = "walking and steps";
-  else if (/nothing yet|not training|no training|starting from scratch/.test(text)) next.trainingFocus = "starting from scratch";
-
-  if (/late night|night eating|evening|after dinner/.test(text)) next.biggestStruggle = "late-night eating";
-  else if (/hunger|hungry|cravings|starving/.test(text)) next.biggestStruggle = "hunger and cravings";
-  else if (/motivation|consistency|fall off|quit|momentum/.test(text)) next.biggestStruggle = "consistency";
-  else if (/scale|weigh|weigh in/.test(text)) next.biggestStruggle = "scale anxiety";
-  else if (/weekend|takeaway|alcohol|social/.test(text)) next.biggestStruggle = "weekends and social food";
-
-  if (/simple|easy|same meals|repeat/.test(text)) next.foodStyle = "simple repeatable meals";
-  else if (/flexible|variety|normal food/.test(text)) next.foodStyle = "flexible normal food";
-
-  return advanceOnboarding(next);
-}
-
-function advanceOnboarding(profile: CoachProfile): CoachProfile {
-  let step: OnboardingStep = "ready";
-  if (profile.goal === "unknown") step = "goal";
-  else if (!profile.currentWeightKg) step = "weight";
-  else if (profile.goal === "fat-loss" && !profile.targetWeightKg) step = "target";
-  else if (!profile.trainingFocus) step = "training";
-  else if (!profile.biggestStruggle) step = "struggle";
-  else if (profile.trackerApp === "unknown") step = "tracker";
-  return { ...profile, onboardingStep: step };
-}
-
-function nextOnboardingReply(profile: CoachProfile) {
-  switch (profile.onboardingStep) {
-    case "goal":
-      return "Before I coach you properly, let me learn a bit about you. What are we working towards?";
-    case "weight":
-      return `${GOAL_LABELS[profile.goal]} — got it. Roughly what do you weigh at the moment?`;
-    case "target":
-      return "Good. What would you like to get down to eventually? Rough number is fine.";
-    case "training":
-      return "What training are we working with right now — gym, home, walking, running, boxing, or nothing yet?";
-    case "struggle":
-      return "What normally knocks you off track — hunger, evenings, weekends, motivation, or the scale?";
-    case "tracker":
-      return "Do you track exact numbers anywhere — a tracking app, notes, or not yet?";
-    case "ready":
-      return "Perfect. I’ve got enough to coach you properly. Talk to me — what’s the situation today?";
   }
-}
-
-function addUnique(existing: string[], incoming: string[], max = 18) {
-  const seen = new Set(existing.map((item) => item.toLowerCase()));
-  const merged = [...existing];
-  incoming.forEach((item) => { if (!seen.has(item.toLowerCase())) merged.push(item); });
-  return merged.slice(-max);
-}
-
-function inferMemory(raw: string) {
-  const text = normalize(raw);
-  const notes: string[] = [];
-  const patterns: string[] = [];
-  if (/hungry|starving|craving|snack/.test(text)) { notes.push("Hunger came up."); patterns.push("Hunger may be a recurring challenge."); }
-  if (/weight went up|scale|heavier|gained/.test(text)) { notes.push("Scale worry came up."); patterns.push("Reassure using trends, not single weigh-ins."); }
-  if (/messed up|fell off|binge|bad day|takeaway|ruined/.test(text)) { notes.push("Rescue mode came up."); patterns.push("Bad days need calm reset coaching, not guilt."); }
-  if (/late night|night|evening/.test(text)) { notes.push("Evening risk came up."); patterns.push("Evenings may be a weak point."); }
-  if (/motivation|quit|give up|struggling/.test(text)) { notes.push("Motivation dip came up."); patterns.push("Short next actions work better than big lectures."); }
-  if (/boxing|fight|bag|conditioning/.test(text)) { notes.push("Boxing identity came up."); patterns.push("Boxing goals can be used as motivation."); }
-  return { notes, patterns };
-}
-
-function profileSnapshot(profile: CoachProfile) {
-  const bits = [];
-  if (profile.goal !== "unknown") bits.push(GOAL_LABELS[profile.goal]);
-  if (profile.currentWeightKg) bits.push(`${profile.currentWeightKg}kg`);
-  if (profile.targetWeightKg) bits.push(`target ${profile.targetWeightKg}kg`);
-  if (profile.biggestStruggle) bits.push(profile.biggestStruggle);
-  return bits.join(" · ");
-}
-
-function buildCoachReply(rawInput: string, state: CoachState, profileAfterInput: CoachProfile) {
-  const input = normalize(rawInput);
-  const wasOnboarding = state.profile.onboardingStep !== "ready";
-
-  if (!isInScope(input)) {
-    return "I’m your coach, mate — food, training, weight, habits, bad days, and staying on track. Bring me the thing that’s trying to knock you off course and I’ll help with that.";
-  }
-
-  if (wasOnboarding && profileAfterInput.onboardingStep !== "ready") return nextOnboardingReply(profileAfterInput);
-  if (wasOnboarding && profileAfterInput.onboardingStep === "ready") return nextOnboardingReply(profileAfterInput);
-
-  if (/which tracker|what tracker|tracking app|what app|nutricheck|myfitnesspal|fitness pal|cronometer|lose it/.test(input)) {
-    return "Use any tracker you like for exact numbers — NutriCheck, MyFitnessPal, Cronometer, Lose It, whatever works. Give me the situation and I’ll help you make the right decision.";
-  }
-
-  if (/hungry|starving|craving|snack/.test(input)) {
-    const struggle = state.profile.biggestStruggle ? `I know ${state.profile.biggestStruggle} can be a weak spot for you, so we keep this simple.` : "We keep this simple.";
-    return `${struggle} Is this real hunger, boredom, or stress? If it’s real hunger, go protein plus volume first — then tell me what you’ve got available.`;
-  }
-
-  if (/what should i eat|what to eat|eat tonight|dinner|next meal|lunch|breakfast/.test(input)) {
-    return "Give me three things: what you’ve eaten today, how hungry you are, and whether you’re training. Then I’ll tell you the best type of meal to go for — exact grams can stay in your tracker.";
-  }
-
-  if (/messed up|fell off|off plan|bad day|binge|ruined|takeaway|pizza|kebab/.test(input)) {
-    return "You haven’t ruined anything. Don’t turn one rough meal into a rough week. Water, next normal meal, protein high, routine back on. What happened — takeaway, snacks, alcohol, or just a messy day?";
-  }
-
-  if (/weight went up|scale went up|gained|heavier|water weight|stall|plateau/.test(input)) {
-    return "Don’t react to one weigh-in. Usually it’s water, food, salt, soreness, stress or sleep — not sudden fat gain. Tell me: is the 7-day trend up, flat, or still coming down?";
-  }
-
-  if (/workout|training|gym|home|boxing|run|running|cardio|strength/.test(input)) {
-    if (!/home|gym|boxing|running|run|strength|weights|walk|kettlebell|bodyweight|minutes|hour/.test(input)) return "I’ll make it specific. Where are you training and how long have you got?";
-    if (/boxing/.test(input) || state.profile.goal === "boxing") return "Boxing focus today: warm up, controlled rounds, then a small strength finisher. Build the engine — don’t bury yourself. How fit are you feeling out of 10?";
-    if (/running|run/.test(input) || state.profile.goal === "running") return "Keep it easy enough that you could repeat it. We’re building consistency first. Are your joints feeling okay today?";
-    return "Simple and repeatable: squat, push, pull, carry, then a short finisher. Don’t chase hero sessions. How long have you got?";
-  }
-
-  if (/calorie|macro|protein|target|left/.test(input)) {
-    return "Use your tracker for the exact numbers. Send me calories left, protein left, hunger level, and training today — I’ll tell you the smartest move.";
-  }
-
-  if (/injury|pain|hurt|dizzy|chest pain|faint|sick/.test(input)) {
-    return "Play this safe. Don’t push through pain, dizziness, chest pain or anything worrying. I can help you adjust around minor aches, but proper symptoms need a professional.";
-  }
-
-  if (/reset|change goal|new goal|start again|different goal|switch/.test(input)) {
-    return "We can change direction without wiping everything. Tell me what’s changed: the goal, the training, the food approach, or your motivation?";
-  }
-
-  if (/motivation|struggling|can t be bothered|cant be bothered|quit|give up|no motivation/.test(input)) {
-    return "Right, we shrink the day. Don’t solve your whole life. Win the next 30 minutes: water, one decent meal, or a walk. Which one is easiest right now?";
-  }
-
-  return "Talk me through it like you would with a real coach. What’s happened, what are you tempted to do, and what do you need from me right now?";
 }
 
 export function CoachGeorgeLiveAssistant() {
-  const [state, setState] = useState<CoachState>(INITIAL_STATE);
-  const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [textInput, setTextInput] = useState("");
+  const [hydrated, setHydrated] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([makeMessage("assistant", INTRO_MESSAGE)])
+  const [memory, setMemory] = useState<CoachMemory>({})
+  const [input, setInput] = useState("")
+  const [isThinking, setIsThinking] = useState(false)
+  const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
+  const [error, setError] = useState<string | null>(null)
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [lastSpokenText, setLastSpokenText] = useState("")
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const dcRef = useRef<RTCDataChannel | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const stateRef = useRef<CoachState>(INITIAL_STATE);
-  const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const greetedSessionRef = useRef(false);
-  const lastHandledRef = useRef<{ text: string; at: number } | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null)
+  const dcRef = useRef<RTCDataChannel | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const chatRef = useRef<HTMLDivElement | null>(null)
+  const memoryRef = useRef<CoachMemory>({})
+  const messagesRef = useRef<ChatMessage[]>(messages)
+  const handledTranscriptsRef = useRef<Map<string, number>>(new Map())
 
-  const latestAssistant = useMemo(
-    () => [...state.messages].reverse().find((message) => message.role === "assistant")?.content || "Talk to me. What’s the situation today?",
-    [state.messages],
-  );
-
-  const visibleMessages = useMemo(() => state.messages.slice(-18), [state.messages]);
-  const canStart = hydrated && (connectionState === "idle" || connectionState === "error");
-  const voiceLive = connectionState === "connected";
-  const snapshot = profileSnapshot(state.profile);
-
-  useEffect(() => { stateRef.current = state; }, [state]);
+  const badges = useMemo(() => memoryBadges(memory), [memory])
+  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant")?.content || INTRO_MESSAGE
+  const isConnected = connectionState === "connected"
+  const isConnecting = connectionState === "connecting"
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    memoryRef.current = memory
+  }, [memory])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY) || LEGACY_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<CoachState>;
-        const profile = advanceOnboarding({ ...defaultProfile(), ...(parsed.profile || {}) });
-        setState({
-          ...INITIAL_STATE,
-          ...parsed,
-          profile,
-          memory: { ...INITIAL_STATE.memory, ...(parsed.memory || {}) },
-          messages: (parsed.messages || INITIAL_STATE.messages).slice(-60),
-          voiceReplies: parsed.voiceReplies ?? true,
-        });
+      const storedMessages = window.localStorage.getItem(STORAGE_KEY)
+      const storedMemory = window.localStorage.getItem(MEMORY_KEY)
+      const storedVoice = window.localStorage.getItem(VOICE_KEY)
+      if (storedMessages) {
+        const parsed = JSON.parse(storedMessages) as ChatMessage[]
+        if (Array.isArray(parsed) && parsed.length) setMessages(trimMessages(parsed))
+      }
+      if (storedMemory) {
+        const parsed = JSON.parse(storedMemory) as CoachMemory
+        if (parsed && typeof parsed === "object") setMemory(parsed)
+      }
+      if (storedVoice === "off") setVoiceEnabled(false)
+    } catch {
+      // ignore bad local storage
+    } finally {
+      setHydrated(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trimMessages(messages)))
+  }, [messages, hydrated])
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return
+    window.localStorage.setItem(MEMORY_KEY, JSON.stringify(memory))
+  }, [memory, hydrated])
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return
+    window.localStorage.setItem(VOICE_KEY, voiceEnabled ? "on" : "off")
+  }, [voiceEnabled, hydrated])
+
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages, isThinking])
+
+  useEffect(() => {
+    return () => stopVoiceSession()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function appendMessage(role: Role, content: string) {
+    const next = makeMessage(role, content)
+    setMessages((prev) => trimMessages([...prev, next]))
+    return next
+  }
+
+  function speak(text: string) {
+    if (!voiceEnabled) return
+    const channel = dcRef.current
+    if (!channel || channel.readyState !== "open") return
+    const safeText = text.trim()
+    if (!safeText) return
+    setLastSpokenText(safeText)
+    try {
+      channel.send(
+        JSON.stringify({
+          type: "response.create",
+          response: {
+            conversation: "none",
+            output_modalities: ["audio"],
+            input: [
+              {
+                type: "message",
+                role: "user",
+                content: [
+                  {
+                    type: "input_text",
+                    text: `Speak this exactly as written, in George's calm coach voice. Do not add anything.\n\n${safeText}`,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+    } catch (err) {
+      console.error("Could not send George voice response", err)
+    }
+  }
+
+  async function askGeorge(userText: string) {
+    const clean = userText.trim()
+    if (!clean || isThinking) return
+    setError(null)
+    appendMessage("user", clean)
+    setInput("")
+    setIsThinking(true)
+
+    try {
+      const response = await fetch("/api/coach-george-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: clean,
+          memory: memoryRef.current,
+          messages: messagesRef.current.slice(-16),
+        }),
+      })
+
+      const payload = (await response.json()) as ChatResponse
+      if (!response.ok || !payload?.reply) throw new Error("George did not return a reply.")
+
+      const nextMemory = mergeMemory(memoryRef.current, payload.memory || {})
+      if (payload.memoryNote) nextMemory.lastSummary = payload.memoryNote
+      setMemory(nextMemory)
+      appendMessage("assistant", payload.reply)
+      speak(payload.reply)
+    } catch (err) {
+      const fallback = "I’m with you. Tell me the food, training, motivation, or weight issue in plain English and I’ll coach the next move."
+      appendMessage("assistant", fallback)
+      speak(fallback)
+      setError(err instanceof Error ? err.message : "Something went wrong.")
+    } finally {
+      setIsThinking(false)
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await askGeorge(input)
+  }
+
+  function handleTranscript(text: string) {
+    const clean = text.trim()
+    if (!clean) return
+    const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+    const now = Date.now()
+    const previous = handledTranscriptsRef.current.get(normalized)
+    if (previous && now - previous < 2500) return
+    handledTranscriptsRef.current.set(normalized, now)
+    void askGeorge(clean)
+  }
+
+  function handleDataChannelMessage(raw: MessageEvent<string>) {
+    try {
+      const event = JSON.parse(raw.data)
+      const type = String(event?.type || "")
+      if (type === "conversation.item.input_audio_transcription.completed") {
+        const transcript = String(event?.transcript || "")
+        handleTranscript(transcript)
+      }
+      if (type === "input_audio_buffer.speech_started") {
+        setError(null)
+      }
+      if (type === "error") {
+        setError(typeof event?.error?.message === "string" ? event.error.message : "Voice connection error.")
       }
     } catch {
-      // keep clean initial state
-    } finally {
-      setHydrated(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated || typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, messages: state.messages.slice(-60) }));
-  }, [state, hydrated]);
-
-  useEffect(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, [state.messages]);
-  useEffect(() => () => { void cleanupConversation(); }, []);
-
-  function appendMessage(role: MessageRole, content: string) {
-    setState((prev) => ({ ...prev, messages: [...prev.messages.slice(-59), makeMessage(role, content)] }));
-  }
-
-  function speakIfConnected(textToSpeak: string) {
-    if (!stateRef.current.voiceReplies) return;
-    const channel = dcRef.current;
-    const safeText = textToSpeak.trim();
-    if (!safeText || !channel || channel.readyState !== "open") return;
-    channel.send(JSON.stringify({
-      type: "response.create",
-      response: {
-        conversation: "none",
-        output_modalities: ["audio"],
-        input: [{
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: `Speak this exact text only. Do not add anything.\n\n${safeText}` }],
-        }],
-      },
-    }));
-  }
-
-  function respond(content: string) {
-    appendMessage("assistant", content);
-    speakIfConnected(content);
-  }
-
-  function handleUserInput(raw: string) {
-    const cleaned = raw.trim();
-    if (!cleaned) return;
-    const normalized = normalize(cleaned);
-    const last = lastHandledRef.current;
-    if (last && last.text === normalized && Date.now() - last.at < 1200) return;
-    lastHandledRef.current = { text: normalized, at: Date.now() };
-
-    const current = stateRef.current;
-    const nextProfile = updateProfileFromText(cleaned, current.profile);
-    const reply = buildCoachReply(cleaned, current, nextProfile);
-    const { notes, patterns } = inferMemory(cleaned);
-
-    setState((prev) => ({
-      ...prev,
-      profile: updateProfileFromText(cleaned, prev.profile),
-      messages: [...prev.messages.slice(-58), makeMessage("user", cleaned), makeMessage("assistant", reply)],
-      memory: notes.length || patterns.length ? {
-        notes: addUnique(prev.memory.notes, notes),
-        patterns: addUnique(prev.memory.patterns, patterns),
-        lastSummary: notes[0] || prev.memory.lastSummary,
-        updatedAt: new Date().toISOString(),
-      } : prev.memory,
-    }));
-
-    speakIfConnected(reply);
-  }
-
-  function handleTextSubmit(event?: FormEvent) {
-    event?.preventDefault();
-    const value = textInput;
-    setTextInput("");
-    handleUserInput(value);
-  }
-
-  async function cleanupConversation() {
-    dcRef.current?.close();
-    dcRef.current = null;
-    if (pcRef.current) {
-      pcRef.current.getSenders().forEach((sender) => sender.track?.stop());
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.srcObject = null;
-      audioRef.current.remove();
-      audioRef.current = null;
+      // ignore unknown realtime events
     }
   }
 
-  async function startConversation() {
-    if (!canStart) return;
-    greetedSessionRef.current = false;
-    await cleanupConversation();
-    setConnectionState("connecting");
-    setError(null);
+  function stopVoiceSession() {
     try {
-      const tokenResponse = await fetch("/api/george-session", { method: "GET", cache: "no-store" });
-      const tokenData = await tokenResponse.json().catch(() => null);
-      if (!tokenResponse.ok) throw new Error(tokenData?.error || "Could not create a secure live session.");
-      const ephemeralKey = tokenData?.value || tokenData?.client_secret?.value;
-      if (!ephemeralKey) throw new Error("Live voice token was missing.");
+      dcRef.current?.close()
+    } catch {}
+    try {
+      pcRef.current?.close()
+    } catch {}
+    try {
+      localStreamRef.current?.getTracks().forEach((track) => track.stop())
+    } catch {}
+    dcRef.current = null
+    pcRef.current = null
+    localStreamRef.current = null
+    setConnectionState("idle")
+  }
 
-      const pc = new RTCPeerConnection();
-      pcRef.current = pc;
+  async function startVoiceSession() {
+    if (connectionState === "connected" || connectionState === "connecting") {
+      stopVoiceSession()
+      return
+    }
 
-      const remoteAudio = document.createElement("audio");
-      remoteAudio.autoplay = true;
-      remoteAudio.setAttribute("playsinline", "true");
-      remoteAudio.preload = "auto";
-      remoteAudio.style.display = "none";
-      document.body.appendChild(remoteAudio);
-      audioRef.current = remoteAudio;
+    setError(null)
+    setConnectionState("connecting")
 
+    try {
+      const tokenResponse = await fetch("/api/george-session", { cache: "no-store" })
+      const tokenData = await tokenResponse.json().catch(() => null)
+      const token = tokenData?.value
+      if (!tokenResponse.ok || typeof token !== "string") {
+        throw new Error(tokenData?.error || "Could not start George voice.")
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      localStreamRef.current = stream
+
+      const pc = new RTCPeerConnection()
+      pcRef.current = pc
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      const remoteAudio = new Audio()
+      remoteAudio.autoplay = true
+      audioRef.current = remoteAudio
       pc.ontrack = (event) => {
-        const [remoteStream] = event.streams;
+        const [remoteStream] = event.streams
         if (remoteStream) {
-          remoteAudio.srcObject = remoteStream;
-          void remoteAudio.play().catch(() => setError("Audio playback was blocked by the browser."));
+          remoteAudio.srcObject = remoteStream
+          void remoteAudio.play().catch(() => setError("Tap once more if your browser blocked audio playback."))
         }
-      };
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = stream;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      const channel = pc.createDataChannel("oai-events")
+      dcRef.current = channel
+      channel.onmessage = handleDataChannelMessage
+      channel.onopen = () => {
+        setConnectionState("connected")
+        channel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildVoiceRendererInstructions()) }))
+      }
+      channel.onerror = () => setError("George voice hit a connection issue.")
+      channel.onclose = () => setConnectionState("idle")
 
-      const dataChannel = pc.createDataChannel("oai-events");
-      dcRef.current = dataChannel;
-      dataChannel.addEventListener("open", () => {
-        setConnectionState("connected");
-        dataChannel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildVoiceRendererInstructions()) }));
-        if (!greetedSessionRef.current) {
-          greetedSessionRef.current = true;
-          const opener = getOpeningLine(stateRef.current);
-          appendMessage("assistant", opener);
-          speakIfConnected(opener);
-        }
-      });
-      dataChannel.addEventListener("message", (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload?.type === "conversation.item.input_audio_transcription.completed") {
-            handleUserInput(typeof payload.transcript === "string" ? payload.transcript : "");
-          }
-          if (payload?.type === "error") setError(payload?.error?.message || "George hit a voice error.");
-        } catch {
-          // ignore malformed events
-        }
-      });
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
       const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
-        headers: { Authorization: `Bearer ${ephemeralKey}`, "Content-Type": "application/sdp" },
-        body: offer.sdp,
-      });
-      const answer = await sdpResponse.text();
-      if (!sdpResponse.ok) throw new Error(answer || "Could not connect George.");
-      await pc.setRemoteDescription({ type: "answer", sdp: answer });
-      pc.addEventListener("connectionstatechange", () => {
-        if (["failed", "disconnected", "closed"].includes(pc.connectionState)) setConnectionState("error");
-      });
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/sdp",
+        },
+        body: offer.sdp || "",
+      })
+
+      if (!sdpResponse.ok) throw new Error("OpenAI realtime connection failed.")
+      const answerSdp = await sdpResponse.text()
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp })
     } catch (err) {
-      await cleanupConversation();
-      setConnectionState("error");
-      setError(err instanceof Error ? err.message : "Could not connect George right now.");
+      stopVoiceSession()
+      setConnectionState("error")
+      setError(err instanceof Error ? err.message : "Could not start George voice.")
     }
   }
 
-  async function stopConversation() {
-    greetedSessionRef.current = false;
-    await cleanupConversation();
-    setConnectionState("idle");
-    setError(null);
+  function resetLocalMemory() {
+    const intro = makeMessage("assistant", INTRO_MESSAGE)
+    setMessages([intro])
+    setMemory({})
+    setError(null)
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.removeItem(MEMORY_KEY)
+    }
   }
-
-  function getOpeningLine(current: CoachState) {
-    if (current.profile.onboardingStep !== "ready") return nextOnboardingReply(current.profile);
-    const pattern = current.memory.patterns.slice(-1)[0];
-    if (pattern) return `I remember this pattern: ${pattern} What’s the situation today?`;
-    return "Talk to me. What’s the situation today?";
-  }
-
-  const statusText = connectionState === "connected" ? "Listening" : connectionState === "connecting" ? "Connecting" : "Tap to talk";
 
   return (
-    <section className="relative min-h-screen overflow-hidden bg-[#050608] text-white">
-      <div className="absolute inset-0 bg-[url('/coach-george-gym-bg.jpeg')] bg-cover bg-center opacity-[0.18] blur-[5px] scale-110" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(244,219,176,0.20),rgba(16,17,20,0.28)_32%,rgba(0,0,0,0.95)_78%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14),rgba(0,0,0,0.78)_55%,rgba(0,0,0,0.98))]" />
+    <main className="min-h-screen overflow-hidden bg-[#050506] text-white">
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(196,160,93,0.20),_transparent_34%),linear-gradient(180deg,_rgba(11,12,14,0.78),_#050506_60%,_#020203)]" />
+        <div className="absolute left-1/2 top-[-120px] h-[440px] w-[440px] -translate-x-1/2 rounded-full bg-[#c4a05d]/10 blur-3xl" />
+        <div className="absolute bottom-[-120px] right-[-80px] h-[360px] w-[360px] rounded-full bg-white/5 blur-3xl" />
+        <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.6)_1px,transparent_1px)] [background-size:44px_44px]" />
+      </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5 pb-4 pt-7 sm:px-6">
-        <div className="text-center">
+      <section className="mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 pb-4 pt-5 sm:px-5">
+        <div className="flex items-center justify-between text-xs text-white/50">
+          <button onClick={resetLocalMemory} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 transition hover:bg-white/[0.07]">
+            Reset
+          </button>
           <button
-            onClick={connectionState === "connected" || connectionState === "connecting" ? stopConversation : startConversation}
-            disabled={!hydrated}
-            className={`relative mx-auto flex h-[188px] w-[188px] items-center justify-center rounded-full border bg-black/62 p-[4px] transition disabled:opacity-60 ${voiceLive ? "border-[#f3dca3]/90 shadow-[0_0_90px_rgba(243,220,163,0.36)]" : "border-[#f3dca3]/48 shadow-[0_0_64px_rgba(243,220,163,0.20)]"}`}
-            aria-label={voiceLive ? "Stop talking to Coach George" : "Talk to Coach George"}
+            onClick={() => setVoiceEnabled((value) => !value)}
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 transition hover:bg-white/[0.07]"
+            aria-label="Toggle George voice"
           >
-            <span className={`absolute inset-[-12px] rounded-full border border-[#f3dca3]/18 ${voiceLive ? "animate-pulse" : ""}`} />
-            <span className="absolute left-[-72px] right-[-72px] top-1/2 h-px -translate-y-1/2 bg-[linear-gradient(90deg,transparent,rgba(243,220,163,.38),transparent)]" />
-            <img src="/coach-george-avatar.png" alt="Coach George" className="relative h-full w-full rounded-full object-cover" />
-            <span className="absolute bottom-3 right-3 flex h-14 w-14 items-center justify-center rounded-full border border-[#f3dca3]/55 bg-[#0b0b0c]/92 shadow-[0_0_30px_rgba(243,220,163,.24)]">
-              {voiceLive ? <Square className="h-6 w-6 fill-[#f3dca3] text-[#f3dca3]" /> : <Mic className="h-7 w-7 text-[#f3dca3]" />}
+            {voiceEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+            {voiceEnabled ? "Voice on" : "Voice off"}
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center pt-4 text-center">
+          <button
+            onClick={startVoiceSession}
+            className={`group relative h-40 w-40 rounded-full border border-[#dbc078]/35 bg-[radial-gradient(circle_at_45%_28%,rgba(255,255,255,.96),rgba(221,192,118,.72)_18%,rgba(52,43,30,.92)_48%,rgba(5,5,6,.98)_74%)] shadow-[0_0_70px_rgba(196,160,93,.24)] transition duration-300 active:scale-[0.98] ${isConnected ? "animate-pulse" : ""}`}
+            aria-label={isConnected ? "Stop talking to George" : "Tap to talk to George"}
+          >
+            <span className="absolute inset-3 rounded-full border border-white/10 bg-black/20" />
+            <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,transparent_45%,rgba(255,255,255,.12)_46%,transparent_48%)]" />
+            <span className="relative z-10 flex h-full flex-col items-center justify-center gap-2 text-white">
+              {isConnected ? <Square className="h-9 w-9 fill-white/80" /> : <Mic className="h-10 w-10" />}
+              <span className="text-sm font-semibold tracking-[0.22em] text-[#f5e6ba]">GEORGE</span>
             </span>
           </button>
 
-          <h1 className="mt-5 text-[36px] font-semibold tracking-[-0.055em] text-white">Coach George</h1>
-          <p className="mt-2 text-[15px] leading-6 text-white/66">Your coach for food, training and staying on track.</p>
-          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#f3dca3]/85">{statusText}</p>
-          {snapshot ? <p className="mx-auto mt-3 max-w-[340px] truncate text-xs text-white/38">{snapshot}</p> : null}
-          {error ? <p className="mx-auto mt-3 max-w-[340px] text-center text-xs leading-5 text-red-200">{error}</p> : null}
+          <h1 className="mt-5 text-3xl font-semibold tracking-tight">Coach George</h1>
+          <p className="mt-2 max-w-[330px] text-sm leading-6 text-white/60">Your coach for food, training, motivation, and staying on track.</p>
+          <div className="mt-3 min-h-6 text-xs text-[#f0d28a]/80">
+            {isConnecting ? "Connecting…" : isConnected ? "Listening" : connectionState === "error" ? "Voice paused" : "Tap George to talk"}
+          </div>
+          {badges.length > 0 && (
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              {badges.map((badge) => (
+                <span key={badge} className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] text-white/55">
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.065] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.44)] backdrop-blur-2xl">
-          <p className="text-[17px] leading-7 text-white/92">{latestAssistant}</p>
+        <div className="mt-5 rounded-[28px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl backdrop-blur-xl">
+          <p className="text-sm leading-6 text-white/82">{latestAssistant}</p>
         </div>
 
-        <div ref={chatScrollRef} className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 pb-2">
-          {visibleMessages.map((message) => (
+        <div ref={chatRef} className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 pr-1">
+          {messages.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[88%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_10px_32px_rgba(0,0,0,0.26)] ${message.role === "user" ? "bg-[#735f3c] text-white" : "border border-white/10 bg-white/[0.075] text-white/88 backdrop-blur-xl"}`}>
+              <div
+                className={`max-w-[86%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-lg ${
+                  message.role === "user"
+                    ? "bg-[#d7b56d] text-[#15100a]"
+                    : "border border-white/10 bg-[#111216]/86 text-white/82 backdrop-blur-xl"
+                }`}
+              >
                 {message.content}
               </div>
             </div>
           ))}
+          {isThinking && (
+            <div className="flex justify-start">
+              <div className="rounded-[24px] border border-white/10 bg-[#111216]/86 px-4 py-3 text-sm text-white/60 backdrop-blur-xl">George is thinking…</div>
+            </div>
+          )}
         </div>
 
-        <form onSubmit={handleTextSubmit} className="mt-3 rounded-[26px] border border-white/10 bg-white/[0.075] p-2.5 backdrop-blur-2xl">
-          <input
-            value={textInput}
-            onChange={(event) => setTextInput(event.target.value)}
+        {error && <div className="mb-3 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-xs leading-5 text-red-100">{error}</div>}
+        {lastSpokenText && voiceEnabled && isConnected && <p className="mb-2 text-center text-[11px] text-white/35">Voice reply ready</p>}
+
+        <form onSubmit={handleSubmit} className="rounded-[28px] border border-white/10 bg-[#0d0e11]/92 p-2 shadow-[0_-18px_60px_rgba(0,0,0,.35)] backdrop-blur-xl">
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault()
+                void askGeorge(input)
+              }
+            }}
             placeholder="Talk to George…"
-            className="block w-full bg-transparent px-4 pb-3 pt-3 text-[15px] text-white outline-none placeholder:text-white/35"
+            rows={1}
+            className="min-h-[52px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-[#d7b56d]/45"
           />
-          <button type="submit" className="flex h-12 w-full items-center justify-center gap-2 rounded-[20px] bg-[#735f3c] text-sm font-semibold text-white transition hover:bg-[#826d46]">
-            Send <Send className="h-4 w-4" />
-          </button>
+          <div className="mt-2 flex items-center justify-between gap-2 px-1 pb-1">
+            <p className="text-[11px] text-white/35">Voice replies + text. George stays focused on coaching.</p>
+            <button
+              type="submit"
+              disabled={!input.trim() || isThinking}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#d7b56d] text-[#15100a] transition hover:bg-[#e8ca80] disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Send message"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
         </form>
-      </div>
-    </section>
-  );
+      </section>
+    </main>
+  )
 }
