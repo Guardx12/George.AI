@@ -19,53 +19,83 @@ type CoachMemory = {
   lastSummary?: string
 }
 
-const SYSTEM_PROMPT = `You are Coach George, a premium voice-first fitness and weight-loss coach.
+const SYSTEM_PROMPT = `You are Coach George.
 
-PRODUCT DEFINITION
-You are not a general assistant. You are not a calorie tracking app. You are a focused coach for food, training, fat loss, consistency, motivation, cravings, weigh-ins, routines, body transformation, and staying on track.
+This is intentionally simple: you are basically ChatGPT, but you are ONLY a fitness, food, fat-loss, training, motivation, habits, consistency, and staying-on-track coach.
 
-CORE JOB
-Help the user make the next right decision. Coach them like a supportive, direct human coach. Ask useful follow-up questions. Do not rely on canned scripts. Do not repeat the same answer every time.
+Your job is to talk like a real coach, not like a nutrition article, not like a corporate app, and not like a scripted bot.
 
-TONE
-- Warm, direct, calm, and human.
-- Short replies by default: 2 to 6 sentences.
-- Sound like a real coach, not a corporate app.
-- Use simple language.
-- Do not over-explain.
-- No cheesy hype. No robotic phrases like "I am here for the next decision".
+HOW TO COACH
+- Think from context and memory, then answer naturally.
+- Keep replies short: usually 1 to 5 sentences.
+- Ask ONE useful question at a time when more context is needed.
+- Focus on the next useful move, not a lecture.
+- Be warm, direct, practical, and human.
+- Use plain English. A UK tone is fine.
+- Do not sound clinical, corporate, salesy, or over-optimised.
+- Do not say robotic phrases like "hunger is data", "source of truth", or "next best decision" unless it genuinely sounds natural.
+- Do not ask weird generic wellness-bot questions such as "do you have access to a fridge or cooler?".
+
+WHAT GEORGE IS
+George is the coach in the user's pocket. He helps the user talk through food, training, motivation, weight changes, cravings, bad days, routines, and getting back on track.
+
+WHAT GEORGE IS NOT
+- Not a general assistant.
+- Not a calorie database.
+- Not a medical professional.
+- Not a meal-plan robot.
+- Not a canned FAQ bot.
 
 TRACKING APPS
-George sits beside trackers. If exact calories/grams are needed, say to use "your tracker" or "a tracking app like NutriCheck, MyFitnessPal, Cronometer, Lose It, or whatever you prefer." Do not push only NutriCheck.
+George can sit beside any tracker. If exact calories or grams are needed, say "use your tracker" or "a tracking app like NutriCheck, MyFitnessPal, Cronometer, Lose It, or whatever you prefer." Do not repeatedly push one specific app.
 
 ONBOARDING
-If you do not know enough about the user, ask naturally one question at a time. Good order:
-1. What are we working towards?
-2. Roughly what do you weigh now?
-3. What would you like to get down to or achieve?
-4. What usually knocks you off track?
-5. Do you train at the moment?
-6. Do you use a food tracker?
-If they answer one question, accept it and move to the next. Never loop on the same question if they already answered.
+Let the conversation feel natural. If you do not know the person yet, gradually learn:
+1. goal
+2. current weight
+3. target/result
+4. what usually knocks them off track
+5. training situation
+6. food tracking preference
+
+If they answer one of these, accept it and move on. NEVER repeat the same question after they have answered it.
 
 MEMORY
-Use the supplied memory to personalise replies. Notice patterns from the conversation such as late-night hunger, scale anxiety, missed training, all-or-nothing thinking, or repeated bad days. Mention patterns naturally only when useful.
+Use memory to personalise replies. Save useful facts and patterns, not every detail.
+Examples of memory worth saving:
+- Goal: fat loss
+- Current weight: 159kg
+- Target: 115kg
+- Struggle: always on the go / time poor / grab-and-go food
+- Pattern: scale anxiety / late-night eating / all-or-nothing thinking
+
+RESPONSE EXAMPLES
+User: "I'm hungry"
+Good: "Alright — is this proper hunger or boredom/stress? What have you eaten so far today?"
+Bad: "Hunger is data, not failure. Get protein and volume."
+
+User: "I'm on the go all day and struggle making food"
+Good: "Right, then we don’t build the plan around perfect meal prep. We build around better grab-and-go defaults. What do you usually end up buying when you're out?"
+Bad: "Do you have access to a fridge or cooler during your day?"
+
+User: "Weight went up"
+Good: "Don’t panic yet. One weigh-in means very little. How many days has it been up for?"
 
 BOUNDARIES
-Stay within coaching for food, training, habit change, weight-loss, consistency, motivation, recovery, and progress. If asked about unrelated topics, politely redirect in a warm way.
+If the user asks about unrelated topics, redirect warmly:
+"I’ll keep you focused as your coach. Bring me food, training, weight, motivation, or whatever’s trying to knock you off track."
 
 SAFETY
-Do not support starvation, extreme rapid weight loss, punishment workouts, steroid abuse, dangerous supplement advice, or medical diagnosis. For pain, injury, worrying symptoms, eating disorder signs, or medical issues, give conservative general guidance and suggest a qualified professional. Do not shame the user.
+Do not support starvation, dangerous rapid weight loss, punishment workouts, steroid abuse, dangerous supplement advice, or medical diagnosis. If there is pain, injury, worrying symptoms, eating disorder signs, or medical concerns, be conservative and suggest a qualified professional.
 
 OUTPUT FORMAT
-Return ONLY valid JSON with this shape:
+Return ONLY valid JSON with this exact shape:
 {
   "reply": "what George says to the user",
   "memory": { updated memory object },
   "memoryNote": "one short private summary of anything important learned, or empty string",
   "outOfScope": false
-}
-No markdown outside JSON.`
+}`
 
 function safeMemory(value: unknown): CoachMemory {
   if (!value || typeof value !== "object") return {}
@@ -85,26 +115,54 @@ function safeMemory(value: unknown): CoachMemory {
   }
 }
 
+function addUnique(list: string[] | undefined, item: string) {
+  return Array.from(new Set([...(list || []), item].filter(Boolean))).slice(0, 12)
+}
+
 function fallbackReply(message: string, memory: CoachMemory) {
   const lower = message.toLowerCase()
-  const nextMemory = { ...memory }
-
+  const nextMemory: CoachMemory = { ...memory }
   const weightMatch = lower.match(/(\d{2,3}(?:\.\d+)?)\s*(kg|kilos|kilograms)?/)
-  if (!nextMemory.goal && /fat loss|lose weight|weight loss|cut|slim/i.test(message)) {
-    nextMemory.goal = "fat loss"
-    return { reply: "Good. Fat loss it is. Roughly what do you weigh at the moment?", memory: nextMemory, memoryNote: "User's main goal is fat loss.", outOfScope: false }
+
+  if (/politics|football score|weather|write.*code|business plan|website|email|essay/i.test(message)) {
+    return { reply: "I’ll keep you focused as your coach. Bring me food, training, weight, motivation, or whatever’s trying to knock you off track.", memory: nextMemory, memoryNote: "", outOfScope: true }
   }
+
+  if (!nextMemory.goal && /fat loss|lose weight|weight loss|cut|slim|drop weight/i.test(message)) {
+    nextMemory.goal = "fat loss"
+    return { reply: "Good — fat loss it is. Roughly what do you weigh at the moment?", memory: nextMemory, memoryNote: "User's main goal is fat loss.", outOfScope: false }
+  }
+
   if (nextMemory.goal && !nextMemory.currentWeightKg && weightMatch) {
     nextMemory.currentWeightKg = `${weightMatch[1]}kg`
-    return { reply: `Got it — ${nextMemory.currentWeightKg}. What would you like to get down to, or what result are you chasing first?`, memory: nextMemory, memoryNote: `User currently weighs about ${nextMemory.currentWeightKg}.`, outOfScope: false }
+    return { reply: `Got it — ${nextMemory.currentWeightKg}. What would you like to get down to, roughly?`, memory: nextMemory, memoryNote: `User currently weighs about ${nextMemory.currentWeightKg}.`, outOfScope: false }
   }
-  if (/hungry|starving|craving/.test(lower)) {
-    return { reply: "Alright — proper hunger or just wanting something? Tell me what you’ve eaten today and roughly what time it is for you.", memory: nextMemory, memoryNote: "User mentioned hunger/cravings.", outOfScope: false }
+
+  if (nextMemory.currentWeightKg && !nextMemory.targetWeightKg && weightMatch) {
+    nextMemory.targetWeightKg = `${weightMatch[1]}kg`
+    return { reply: `Nice — ${nextMemory.targetWeightKg} gives us a clear direction. What usually knocks you off track?`, memory: nextMemory, memoryNote: `User target weight is about ${nextMemory.targetWeightKg}.`, outOfScope: false }
   }
-  if (/weight.*up|scale.*up|put.*weight/.test(lower)) {
-    return { reply: "Don’t panic yet. One weigh-in is noisy — water, salt, carbs, sleep and soreness can all move it. How many days has it been up for?", memory: { ...nextMemory, patterns: Array.from(new Set([...(nextMemory.patterns || []), "scale anxiety"])).slice(0, 12) }, memoryNote: "User may worry about scale fluctuations.", outOfScope: false }
+
+  if (/time|busy|on the go|rushing|grab|quick|convenience/.test(lower)) {
+    nextMemory.struggles = addUnique(nextMemory.struggles, "time poor / on the go")
+    return { reply: "Right, then we don’t build this around perfect meal prep. We build around better grab-and-go defaults. What do you usually end up buying when you’re out?", memory: nextMemory, memoryNote: "User struggles with time and convenience eating.", outOfScope: false }
   }
-  return { reply: "Talk me through it. What’s happening today — food, training, hunger, motivation, or the bit that’s trying to knock you off track?", memory: nextMemory, memoryNote: "", outOfScope: false }
+
+  if (/hungry|starving|craving|snack/.test(lower)) {
+    nextMemory.patterns = addUnique(nextMemory.patterns, "hunger or cravings")
+    return { reply: "Alright — is it proper hunger, or more boredom/stress? What have you eaten so far today?", memory: nextMemory, memoryNote: "User mentioned hunger or cravings.", outOfScope: false }
+  }
+
+  if (/weight.*up|scale.*up|put.*weight|weigh.*more/.test(lower)) {
+    nextMemory.patterns = addUnique(nextMemory.patterns, "scale anxiety")
+    return { reply: "Don’t panic yet. One weigh-in means very little. How many days has it been up for?", memory: nextMemory, memoryNote: "User may worry about scale fluctuations.", outOfScope: false }
+  }
+
+  if (/what.*suggest|what.*eat|food|meal|lunch|dinner|breakfast/.test(lower)) {
+    return { reply: "Depends what the day looks like so far. Are you trying to keep it quick, keep calories controlled, or get more protein in?", memory: nextMemory, memoryNote: "", outOfScope: false }
+  }
+
+  return { reply: "Talk me through it. What’s happening today — food, training, weight, motivation, or the bit that’s trying to knock you off track?", memory: nextMemory, memoryNote: "", outOfScope: false }
 }
 
 function extractJson(text: string) {
@@ -124,19 +182,14 @@ export async function POST(request: Request) {
   const userMessage = typeof body?.message === "string" ? body.message.trim() : ""
   const memory = safeMemory(body?.memory)
   const messages = Array.isArray(body?.messages)
-    ? (body.messages as ChatMessage[]).filter((m) => (m.role === "assistant" || m.role === "user") && typeof m.content === "string").slice(-16)
+    ? (body.messages as ChatMessage[]).filter((m) => (m.role === "assistant" || m.role === "user") && typeof m.content === "string").slice(-24)
     : []
 
-  if (!userMessage) {
-    return Response.json({ reply: "Tell me what’s going on and I’ll coach you through it.", memory, memoryNote: "", outOfScope: false })
-  }
-
-  if (!apiKey) {
-    return Response.json(fallbackReply(userMessage, memory))
-  }
+  if (!userMessage) return Response.json({ reply: "Tell me what’s going on and I’ll coach you through it.", memory, memoryNote: "", outOfScope: false })
+  if (!apiKey) return Response.json(fallbackReply(userMessage, memory))
 
   const conversationText = messages.map((m) => `${m.role === "user" ? "User" : "George"}: ${m.content}`).join("\n")
-  const prompt = `MEMORY:\n${JSON.stringify(memory, null, 2)}\n\nRECENT CONVERSATION:\n${conversationText}\n\nNEW USER MESSAGE:\n${userMessage}`
+  const prompt = `MEMORY:\n${JSON.stringify(memory, null, 2)}\n\nRECENT CONVERSATION:\n${conversationText}\n\nNEW USER MESSAGE:\n${userMessage}\n\nRemember: answer like a real coach, not an article. Short, natural, one useful question if needed.`
 
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -151,19 +204,18 @@ export async function POST(request: Request) {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: prompt },
         ],
-        temperature: 0.55,
+        temperature: 0.72,
       }),
       cache: "no-store",
     })
 
     const data = await response.json().catch(() => null)
-    if (!response.ok) {
-      return Response.json(fallbackReply(userMessage, memory))
-    }
+    if (!response.ok) return Response.json(fallbackReply(userMessage, memory))
 
     const text = typeof data?.output_text === "string" ? data.output_text : data?.output?.flatMap?.((item: any) => item?.content || [])?.map?.((part: any) => part?.text || "")?.join?.("\n") || ""
     const parsed = extractJson(text)
     const updatedMemory = safeMemory(parsed.memory)
+
     return Response.json({
       reply: typeof parsed.reply === "string" && parsed.reply.trim() ? parsed.reply.trim() : fallbackReply(userMessage, memory).reply,
       memory: { ...memory, ...updatedMemory },

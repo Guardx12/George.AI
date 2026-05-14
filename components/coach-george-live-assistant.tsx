@@ -34,9 +34,9 @@ type ChatResponse = {
   outOfScope?: boolean
 }
 
-const STORAGE_KEY = "coach-george-conversation-v1"
-const MEMORY_KEY = "coach-george-memory-v1"
-const VOICE_KEY = "coach-george-voice-enabled-v1"
+const STORAGE_KEY = "coach-george-simple-chat-v1"
+const MEMORY_KEY = "coach-george-simple-memory-v1"
+const VOICE_KEY = "coach-george-simple-voice-v1"
 
 const INTRO_MESSAGE = "Hey, I’m George. Tell me what we’re working towards and I’ll coach you from there."
 
@@ -50,7 +50,7 @@ function makeMessage(role: Role, content: string): ChatMessage {
 }
 
 function trimMessages(messages: ChatMessage[]) {
-  return messages.slice(-60)
+  return messages.slice(-80)
 }
 
 function mergeMemory(existing: CoachMemory, incoming: CoachMemory): CoachMemory {
@@ -64,20 +64,13 @@ function mergeMemory(existing: CoachMemory, incoming: CoachMemory): CoachMemory 
   }
 }
 
-function memoryBadges(memory: CoachMemory) {
-  const badges = [memory.goal, memory.currentWeightKg, memory.trainingFocus, ...(memory.patterns || []).slice(0, 2)]
-    .filter(Boolean)
-    .map(String)
-  return badges.slice(0, 3)
-}
-
 function buildVoiceRendererInstructions() {
   return [
     "You are Coach George's voice renderer.",
-    "The app decides the exact words.",
-    "Only speak the exact text provided to you.",
+    "Only speak the exact text provided by the app.",
     "Do not add, remove, paraphrase, answer, or improvise.",
-    "Use a calm, warm, direct coach tone.",
+    "Use a calm, warm, direct British coach tone.",
+    "Sound natural, not robotic.",
   ].join(" ")
 }
 
@@ -100,7 +93,7 @@ function buildRealtimeSessionPayload(instructions: string) {
       },
       output: {
         voice: "cedar",
-        speed: 1.0,
+        speed: 0.95,
       },
     },
   }
@@ -115,7 +108,6 @@ export function CoachGeorgeLiveAssistant() {
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [error, setError] = useState<string | null>(null)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
-  const [lastSpokenText, setLastSpokenText] = useState("")
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -126,10 +118,10 @@ export function CoachGeorgeLiveAssistant() {
   const messagesRef = useRef<ChatMessage[]>(messages)
   const handledTranscriptsRef = useRef<Map<string, number>>(new Map())
 
-  const badges = useMemo(() => memoryBadges(memory), [memory])
-  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant")?.content || INTRO_MESSAGE
+  const latestAssistant = useMemo(() => [...messages].reverse().find((message) => message.role === "assistant")?.content || INTRO_MESSAGE, [messages])
   const isConnected = connectionState === "connected"
   const isConnecting = connectionState === "connecting"
+  const hasRealConversation = messages.length > 1
 
   useEffect(() => {
     memoryRef.current = memory
@@ -197,7 +189,6 @@ export function CoachGeorgeLiveAssistant() {
     if (!channel || channel.readyState !== "open") return
     const safeText = text.trim()
     if (!safeText) return
-    setLastSpokenText(safeText)
     try {
       channel.send(
         JSON.stringify({
@@ -240,7 +231,7 @@ export function CoachGeorgeLiveAssistant() {
         body: JSON.stringify({
           message: clean,
           memory: memoryRef.current,
-          messages: messagesRef.current.slice(-16),
+          messages: messagesRef.current.slice(-24),
         }),
       })
 
@@ -253,7 +244,7 @@ export function CoachGeorgeLiveAssistant() {
       appendMessage("assistant", payload.reply)
       speak(payload.reply)
     } catch (err) {
-      const fallback = "I’m with you. Tell me the food, training, motivation, or weight issue in plain English and I’ll coach the next move."
+      const fallback = "I’m with you. Say it plainly — food, training, weight, motivation, or whatever’s trying to knock you off track — and I’ll coach the next move."
       appendMessage("assistant", fallback)
       speak(fallback)
       setError(err instanceof Error ? err.message : "Something went wrong.")
@@ -286,12 +277,8 @@ export function CoachGeorgeLiveAssistant() {
         const transcript = String(event?.transcript || "")
         handleTranscript(transcript)
       }
-      if (type === "input_audio_buffer.speech_started") {
-        setError(null)
-      }
-      if (type === "error") {
-        setError(typeof event?.error?.message === "string" ? event.error.message : "Voice connection error.")
-      }
+      if (type === "input_audio_buffer.speech_started") setError(null)
+      if (type === "error") setError(typeof event?.error?.message === "string" ? event.error.message : "Voice connection error.")
     } catch {
       // ignore unknown realtime events
     }
@@ -326,9 +313,7 @@ export function CoachGeorgeLiveAssistant() {
       const tokenResponse = await fetch("/api/george-session", { cache: "no-store" })
       const tokenData = await tokenResponse.json().catch(() => null)
       const token = tokenData?.value
-      if (!tokenResponse.ok || typeof token !== "string") {
-        throw new Error(tokenData?.error || "Could not start George voice.")
-      }
+      if (!tokenResponse.ok || typeof token !== "string") throw new Error(tokenData?.error || "Could not start George voice.")
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       localStreamRef.current = stream
@@ -394,69 +379,58 @@ export function CoachGeorgeLiveAssistant() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#050506] text-white">
       <div className="fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(196,160,93,0.20),_transparent_34%),linear-gradient(180deg,_rgba(11,12,14,0.78),_#050506_60%,_#020203)]" />
-        <div className="absolute left-1/2 top-[-120px] h-[440px] w-[440px] -translate-x-1/2 rounded-full bg-[#c4a05d]/10 blur-3xl" />
-        <div className="absolute bottom-[-120px] right-[-80px] h-[360px] w-[360px] rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.6)_1px,transparent_1px)] [background-size:44px_44px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(232,210,164,0.16),transparent_34%),linear-gradient(180deg,rgba(14,15,18,0.94),#050506_54%,#020203)]" />
+        <div className="absolute inset-x-0 top-0 mx-auto h-[360px] max-w-[620px] bg-[url('/coach-george-face.png')] bg-cover bg-center opacity-[0.10] blur-2xl" />
+        <div className="absolute left-1/2 top-[80px] h-[260px] w-[260px] -translate-x-1/2 rounded-full bg-[#e8d2a4]/10 blur-3xl" />
+        <div className="absolute inset-0 opacity-[0.045] [background-image:linear-gradient(rgba(255,255,255,.55)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.55)_1px,transparent_1px)] [background-size:42px_42px]" />
       </div>
 
-      <section className="mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 pb-4 pt-5 sm:px-5">
-        <div className="flex items-center justify-between text-xs text-white/50">
-          <button onClick={resetLocalMemory} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 transition hover:bg-white/[0.07]">
-            Reset
-          </button>
+      <section className="mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 pb-4 pt-4 sm:px-5">
+        <div className="flex justify-end gap-2">
           <button
             onClick={() => setVoiceEnabled((value) => !value)}
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 transition hover:bg-white/[0.07]"
+            className="rounded-full border border-white/10 bg-white/[0.035] p-2.5 text-white/55 backdrop-blur-xl transition hover:bg-white/[0.08] hover:text-white"
             aria-label="Toggle George voice"
           >
-            {voiceEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-            {voiceEnabled ? "Voice on" : "Voice off"}
+            {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
         </div>
 
-        <div className="flex flex-col items-center pt-4 text-center">
+        <div className="flex flex-col items-center pt-1 text-center">
           <button
             onClick={startVoiceSession}
-            className={`group relative h-40 w-40 rounded-full border border-[#dbc078]/35 bg-[radial-gradient(circle_at_45%_28%,rgba(255,255,255,.96),rgba(221,192,118,.72)_18%,rgba(52,43,30,.92)_48%,rgba(5,5,6,.98)_74%)] shadow-[0_0_70px_rgba(196,160,93,.24)] transition duration-300 active:scale-[0.98] ${isConnected ? "animate-pulse" : ""}`}
+            className={`group relative h-44 w-44 rounded-full border border-[#f1d99d]/45 bg-black shadow-[0_0_90px_rgba(232,210,164,.22)] transition duration-300 active:scale-[0.985] ${isConnected ? "animate-pulse" : ""}`}
             aria-label={isConnected ? "Stop talking to George" : "Tap to talk to George"}
           >
-            <span className="absolute inset-3 rounded-full border border-white/10 bg-black/20" />
-            <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,transparent_45%,rgba(255,255,255,.12)_46%,transparent_48%)]" />
-            <span className="relative z-10 flex h-full flex-col items-center justify-center gap-2 text-white">
-              {isConnected ? <Square className="h-9 w-9 fill-white/80" /> : <Mic className="h-10 w-10" />}
-              <span className="text-sm font-semibold tracking-[0.22em] text-[#f5e6ba]">GEORGE</span>
+            <span className="absolute -inset-2 rounded-full bg-[conic-gradient(from_180deg,transparent,rgba(255,237,191,.50),transparent,rgba(201,166,98,.35),transparent)] opacity-75 blur-[2px]" />
+            <span className="absolute inset-0 overflow-hidden rounded-full border border-white/10">
+              <img src="/coach-george-face.png" alt="Coach George" className="h-full w-full scale-[1.08] object-cover" />
+              <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,transparent_40%,rgba(0,0,0,.20)_72%,rgba(0,0,0,.72))]" />
+            </span>
+            <span className="absolute bottom-3 left-1/2 z-10 flex h-12 w-12 -translate-x-1/2 items-center justify-center rounded-full border border-[#f1d99d]/50 bg-black/70 text-[#f5deb0] shadow-[0_0_32px_rgba(232,210,164,.24)] backdrop-blur-md">
+              {isConnected ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-6 w-6" />}
             </span>
           </button>
 
           <h1 className="mt-5 text-3xl font-semibold tracking-tight">Coach George</h1>
-          <p className="mt-2 max-w-[330px] text-sm leading-6 text-white/60">Your coach for food, training, motivation, and staying on track.</p>
-          <div className="mt-3 min-h-6 text-xs text-[#f0d28a]/80">
+          <p className="mt-2 max-w-[330px] text-sm leading-6 text-white/58">Your coach for food, training, motivation, and staying on track.</p>
+          <div className="mt-3 min-h-5 text-xs text-[#ead4a6]/75">
             {isConnecting ? "Connecting…" : isConnected ? "Listening" : connectionState === "error" ? "Voice paused" : "Tap George to talk"}
           </div>
-          {badges.length > 0 && (
-            <div className="mt-2 flex flex-wrap justify-center gap-2">
-              {badges.map((badge) => (
-                <span key={badge} className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] text-white/55">
-                  {badge}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
-        <div className="mt-5 rounded-[28px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl backdrop-blur-xl">
-          <p className="text-sm leading-6 text-white/82">{latestAssistant}</p>
+        <div className="mt-5 rounded-[28px] border border-white/10 bg-white/[0.05] p-4 shadow-2xl backdrop-blur-xl">
+          <p className="text-[15px] leading-6 text-white/84">{latestAssistant}</p>
         </div>
 
         <div ref={chatRef} className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 pr-1">
-          {messages.map((message) => (
+          {(hasRealConversation ? messages.slice(1) : []).map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
                 className={`max-w-[86%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-lg ${
                   message.role === "user"
-                    ? "bg-[#d7b56d] text-[#15100a]"
-                    : "border border-white/10 bg-[#111216]/86 text-white/82 backdrop-blur-xl"
+                    ? "bg-[linear-gradient(135deg,#e7d2a4,#a98242)] text-[#120e08]"
+                    : "border border-white/10 bg-[#111216]/88 text-white/84 backdrop-blur-xl"
                 }`}
               >
                 {message.content}
@@ -465,15 +439,14 @@ export function CoachGeorgeLiveAssistant() {
           ))}
           {isThinking && (
             <div className="flex justify-start">
-              <div className="rounded-[24px] border border-white/10 bg-[#111216]/86 px-4 py-3 text-sm text-white/60 backdrop-blur-xl">George is thinking…</div>
+              <div className="rounded-[24px] border border-white/10 bg-[#111216]/88 px-4 py-3 text-sm text-white/60 backdrop-blur-xl">George is thinking…</div>
             </div>
           )}
         </div>
 
         {error && <div className="mb-3 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-xs leading-5 text-red-100">{error}</div>}
-        {lastSpokenText && voiceEnabled && isConnected && <p className="mb-2 text-center text-[11px] text-white/35">Voice reply ready</p>}
 
-        <form onSubmit={handleSubmit} className="rounded-[28px] border border-white/10 bg-[#0d0e11]/92 p-2 shadow-[0_-18px_60px_rgba(0,0,0,.35)] backdrop-blur-xl">
+        <form onSubmit={handleSubmit} className="rounded-[28px] border border-white/10 bg-[#0d0e11]/94 p-2 shadow-[0_-18px_60px_rgba(0,0,0,.35)] backdrop-blur-xl">
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -483,17 +456,19 @@ export function CoachGeorgeLiveAssistant() {
                 void askGeorge(input)
               }
             }}
-            placeholder="Talk to George…"
             rows={1}
-            className="min-h-[52px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-[#d7b56d]/45"
+            placeholder="Talk to George…"
+            className="max-h-28 min-h-[44px] w-full resize-none rounded-[22px] border border-white/0 bg-transparent px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
           />
-          <div className="mt-2 flex items-center justify-between gap-2 px-1 pb-1">
-            <p className="text-[11px] text-white/35">Voice replies + text. George stays focused on coaching.</p>
+          <div className="flex items-center justify-between gap-3 px-2 pb-1">
+            <button type="button" onClick={resetLocalMemory} className="text-[11px] text-white/22 transition hover:text-white/50">
+              Reset
+            </button>
             <button
               type="submit"
               disabled={!input.trim() || isThinking}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#d7b56d] text-[#15100a] transition hover:bg-[#e8ca80] disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Send message"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f1d99d,#a98242)] text-[#110d08] shadow-[0_0_28px_rgba(232,210,164,.20)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Send message to George"
             >
               <Send className="h-4 w-4" />
             </button>

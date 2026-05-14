@@ -1,0 +1,17 @@
+Coach George simple-brain rebuild
+
+What changed:
+- Wiped the overcomplicated Coach George brain and replaced it with a simpler ChatGPT-style coaching prompt.
+- Removed scripted/canned option-button style behaviour from the main page.
+- George now has a simpler role: food, training, fat loss, motivation, habits, consistency, weight changes, and staying on track.
+- The API prompt now explicitly tells George to speak like a real coach, keep replies short, ask one useful question at a time, and avoid weird generic wellness-bot questions.
+- Added examples to stop replies like "do you have access to a fridge or cooler?" and push George toward natural coaching replies.
+- Improved fallback logic for fat loss onboarding, current weight, target weight, busy/on-the-go issues, hunger, scale worry, and food questions.
+- Brought back the premium Coach George face/orb from the mockup as /public/coach-george-face.png.
+- Reworked the page visually around the face/orb, a cleaner premium dark layout, softer champagne/titanium gold, and a conversation-first mobile layout.
+- Hid developer-like controls from the top. Voice is now a small icon only; reset is small and tucked near the input.
+
+Important:
+- This is still localStorage memory only. For the real paid app, move memory into Supabase/user accounts.
+- Voice quality depends on the OpenAI realtime voice available in the current API setup. The app uses one voice renderer and tells it to speak only George's exact reply.
+- If OPENAI_API_KEY is missing on Vercel, George will use the fallback logic instead of the real model, so make sure the environment variable is set.
