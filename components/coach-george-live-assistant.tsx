@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
-import { ArrowRight, CheckCircle2, ChevronLeft, Mic, Send, Settings2, Trash2, Volume2, VolumeX, X } from "lucide-react";
+import type { FormEvent } from "react";
+import { Mic, Send, Square } from "lucide-react";
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error";
-type MessageRole = "assistant" | "user" | "system";
-type Goal = "fat-loss" | "strength" | "boxing" | "running" | "general-health" | "maintenance" | "muscle";
-type TrackerApp = "NutriCheck" | "MyFitnessPal" | "Cronometer" | "Lose It" | "Other" | "None yet";
-type ProfileStatus = "new" | "started" | "complete";
+type MessageRole = "assistant" | "user";
+type Goal = "fat-loss" | "strength" | "boxing" | "running" | "general-health" | "maintenance" | "muscle" | "unknown";
+type TrackerApp = "NutriCheck" | "MyFitnessPal" | "Cronometer" | "Lose It" | "Other" | "None yet" | "unknown";
+type OnboardingStep = "goal" | "weight" | "target" | "training" | "struggle" | "tracker" | "ready";
 
 type LiveMessage = { id: string; role: MessageRole; content: string; createdAt: string };
 
@@ -23,15 +23,7 @@ type CoachProfile = {
   trackerApp: TrackerApp;
   calorieTarget: string;
   proteinTarget: string;
-  profileStatus: ProfileStatus;
-};
-
-type ActivePhase = {
-  id: string;
-  title: string;
-  goal: Goal;
-  startedAt: string;
-  status: "active" | "paused" | "archived";
+  onboardingStep: OnboardingStep;
 };
 
 type CoachingMemory = {
@@ -43,36 +35,28 @@ type CoachingMemory = {
 
 type CoachState = {
   profile: CoachProfile;
-  activePhase: ActivePhase;
-  archivedPhases: ActivePhase[];
   memory: CoachingMemory;
   messages: LiveMessage[];
   voiceReplies: boolean;
 };
 
-const STORAGE_KEY = "coach-george-voice-first-v1";
-const LEGACY_KEYS = ["coach-george-transformation-v5", "coach-george-transformation-v3"];
+const STORAGE_KEY = "coach-george-conversation-v1";
+const LEGACY_KEYS = ["coach-george-voice-first-v1", "coach-george-transformation-v5", "coach-george-transformation-v3"];
 
 const GOAL_LABELS: Record<Goal, string> = {
-  "fat-loss": "Fat loss",
-  strength: "Strength",
-  boxing: "Boxing fitness",
-  running: "Running fitness",
-  "general-health": "General health",
-  maintenance: "Maintenance",
-  muscle: "Build muscle",
+  "fat-loss": "fat loss",
+  strength: "strength",
+  boxing: "boxing fitness",
+  running: "running fitness",
+  "general-health": "general health",
+  maintenance: "maintenance",
+  muscle: "building muscle",
+  unknown: "your goal",
 };
-
-const TRACKERS: TrackerApp[] = ["None yet", "NutriCheck", "MyFitnessPal", "Cronometer", "Lose It", "Other"];
-const PROMPTS = ["I’m hungry", "Weight went up", "Bad day"];
 
 function uid(prefix = "id") {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function makeMessage(role: MessageRole, content: string): LiveMessage {
@@ -86,47 +70,32 @@ function normalize(input: string) {
 function defaultProfile(): CoachProfile {
   return {
     name: "",
-    goal: "fat-loss",
+    goal: "unknown",
     currentWeightKg: "",
     targetWeightKg: "",
     trainingFocus: "",
     biggestStruggle: "",
-    foodStyle: "Flexible, simple meals",
-    trackerApp: "None yet",
+    foodStyle: "",
+    trackerApp: "unknown",
     calorieTarget: "",
     proteinTarget: "",
-    profileStatus: "new",
+    onboardingStep: "goal",
   };
-}
-
-function defaultPhase(goal: Goal = "fat-loss"): ActivePhase {
-  return { id: uid("phase"), title: GOAL_LABELS[goal], goal, startedAt: todayIso(), status: "active" };
 }
 
 const INITIAL_STATE: CoachState = {
   profile: defaultProfile(),
-  activePhase: defaultPhase("fat-loss"),
-  archivedPhases: [],
   memory: { notes: [], patterns: [], lastSummary: "", updatedAt: null },
-  messages: [makeMessage("assistant", "Talk to me. What’s the situation today?")],
+  messages: [makeMessage("assistant", "Before I coach you properly, let me learn a bit about you. What are we working towards?")],
   voiceReplies: true,
 };
-
-function profileCompletion(profile: CoachProfile) {
-  const fields = [profile.goal, profile.currentWeightKg, profile.trainingFocus, profile.biggestStruggle, profile.foodStyle];
-  return Math.round((fields.filter(Boolean).length / fields.length) * 100);
-}
-
-function markProfileStatus(profile: CoachProfile): CoachProfile {
-  return { ...profile, profileStatus: profileCompletion(profile) >= 80 ? "complete" : profileCompletion(profile) > 20 ? "started" : "new" };
-}
 
 function buildVoiceRendererInstructions() {
   return [
     "You are Coach George's voice renderer.",
     "Only speak the exact text provided by the app.",
     "Do not add, remove, reword, explain, diagnose, or improvise.",
-    "Sound calm, warm, straight-talking and natural.",
+    "Sound warm, calm, straight-talking and human. Never sound robotic.",
   ].join(" ");
 }
 
@@ -144,167 +113,188 @@ function buildRealtimeSessionPayload(instructions: string) {
   };
 }
 
-function isInScope(input: string) {
-  return /(food|meal|eat|eating|hungry|hunger|craving|snack|calorie|macro|protein|carb|fat|tracker|nutricheck|myfitnesspal|fitness pal|cronometer|lose it|weight|scale|weigh|gain|lost|loss|fat|muscle|training|workout|gym|run|running|boxing|cardio|strength|steps|walk|motivation|struggling|quit|give up|reset|goal|phase|plan|routine|habit|sleep|stress|water|takeaway|restaurant|off plan|bad day|binge|profile|setup|start|check in|injury|pain|hurt|tired|energy|recovery|coffee|breakfast|lunch|dinner|tonight|today|tomorrow|weekend)/.test(input);
+function isInScope(text: string) {
+  return /(food|meal|eat|eating|hungry|hunger|craving|snack|calorie|macro|protein|carb|fat|tracker|nutricheck|myfitnesspal|fitness pal|cronometer|lose it|weight|scale|weigh|gain|lost|loss|fat|muscle|training|workout|gym|run|running|boxing|cardio|strength|steps|walk|motivation|struggling|quit|give up|reset|goal|routine|habit|sleep|stress|water|takeaway|restaurant|off plan|bad day|binge|injury|pain|hurt|tired|energy|recovery|breakfast|lunch|dinner|tonight|today|tomorrow|weekend|start|learn|coach|track|progress|body|shape|fit|fitness|health|diet|cut|bulk|maintain|kilogram|kg|stone)/.test(text);
 }
 
-function trackerPhrase(profile: CoachProfile) {
-  if (profile.trackerApp && profile.trackerApp !== "None yet" && profile.trackerApp !== "Other") return profile.trackerApp;
-  return "your tracker";
+function detectGoal(text: string): Goal | null {
+  if (/fat loss|lose weight|lose fat|weight loss|cut|slim/.test(text)) return "fat-loss";
+  if (/boxing|fight|bag work|pads/.test(text)) return "boxing";
+  if (/strength|stronger|weights|powerlifting/.test(text)) return "strength";
+  if (/running|run|10k|5k|marathon/.test(text)) return "running";
+  if (/maintenance|maintain/.test(text)) return "maintenance";
+  if (/muscle|bulk|build size|hypertrophy/.test(text)) return "muscle";
+  if (/general health|healthier|fitness|fit/.test(text)) return "general-health";
+  return null;
 }
 
-function extractProfileFromText(input: string, current: CoachProfile): CoachProfile {
-  const text = normalize(input);
+function detectTracker(text: string): TrackerApp | null {
+  if (/nutricheck/.test(text)) return "NutriCheck";
+  if (/myfitnesspal|fitness pal/.test(text)) return "MyFitnessPal";
+  if (/cronometer/.test(text)) return "Cronometer";
+  if (/lose it/.test(text)) return "Lose It";
+  if (/no tracker|none yet|don t track|dont track|not tracking/.test(text)) return "None yet";
+  if (/tracker|tracking app|food app/.test(text)) return "Other";
+  return null;
+}
+
+function detectWeight(text: string) {
+  const kg = text.match(/\b(\d{2,3}(?:\.\d)?)\s*(kg|kilos|kilograms)\b/);
+  if (kg) return kg[1];
+  const plain = text.match(/(?:weigh|weight|currently|i m|im|i am|about|around|roughly)\s*(\d{2,3}(?:\.\d)?)/);
+  if (plain) return plain[1];
+  const number = text.match(/\b(\d{2,3}(?:\.\d)?)\b/);
+  return number?.[1] || "";
+}
+
+function updateProfileFromText(raw: string, current: CoachProfile): CoachProfile {
+  const text = normalize(raw);
   const next = { ...current };
+  const goal = detectGoal(text);
+  const tracker = detectTracker(text);
+  const weight = detectWeight(text);
 
-  if (/fat loss|lose weight|lose fat|just fat loss|weight loss/.test(text)) next.goal = "fat-loss";
-  else if (/boxing|fight|bag work/.test(text)) next.goal = "boxing";
-  else if (/strength|weights|stronger/.test(text)) next.goal = "strength";
-  else if (/running|run|10k|5k/.test(text)) next.goal = "running";
-  else if (/maintenance|maintain/.test(text)) next.goal = "maintenance";
-  else if (/muscle|bulk|build size/.test(text)) next.goal = "muscle";
-  else if (/general health|healthier|fitness/.test(text)) next.goal = "general-health";
+  if (goal) next.goal = goal;
+  if (tracker) next.trackerApp = tracker;
 
-  const number = text.match(/\b(\d{2,3}(?:\.\d)?)\s*(kg|kilos|kilograms|stone|st)?\b/);
-  const currentWeight = text.match(/(?:weigh|weight|currently|i m|im|i am)\s*(\d{2,3}(?:\.\d)?)/);
-  const targetMatch = text.match(/(?:target|goal weight|want to be|get to|down to|aiming for)\s*(\d{2,3}(?:\.\d)?)/);
+  if (/(target|goal weight|want to be|get to|down to|aiming for|eventually)/.test(text) && weight) next.targetWeightKg = weight;
+  else if (weight && !next.currentWeightKg && next.onboardingStep === "weight") next.currentWeightKg = weight;
+  else if (weight && !next.targetWeightKg && next.onboardingStep === "target") next.targetWeightKg = weight;
 
-  if (targetMatch) next.targetWeightKg = targetMatch[1];
-  else if (currentWeight && !next.currentWeightKg) next.currentWeightKg = currentWeight[1];
-  else if (number && !next.currentWeightKg) next.currentWeightKg = number[1];
-  else if (number && next.currentWeightKg && !next.targetWeightKg && next.profileStatus !== "complete") next.targetWeightKg = number[1];
+  if (/boxing|bag|pads|fight/.test(text)) next.trainingFocus = "boxing and conditioning";
+  else if (/running|run|10k|5k|marathon/.test(text)) next.trainingFocus = "running";
+  else if (/gym|weights|strength/.test(text)) next.trainingFocus = "gym strength training";
+  else if (/home|kettlebell|bodyweight/.test(text)) next.trainingFocus = "home training";
+  else if (/walking|steps/.test(text)) next.trainingFocus = "walking and steps";
+  else if (/nothing yet|not training|no training|starting from scratch/.test(text)) next.trainingFocus = "starting from scratch";
 
-  if (/nutricheck/.test(text)) next.trackerApp = "NutriCheck";
-  else if (/myfitnesspal|fitness pal/.test(text)) next.trackerApp = "MyFitnessPal";
-  else if (/cronometer/.test(text)) next.trackerApp = "Cronometer";
-  else if (/lose it/.test(text)) next.trackerApp = "Lose It";
-  else if (/no tracker|none yet|don t track|dont track/.test(text)) next.trackerApp = "None yet";
-  else if (/tracker|tracking app|food app/.test(text) && next.trackerApp === "None yet") next.trackerApp = "Other";
+  if (/late night|night eating|evening|after dinner/.test(text)) next.biggestStruggle = "late-night eating";
+  else if (/hunger|hungry|cravings|starving/.test(text)) next.biggestStruggle = "hunger and cravings";
+  else if (/motivation|consistency|fall off|quit|momentum/.test(text)) next.biggestStruggle = "consistency";
+  else if (/scale|weigh|weigh in/.test(text)) next.biggestStruggle = "scale anxiety";
+  else if (/weekend|takeaway|alcohol|social/.test(text)) next.biggestStruggle = "weekends and social food";
 
-  if (/late night|night eating|evening|after dinner/.test(text)) next.biggestStruggle = "Late-night eating";
-  else if (/hunger|hungry|cravings|starving/.test(text)) next.biggestStruggle = "Hunger and cravings";
-  else if (/motivation|consistency|fall off|quit|momentum/.test(text)) next.biggestStruggle = "Consistency";
-  else if (/scale|weigh|weigh in/.test(text)) next.biggestStruggle = "Scale anxiety";
-  else if (/weekend|takeaway|alcohol/.test(text)) next.biggestStruggle = "Weekends and social food";
+  if (/simple|easy|same meals|repeat/.test(text)) next.foodStyle = "simple repeatable meals";
+  else if (/flexible|variety|normal food/.test(text)) next.foodStyle = "flexible normal food";
 
-  if (/boxing|bag|pads|fight/.test(text)) next.trainingFocus = "Boxing and conditioning";
-  else if (/running|run|10k|5k/.test(text)) next.trainingFocus = "Running fitness";
-  else if (/gym|weights|strength/.test(text)) next.trainingFocus = "Gym strength training";
-  else if (/home|kettlebell|bodyweight/.test(text)) next.trainingFocus = "Home training";
-  else if (/walking|steps/.test(text)) next.trainingFocus = "Walking and steps";
-  else if (/nothing yet|not training|no training/.test(text)) next.trainingFocus = "Starting from scratch";
-
-  return markProfileStatus(next);
+  return advanceOnboarding(next);
 }
 
-function nextOnboardingQuestion(profile: CoachProfile) {
-  if (!profile.currentWeightKg) return `${GOAL_LABELS[profile.goal]} — nice. Roughly what do you weigh at the moment?`;
-  if (!profile.targetWeightKg && profile.goal === "fat-loss") return "Got it. What would you like to get down to eventually? Rough number is fine.";
-  if (!profile.trainingFocus) return "What training are we working with right now — gym, home, walking, running, boxing, or nothing yet?";
-  if (!profile.biggestStruggle) return "What usually knocks you off track — hunger, evenings, weekends, motivation, or the scale?";
-  if (!profile.trackerApp || profile.trackerApp === "None yet") return "Do you track exact numbers anywhere — NutriCheck, MyFitnessPal, Cronometer, Lose It, another app, or not yet?";
-  return "Perfect. I’ve got enough to coach you properly. What do you need help with right now?";
+function advanceOnboarding(profile: CoachProfile): CoachProfile {
+  let step: OnboardingStep = "ready";
+  if (profile.goal === "unknown") step = "goal";
+  else if (!profile.currentWeightKg) step = "weight";
+  else if (profile.goal === "fat-loss" && !profile.targetWeightKg) step = "target";
+  else if (!profile.trainingFocus) step = "training";
+  else if (!profile.biggestStruggle) step = "struggle";
+  else if (profile.trackerApp === "unknown") step = "tracker";
+  return { ...profile, onboardingStep: step };
 }
 
-function inferCoachingSignals(input: string) {
-  const text = normalize(input);
-  const signals: string[] = [];
-  const patterns: string[] = [];
-  if (/hungry|starving|craving|snack/.test(text)) { signals.push("Hunger came up today."); patterns.push("Hunger management may be important."); }
-  if (/weight went up|scale|heavier|gained/.test(text)) { signals.push("Scale anxiety came up."); patterns.push("Reassure using trends, not single weigh-ins."); }
-  if (/messed up|fell off|binge|bad day|takeaway|ruined/.test(text)) { signals.push("Rescue mode came up."); patterns.push("Bad days need quick reset coaching, not guilt."); }
-  if (/late night|night|evening/.test(text)) { signals.push("Evening risk came up."); patterns.push("Evenings may be a weak point."); }
-  if (/motivation|quit|give up|struggling/.test(text)) { signals.push("Motivation dip came up."); patterns.push("Short next actions work better than long lectures."); }
-  if (/boxing|fight|bag|conditioning/.test(text)) { signals.push("Boxing identity came up."); patterns.push("Boxing goals can be used as motivation."); }
-  return { signals, patterns };
+function nextOnboardingReply(profile: CoachProfile) {
+  switch (profile.onboardingStep) {
+    case "goal":
+      return "Before I coach you properly, let me learn a bit about you. What are we working towards?";
+    case "weight":
+      return `${GOAL_LABELS[profile.goal]} — got it. Roughly what do you weigh at the moment?`;
+    case "target":
+      return "Good. What would you like to get down to eventually? Rough number is fine.";
+    case "training":
+      return "What training are we working with right now — gym, home, walking, running, boxing, or nothing yet?";
+    case "struggle":
+      return "What normally knocks you off track — hunger, evenings, weekends, motivation, or the scale?";
+    case "tracker":
+      return "Do you track exact numbers anywhere — a tracking app, notes, or not yet?";
+    case "ready":
+      return "Perfect. I’ve got enough to coach you properly. Talk to me — what’s the situation today?";
+  }
 }
 
-function addUnique(existing: string[], incoming: string[], max = 14) {
+function addUnique(existing: string[], incoming: string[], max = 18) {
   const seen = new Set(existing.map((item) => item.toLowerCase()));
   const merged = [...existing];
   incoming.forEach((item) => { if (!seen.has(item.toLowerCase())) merged.push(item); });
   return merged.slice(-max);
 }
 
-function buildCoachReply(rawInput: string, state: CoachState) {
+function inferMemory(raw: string) {
+  const text = normalize(raw);
+  const notes: string[] = [];
+  const patterns: string[] = [];
+  if (/hungry|starving|craving|snack/.test(text)) { notes.push("Hunger came up."); patterns.push("Hunger may be a recurring challenge."); }
+  if (/weight went up|scale|heavier|gained/.test(text)) { notes.push("Scale worry came up."); patterns.push("Reassure using trends, not single weigh-ins."); }
+  if (/messed up|fell off|binge|bad day|takeaway|ruined/.test(text)) { notes.push("Rescue mode came up."); patterns.push("Bad days need calm reset coaching, not guilt."); }
+  if (/late night|night|evening/.test(text)) { notes.push("Evening risk came up."); patterns.push("Evenings may be a weak point."); }
+  if (/motivation|quit|give up|struggling/.test(text)) { notes.push("Motivation dip came up."); patterns.push("Short next actions work better than big lectures."); }
+  if (/boxing|fight|bag|conditioning/.test(text)) { notes.push("Boxing identity came up."); patterns.push("Boxing goals can be used as motivation."); }
+  return { notes, patterns };
+}
+
+function profileSnapshot(profile: CoachProfile) {
+  const bits = [];
+  if (profile.goal !== "unknown") bits.push(GOAL_LABELS[profile.goal]);
+  if (profile.currentWeightKg) bits.push(`${profile.currentWeightKg}kg`);
+  if (profile.targetWeightKg) bits.push(`target ${profile.targetWeightKg}kg`);
+  if (profile.biggestStruggle) bits.push(profile.biggestStruggle);
+  return bits.join(" · ");
+}
+
+function buildCoachReply(rawInput: string, state: CoachState, profileAfterInput: CoachProfile) {
   const input = normalize(rawInput);
-  const profile = state.profile;
-  const tracker = trackerPhrase(profile);
-  const cals = profile.calorieTarget ? `${profile.calorieTarget} calories` : "your calorie range";
-  const protein = profile.proteinTarget ? `${profile.proteinTarget}g protein` : "enough protein";
+  const wasOnboarding = state.profile.onboardingStep !== "ready";
 
   if (!isInScope(input)) {
-    return "I’m your coach for food, training, progress and staying on track. Bring me the thing that’s trying to knock you off course and I’ll help with the next move.";
+    return "I’m your coach, mate — food, training, weight, habits, bad days, and staying on track. Bring me the thing that’s trying to knock you off course and I’ll help with that.";
   }
 
-  if (/which tracker|what tracker|tracking app|what app/.test(input)) {
-    return "Use whichever tracker you like for exact numbers — NutriCheck, MyFitnessPal, Cronometer, Lose It, or anything that works for you. I’ll help you turn the numbers into decisions.";
-  }
+  if (wasOnboarding && profileAfterInput.onboardingStep !== "ready") return nextOnboardingReply(profileAfterInput);
+  if (wasOnboarding && profileAfterInput.onboardingStep === "ready") return nextOnboardingReply(profileAfterInput);
 
-  if (profile.profileStatus !== "complete") {
-    const hasSpecificProblem = /(hungry|weight went up|scale|bad day|messed up|training|workout|what should i eat|eat tonight|dinner|motivation|struggling|reset)/.test(input);
-    if (!hasSpecificProblem || /(fat loss|boxing|strength|running|general health|maintenance|muscle|\b\d{2,3}\b|nutricheck|myfitnesspal|tracker|late night|hunger|motivation|scale|gym|home|walking)/.test(input)) {
-      return nextOnboardingQuestion(profile);
-    }
-  }
-
-  if (/what should i eat|what to eat|eat tonight|dinner|next meal|lunch|breakfast/.test(input)) {
-    return `Keep it simple: protein first, then veg or salad. Add carbs if you trained or ${tracker} says you’ve got room. Give me what you’ve eaten so far and I’ll narrow it down.`;
+  if (/which tracker|what tracker|tracking app|what app|nutricheck|myfitnesspal|fitness pal|cronometer|lose it/.test(input)) {
+    return "Use any tracker you like for exact numbers — NutriCheck, MyFitnessPal, Cronometer, Lose It, whatever works. Give me the situation and I’ll help you make the right decision.";
   }
 
   if (/hungry|starving|craving|snack/.test(input)) {
-    return "Right, don’t panic. Hunger is data, not failure. Before you go hunting snacks, get protein and volume in: Greek yogurt, eggs, lean meat, soup, fruit, veg, or a shake.";
+    const struggle = state.profile.biggestStruggle ? `I know ${state.profile.biggestStruggle} can be a weak spot for you, so we keep this simple.` : "We keep this simple.";
+    return `${struggle} Is this real hunger, boredom, or stress? If it’s real hunger, go protein plus volume first — then tell me what you’ve got available.`;
+  }
+
+  if (/what should i eat|what to eat|eat tonight|dinner|next meal|lunch|breakfast/.test(input)) {
+    return "Give me three things: what you’ve eaten today, how hungry you are, and whether you’re training. Then I’ll tell you the best type of meal to go for — exact grams can stay in your tracker.";
   }
 
   if (/messed up|fell off|off plan|bad day|binge|ruined|takeaway|pizza|kebab/.test(input)) {
-    return "You haven’t ruined anything. One rough meal only becomes a rough week if you let it. Water, normal next meal, protein high, routine back on. Reset now.";
+    return "You haven’t ruined anything. Don’t turn one rough meal into a rough week. Water, next normal meal, protein high, routine back on. What happened — takeaway, snacks, alcohol, or just a messy day?";
   }
 
   if (/weight went up|scale went up|gained|heavier|water weight|stall|plateau/.test(input)) {
-    return "Don’t panic about one weigh-in. A jump is usually water, food, salt, stress, soreness or sleep — not sudden fat gain. Give it 3 honest days and watch the trend.";
-  }
-
-  if (/calorie|macro|protein|target/.test(input)) {
-    return `Use ${tracker} for exact logging. I’ll help interpret it. For this phase: ${cals}, ${protein}, simple meals, and training you can recover from. Paste your totals and I’ll call the next move.`;
+    return "Don’t react to one weigh-in. Usually it’s water, food, salt, soreness, stress or sleep — not sudden fat gain. Tell me: is the 7-day trend up, flat, or still coming down?";
   }
 
   if (/workout|training|gym|home|boxing|run|running|cardio|strength/.test(input)) {
-    if (!/home|gym|boxing|running|run|strength|weights|walk|kettlebell|bodyweight/.test(input)) return "I’ll make it specific. Are you training at home or in the gym, and how long have you got?";
-    if (/boxing/.test(input) || state.activePhase.goal === "boxing") return "Boxing day: warm up, then controlled rounds. Shadowboxing, bag, pads or skipping. Finish with legs, push, pull and carries. Build the engine — don’t bury yourself.";
-    if (/running|run/.test(input) || state.activePhase.goal === "running") return "Keep it controlled. Easy effort first. Don’t test yourself every run. We’re building consistency and protecting your joints.";
-    return "Simple session: squat pattern, push, pull, carry, then a short finisher. Repeatable beats heroic. Leave enough in the tank to train again.";
+    if (!/home|gym|boxing|running|run|strength|weights|walk|kettlebell|bodyweight|minutes|hour/.test(input)) return "I’ll make it specific. Where are you training and how long have you got?";
+    if (/boxing/.test(input) || state.profile.goal === "boxing") return "Boxing focus today: warm up, controlled rounds, then a small strength finisher. Build the engine — don’t bury yourself. How fit are you feeling out of 10?";
+    if (/running|run/.test(input) || state.profile.goal === "running") return "Keep it easy enough that you could repeat it. We’re building consistency first. Are your joints feeling okay today?";
+    return "Simple and repeatable: squat, push, pull, carry, then a short finisher. Don’t chase hero sessions. How long have you got?";
+  }
+
+  if (/calorie|macro|protein|target|left/.test(input)) {
+    return "Use your tracker for the exact numbers. Send me calories left, protein left, hunger level, and training today — I’ll tell you the smartest move.";
   }
 
   if (/injury|pain|hurt|dizzy|chest pain|faint|sick/.test(input)) {
-    return "Play this safe. Don’t push through pain, dizziness, chest pain or anything worrying. I can help adjust around minor aches, but proper symptoms need professional advice.";
+    return "Play this safe. Don’t push through pain, dizziness, chest pain or anything worrying. I can help you adjust around minor aches, but proper symptoms need a professional.";
   }
 
   if (/reset|change goal|new goal|start again|different goal|switch/.test(input)) {
-    return "We can change direction without wiping your history. Small tweak, new phase, or full reset — which one do you mean? Don’t reset because of one bad day.";
+    return "We can change direction without wiping everything. Tell me what’s changed: the goal, the training, the food approach, or your motivation?";
   }
 
   if (/motivation|struggling|can t be bothered|cant be bothered|quit|give up|no motivation/.test(input)) {
-    return "Forget the whole mountain. Win the next action. One meal, one walk, one honest check-in. You don’t need perfect — you need proof you’re still moving.";
+    return "Right, we shrink the day. Don’t solve your whole life. Win the next 30 minutes: water, one decent meal, or a walk. Which one is easiest right now?";
   }
 
-  if (/nutricheck|myfitnesspal|fitness pal|cronometer|lose it|tracker/.test(input)) {
-    return "Good. Let the tracker handle exact calories and grams. Bring me what it says, what you’re tempted to do, and how hungry you are — I’ll coach the decision.";
-  }
-
-  return "Talk me through the situation. Food, hunger, training, weight, motivation, or a bad day — I’ll keep it practical and give you the next move.";
-}
-
-function memoryLine(state: CoachState) {
-  const p = state.profile;
-  const basics = [
-    `Goal: ${GOAL_LABELS[p.goal]}`,
-    p.currentWeightKg ? `Current weight: ${p.currentWeightKg}kg` : "Current weight not saved yet",
-    p.targetWeightKg ? `Target: ${p.targetWeightKg}kg` : "Target not saved yet",
-    p.biggestStruggle ? `Main struggle: ${p.biggestStruggle}` : "Main struggle not saved yet",
-    p.trackerApp && p.trackerApp !== "None yet" ? `Tracker: ${p.trackerApp}` : "Tracker not saved yet",
-  ];
-  const patterns = state.memory.patterns.length ? state.memory.patterns.slice(-4).join(" ") : "No repeated patterns spotted yet.";
-  return `${basics.join(". ")}. Patterns: ${patterns}`;
+  return "Talk me through it like you would with a real coach. What’s happened, what are you tempted to do, and what do you need from me right now?";
 }
 
 export function CoachGeorgeLiveAssistant() {
@@ -313,8 +303,6 @@ export function CoachGeorgeLiveAssistant() {
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [textInput, setTextInput] = useState("");
-  const [showProfile, setShowProfile] = useState(false);
-  const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -330,13 +318,10 @@ export function CoachGeorgeLiveAssistant() {
     [state.messages],
   );
 
-  const visibleMessages = useMemo(
-    () => state.messages.filter((message) => message.role !== "system").slice(-14),
-    [state.messages],
-  );
-
+  const visibleMessages = useMemo(() => state.messages.slice(-18), [state.messages]);
   const canStart = hydrated && (connectionState === "idle" || connectionState === "error");
   const voiceLive = connectionState === "connected";
+  const snapshot = profileSnapshot(state.profile);
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
@@ -346,12 +331,11 @@ export function CoachGeorgeLiveAssistant() {
       const raw = window.localStorage.getItem(STORAGE_KEY) || LEGACY_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<CoachState>;
+        const profile = advanceOnboarding({ ...defaultProfile(), ...(parsed.profile || {}) });
         setState({
           ...INITIAL_STATE,
           ...parsed,
-          profile: markProfileStatus({ ...defaultProfile(), ...(parsed.profile || {}) }),
-          activePhase: parsed.activePhase || defaultPhase(parsed.profile?.goal || "fat-loss"),
-          archivedPhases: parsed.archivedPhases || [],
+          profile,
           memory: { ...INITIAL_STATE.memory, ...(parsed.memory || {}) },
           messages: (parsed.messages || INITIAL_STATE.messages).slice(-60),
           voiceReplies: parsed.voiceReplies ?? true,
@@ -408,33 +392,24 @@ export function CoachGeorgeLiveAssistant() {
     if (last && last.text === normalized && Date.now() - last.at < 1200) return;
     lastHandledRef.current = { text: normalized, at: Date.now() };
 
-    appendMessage("user", cleaned);
+    const current = stateRef.current;
+    const nextProfile = updateProfileFromText(cleaned, current.profile);
+    const reply = buildCoachReply(cleaned, current, nextProfile);
+    const { notes, patterns } = inferMemory(cleaned);
 
-    const nextProfile = extractProfileFromText(cleaned, stateRef.current.profile);
-    const nextState: CoachState = {
-      ...stateRef.current,
-      profile: nextProfile,
-      activePhase: { ...stateRef.current.activePhase, goal: nextProfile.goal, title: GOAL_LABELS[nextProfile.goal] },
-    };
-    const reply = buildCoachReply(cleaned, nextState);
-    const { signals, patterns } = inferCoachingSignals(cleaned);
+    setState((prev) => ({
+      ...prev,
+      profile: updateProfileFromText(cleaned, prev.profile),
+      messages: [...prev.messages.slice(-58), makeMessage("user", cleaned), makeMessage("assistant", reply)],
+      memory: notes.length || patterns.length ? {
+        notes: addUnique(prev.memory.notes, notes),
+        patterns: addUnique(prev.memory.patterns, patterns),
+        lastSummary: notes[0] || prev.memory.lastSummary,
+        updatedAt: new Date().toISOString(),
+      } : prev.memory,
+    }));
 
-    setState((prev) => {
-      const profile = extractProfileFromText(cleaned, prev.profile);
-      return {
-        ...prev,
-        profile,
-        activePhase: { ...prev.activePhase, goal: profile.goal, title: GOAL_LABELS[profile.goal] },
-        memory: signals.length || patterns.length ? {
-          notes: addUnique(prev.memory.notes, signals),
-          patterns: addUnique(prev.memory.patterns, patterns),
-          lastSummary: signals[0] || prev.memory.lastSummary,
-          updatedAt: new Date().toISOString(),
-        } : prev.memory,
-      };
-    });
-
-    respond(reply);
+    speakIfConnected(reply);
   }
 
   function handleTextSubmit(event?: FormEvent) {
@@ -442,30 +417,6 @@ export function CoachGeorgeLiveAssistant() {
     const value = textInput;
     setTextInput("");
     handleUserInput(value);
-  }
-
-  function updateProfile(patch: Partial<CoachProfile>) {
-    setState((prev) => {
-      const profile = markProfileStatus({ ...prev.profile, ...patch });
-      return { ...prev, profile, activePhase: { ...prev.activePhase, goal: profile.goal, title: GOAL_LABELS[profile.goal] } };
-    });
-  }
-
-  function startNewPhase(goal: Goal) {
-    setState((prev) => ({
-      ...prev,
-      archivedPhases: [{ ...prev.activePhase, status: "archived" }, ...prev.archivedPhases].slice(0, 12),
-      activePhase: defaultPhase(goal),
-      profile: markProfileStatus({ ...prev.profile, goal }),
-    }));
-    respond(`New ${GOAL_LABELS[goal]} phase started. I’ve kept the old phase in your history.`);
-  }
-
-  function deleteAllData() {
-    if (!pendingDeleteConfirm) { setPendingDeleteConfirm(true); return; }
-    if (typeof window !== "undefined") window.localStorage.removeItem(STORAGE_KEY);
-    setPendingDeleteConfirm(false);
-    setState(INITIAL_STATE);
   }
 
   async function cleanupConversation() {
@@ -531,7 +482,9 @@ export function CoachGeorgeLiveAssistant() {
         dataChannel.send(JSON.stringify({ type: "session.update", session: buildRealtimeSessionPayload(buildVoiceRendererInstructions()) }));
         if (!greetedSessionRef.current) {
           greetedSessionRef.current = true;
-          respond(getOpeningLine(stateRef.current));
+          const opener = getOpeningLine(stateRef.current);
+          appendMessage("assistant", opener);
+          speakIfConnected(opener);
         }
       });
       dataChannel.addEventListener("message", (event) => {
@@ -574,165 +527,69 @@ export function CoachGeorgeLiveAssistant() {
   }
 
   function getOpeningLine(current: CoachState) {
-    if (current.profile.profileStatus !== "complete") return "Before we get going properly, what are we working towards? Fat loss, boxing, strength, running, or just general health?";
+    if (current.profile.onboardingStep !== "ready") return nextOnboardingReply(current.profile);
     const pattern = current.memory.patterns.slice(-1)[0];
     if (pattern) return `I remember this pattern: ${pattern} What’s the situation today?`;
     return "Talk to me. What’s the situation today?";
   }
 
-  const statusText = connectionState === "connected" ? "Listening" : connectionState === "connecting" ? "Connecting" : "George is ready";
+  const statusText = connectionState === "connected" ? "Listening" : connectionState === "connecting" ? "Connecting" : "Tap to talk";
 
   return (
-    <section className="relative min-h-screen overflow-hidden bg-[#050505] text-white">
-      <div className="absolute inset-0 bg-[url('/coach-george-gym-bg.jpeg')] bg-cover bg-center opacity-28 blur-[3px] scale-110" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(229,205,157,0.18),rgba(10,10,10,0.36)_34%,rgba(0,0,0,0.94)_78%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2),rgba(0,0,0,0.82)_58%,rgba(0,0,0,0.98))]" />
+    <section className="relative min-h-screen overflow-hidden bg-[#050608] text-white">
+      <div className="absolute inset-0 bg-[url('/coach-george-gym-bg.jpeg')] bg-cover bg-center opacity-[0.18] blur-[5px] scale-110" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(244,219,176,0.20),rgba(16,17,20,0.28)_32%,rgba(0,0,0,0.95)_78%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14),rgba(0,0,0,0.78)_55%,rgba(0,0,0,0.98))]" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5 pb-4 pt-5 sm:px-6">
-        <header className="flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/46">Coach</div>
-          <button onClick={() => setShowProfile(true)} className="rounded-full border border-white/10 bg-white/[0.045] p-2.5 text-white/70 backdrop-blur-xl transition hover:bg-white/[0.09] hover:text-white" aria-label="Open coaching settings">
-            <Settings2 className="h-5 w-5" />
-          </button>
-        </header>
-
-        <div className="pt-7 text-center">
-          <div className="relative mx-auto h-[138px] w-[138px] rounded-full border border-[#ead7aa]/75 bg-black/55 p-[3px] shadow-[0_0_55px_rgba(234,215,170,0.34)]">
-            <div className={`absolute inset-[-9px] rounded-full border border-[#ead7aa]/20 ${voiceLive ? "animate-pulse" : ""}`} />
-            <div className="absolute left-[-52px] right-[-52px] top-1/2 h-px -translate-y-1/2 bg-[linear-gradient(90deg,transparent,rgba(234,215,170,.42),transparent)]" />
-            <img src="/coach-george-avatar.png" alt="Coach George" className="relative h-full w-full rounded-full object-cover" />
-          </div>
-          <h1 className="mt-5 text-[34px] font-semibold tracking-[-0.045em] text-white">Coach George</h1>
-          <p className="mt-2 text-sm leading-6 text-[#ead7aa]/90">Your coach for food, training and staying on track.</p>
-        </div>
-
-        <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.07] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-          <p className="text-[17px] leading-7 text-white/92">{latestAssistant}</p>
-          <p className="mt-3 text-[11px] text-white/35">George</p>
-        </div>
-
-        <div className="mt-4 flex justify-center gap-2">
-          {PROMPTS.map((prompt) => (
-            <button key={prompt} onClick={() => handleUserInput(prompt)} className="rounded-2xl border border-white/10 bg-white/[0.055] px-3.5 py-2.5 text-xs font-medium text-white/78 backdrop-blur-xl transition hover:bg-white/[0.1]">
-              {prompt}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-6 flex flex-col items-center">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5 pb-4 pt-7 sm:px-6">
+        <div className="text-center">
           <button
             onClick={connectionState === "connected" || connectionState === "connecting" ? stopConversation : startConversation}
             disabled={!hydrated}
-            className={`relative flex h-[118px] w-[118px] items-center justify-center rounded-full border transition disabled:opacity-60 ${voiceLive ? "border-[#f0dca7] bg-[#ead7aa]/14 shadow-[0_0_70px_rgba(234,215,170,0.38)]" : "border-[#ead7aa]/58 bg-black/48 shadow-[0_0_45px_rgba(234,215,170,0.18)]"}`}
+            className={`relative mx-auto flex h-[188px] w-[188px] items-center justify-center rounded-full border bg-black/62 p-[4px] transition disabled:opacity-60 ${voiceLive ? "border-[#f3dca3]/90 shadow-[0_0_90px_rgba(243,220,163,0.36)]" : "border-[#f3dca3]/48 shadow-[0_0_64px_rgba(243,220,163,0.20)]"}`}
+            aria-label={voiceLive ? "Stop talking to Coach George" : "Talk to Coach George"}
           >
-            <Mic className="h-12 w-12 text-[#ead7aa]" />
+            <span className={`absolute inset-[-12px] rounded-full border border-[#f3dca3]/18 ${voiceLive ? "animate-pulse" : ""}`} />
+            <span className="absolute left-[-72px] right-[-72px] top-1/2 h-px -translate-y-1/2 bg-[linear-gradient(90deg,transparent,rgba(243,220,163,.38),transparent)]" />
+            <img src="/coach-george-avatar.png" alt="Coach George" className="relative h-full w-full rounded-full object-cover" />
+            <span className="absolute bottom-3 right-3 flex h-14 w-14 items-center justify-center rounded-full border border-[#f3dca3]/55 bg-[#0b0b0c]/92 shadow-[0_0_30px_rgba(243,220,163,.24)]">
+              {voiceLive ? <Square className="h-6 w-6 fill-[#f3dca3] text-[#f3dca3]" /> : <Mic className="h-7 w-7 text-[#f3dca3]" />}
+            </span>
           </button>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#ead7aa]">{voiceLive ? "Tap to stop" : "Tap to talk"}</p>
-          <p className="mt-1 text-xs text-white/42">{statusText}</p>
-          {error ? <p className="mt-2 max-w-[320px] text-center text-xs leading-5 text-red-200">{error}</p> : null}
+
+          <h1 className="mt-5 text-[36px] font-semibold tracking-[-0.055em] text-white">Coach George</h1>
+          <p className="mt-2 text-[15px] leading-6 text-white/66">Your coach for food, training and staying on track.</p>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#f3dca3]/85">{statusText}</p>
+          {snapshot ? <p className="mx-auto mt-3 max-w-[340px] truncate text-xs text-white/38">{snapshot}</p> : null}
+          {error ? <p className="mx-auto mt-3 max-w-[340px] text-center text-xs leading-5 text-red-200">{error}</p> : null}
         </div>
 
-        <div ref={chatScrollRef} className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 pb-1">
+        <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.065] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.44)] backdrop-blur-2xl">
+          <p className="text-[17px] leading-7 text-white/92">{latestAssistant}</p>
+        </div>
+
+        <div ref={chatScrollRef} className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 pb-2">
           {visibleMessages.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[86%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_10px_32px_rgba(0,0,0,0.26)] ${message.role === "user" ? "bg-[#8f7247] text-white" : "border border-white/10 bg-white/[0.075] text-white/88 backdrop-blur-xl"}`}>
+              <div className={`max-w-[88%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_10px_32px_rgba(0,0,0,0.26)] ${message.role === "user" ? "bg-[#735f3c] text-white" : "border border-white/10 bg-white/[0.075] text-white/88 backdrop-blur-xl"}`}>
                 {message.content}
               </div>
             </div>
           ))}
         </div>
 
-        <form onSubmit={handleTextSubmit} className="mt-3 rounded-[24px] border border-white/10 bg-white/[0.075] p-2 backdrop-blur-2xl">
+        <form onSubmit={handleTextSubmit} className="mt-3 rounded-[26px] border border-white/10 bg-white/[0.075] p-2.5 backdrop-blur-2xl">
           <input
             value={textInput}
             onChange={(event) => setTextInput(event.target.value)}
-            placeholder="Type if you’d rather not talk…"
-            className="block w-full bg-transparent px-3 pb-2 pt-2 text-sm text-white outline-none placeholder:text-white/35"
+            placeholder="Talk to George…"
+            className="block w-full bg-transparent px-4 pb-3 pt-3 text-[15px] text-white outline-none placeholder:text-white/35"
           />
-          <button type="submit" className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-[18px] bg-[#8f7247] text-sm font-semibold text-white transition hover:bg-[#a78655]">
+          <button type="submit" className="flex h-12 w-full items-center justify-center gap-2 rounded-[20px] bg-[#735f3c] text-sm font-semibold text-white transition hover:bg-[#826d46]">
             Send <Send className="h-4 w-4" />
           </button>
         </form>
       </div>
-
-      {showProfile ? (
-        <ProfilePanel
-          state={state}
-          updateProfile={updateProfile}
-          onClose={() => setShowProfile(false)}
-          onStartPhase={startNewPhase}
-          onDeleteAll={deleteAllData}
-          pendingDeleteConfirm={pendingDeleteConfirm}
-          onToggleVoice={() => setState((prev) => ({ ...prev, voiceReplies: !prev.voiceReplies }))}
-        />
-      ) : null}
     </section>
   );
-}
-
-function ProfilePanel({ state, updateProfile, onClose, onStartPhase, onDeleteAll, pendingDeleteConfirm, onToggleVoice }: { state: CoachState; updateProfile: (patch: Partial<CoachProfile>) => void; onClose: () => void; onStartPhase: (goal: Goal) => void; onDeleteAll: () => void; pendingDeleteConfirm: boolean; onToggleVoice: () => void }) {
-  const profile = state.profile;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-3 backdrop-blur-md sm:items-center">
-      <div className="max-h-[92vh] w-full max-w-[520px] overflow-y-auto rounded-[32px] border border-white/10 bg-[#080808] p-5 shadow-[0_28px_120px_rgba(0,0,0,0.82)]">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <button onClick={onClose} className="rounded-full border border-white/10 bg-white/[0.05] p-2 text-white/70 hover:text-white"><ChevronLeft className="h-5 w-5" /></button>
-          <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#ead7aa]">What George knows</p>
-            <h2 className="mt-1 text-2xl font-semibold text-white">Your coaching profile</h2>
-            <p className="mt-2 text-sm leading-6 text-white/52">George should learn this naturally, but you can edit anything here.</p>
-          </div>
-          <button onClick={onClose} className="rounded-full border border-white/10 bg-white/[0.05] p-2 text-white/70 hover:text-white"><X className="h-5 w-5" /></button>
-        </div>
-
-        <div className="space-y-3">
-          <Field label="Name"><input value={profile.name} onChange={(e) => updateProfile({ name: e.target.value })} placeholder="Optional" className="field" /></Field>
-          <Field label="Goal"><select value={profile.goal} onChange={(e) => updateProfile({ goal: e.target.value as Goal })} className="field">{Object.entries(GOAL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Current weight"><input value={profile.currentWeightKg} onChange={(e) => updateProfile({ currentWeightKg: e.target.value })} placeholder="kg" className="field" /></Field>
-            <Field label="Target weight"><input value={profile.targetWeightKg} onChange={(e) => updateProfile({ targetWeightKg: e.target.value })} placeholder="kg" className="field" /></Field>
-          </div>
-          <Field label="Training"><input value={profile.trainingFocus} onChange={(e) => updateProfile({ trainingFocus: e.target.value })} placeholder="Boxing, gym, walking…" className="field" /></Field>
-          <Field label="Main struggle"><input value={profile.biggestStruggle} onChange={(e) => updateProfile({ biggestStruggle: e.target.value })} placeholder="Hunger, evenings, scale panic…" className="field" /></Field>
-          <Field label="Tracker"><select value={profile.trackerApp} onChange={(e) => updateProfile({ trackerApp: e.target.value as TrackerApp })} className="field">{TRACKERS.map((tracker) => <option key={tracker}>{tracker}</option>)}</select></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Calories"><input value={profile.calorieTarget} onChange={(e) => updateProfile({ calorieTarget: e.target.value })} placeholder="Optional" className="field" /></Field>
-            <Field label="Protein"><input value={profile.proteinTarget} onChange={(e) => updateProfile({ proteinTarget: e.target.value })} placeholder="Optional" className="field" /></Field>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-          <p className="text-sm font-semibold text-white">Memory and patterns</p>
-          <p className="mt-2 text-sm leading-6 text-white/55">{memoryLine(state)}</p>
-          {state.memory.lastSummary ? <p className="mt-3 text-xs text-[#ead7aa]/80">Latest signal: {state.memory.lastSummary}</p> : null}
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm font-semibold text-white">Change direction safely</p>
-          <div className="mt-3 grid gap-2">
-            {Object.entries(GOAL_LABELS).map(([value, label]) => (
-              <button key={value} onClick={() => onStartPhase(value as Goal)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-left text-sm text-white/82 transition hover:bg-white/[0.08]">
-                <span>Start {label}</span><ArrowRight className="h-4 w-4 text-[#ead7aa]" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-5 flex flex-col gap-3">
-          <button onClick={() => updateProfile({})} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8f7247] px-5 py-3 font-semibold text-white hover:bg-[#a78655]">Save <CheckCircle2 className="h-5 w-5" /></button>
-          <button onClick={onDeleteAll} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-300/20 bg-red-500/10 px-5 py-3 font-semibold text-red-100 hover:bg-red-500/15"><Trash2 className="h-5 w-5" />{pendingDeleteConfirm ? "Tap again to delete everything" : "Delete all data"}</button>
-          <button onClick={onToggleVoice} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3 font-semibold text-white/80 hover:bg-white/[0.08]">{state.voiceReplies ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />} Voice responses <span className="text-[#ead7aa]">{state.voiceReplies ? "on" : "off"}</span></button>
-        </div>
-      </div>
-      <style jsx>{`
-        .field{margin-top:.35rem;width:100%;border-radius:1rem;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);padding:.82rem .9rem;color:white;outline:none}
-        .field::placeholder{color:rgba(255,255,255,.35)}
-        .field option{color:#090909}
-      `}</style>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="block text-sm font-medium text-white/82">{label}{children}</label>;
 }

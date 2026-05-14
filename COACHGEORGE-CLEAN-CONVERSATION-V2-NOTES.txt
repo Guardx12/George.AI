@@ -1,0 +1,18 @@
+CoachGeorge clean conversation rebuild
+
+Changed in this version:
+- Removed all quick option buttons such as Hungry / Weight went up / Bad day.
+- Removed the visible settings/profile panel and dashboard-style controls.
+- Made the large Coach George avatar/orb the main tap-to-talk control.
+- Kept one vertical mobile-first flow: George orb, latest message, chat, text input.
+- Added natural onboarding through conversation instead of forms.
+- George now learns goal, weight, target, training, struggle and tracker from what the user says.
+- Added local memory summaries and pattern notes using localStorage.
+- Kept replies focused on food, training, weight, habits, bad days and staying on track.
+- Added warmer off-topic redirect instead of robotic refusals.
+- Kept exact tracking positioned as something users can do in whichever tracker they prefer.
+
+Important:
+- This is still frontend/localStorage memory only. Proper long-term multi-device memory needs Supabase or another backend later.
+- Voice still requires the user to tap first due to browser microphone/audio permission rules.
+- Realtime voice uses the existing /api/george-session endpoint and voice renderer flow.
