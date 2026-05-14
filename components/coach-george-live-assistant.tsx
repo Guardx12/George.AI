@@ -27,7 +27,7 @@ type ConnectionState = "idle" | "connecting" | "connected" | "error";
 type MessageRole = "assistant" | "user" | "system";
 type Goal = "fat-loss" | "strength" | "boxing" | "running" | "general-health" | "maintenance" | "muscle";
 type CoachingStyle = "straight" | "calm" | "supportive";
-type TrackerApp = "NutriCheck" | "MyFitnessPal" | "Other" | "None yet";
+type TrackerApp = "NutriCheck" | "MyFitnessPal" | "Cronometer" | "Lose It" | "Other" | "None yet";
 type ProfileStatus = "new" | "started" | "complete";
 
 type LiveMessage = {
@@ -102,11 +102,8 @@ const GOAL_LABELS: Record<Goal, string> = {
 
 const QUICK_ACTIONS = [
   "What should I eat tonight?",
-  "I’m hungry",
+  "I’m struggling today",
   "My weight went up",
-  "I messed up",
-  "Training today",
-  "Help me reset safely",
 ];
 
 function uid(prefix = "id") {
@@ -163,7 +160,7 @@ const INITIAL_STATE: CoachState = {
   messages: [
     makeMessage(
       "assistant",
-      "Tap to talk when you’re ready. I’ll help with meals, training, staying on track, bad days, scale panic, and what to do next. Use your tracker for exact calories — use me for the decisions.",
+      "Tap to talk when you’re ready. Tell me what’s going on — food, training, hunger, weight, motivation, or getting back on track — and I’ll help you make the next good move.",
     ),
   ],
   onboardingComplete: false,
@@ -219,6 +216,17 @@ function profileCompletion(profile: CoachProfile) {
   return Math.round((complete / fields.length) * 100);
 }
 
+function getTrackerPhrase(state: CoachState) {
+  if (state.profile.trackerApp && state.profile.trackerApp !== "None yet" && state.profile.trackerApp !== "Other") {
+    return `${state.profile.trackerApp}, or any tracker you prefer`;
+  }
+  return "a tracking app like NutriCheck, MyFitnessPal, Cronometer, Lose It, or whatever you prefer";
+}
+
+function isInScope(input: string) {
+  return /(food|meal|eat|eating|hungry|hunger|craving|snack|calorie|macro|protein|carb|fat|tracker|nutricheck|myfitnesspal|cronometer|lose it|weight|scale|weigh|gain|lost|loss|fat|muscle|training|workout|gym|run|running|boxing|cardio|strength|steps|walk|motivation|struggling|quit|give up|reset|goal|phase|plan|routine|habit|sleep|stress|water|takeaway|restaurant|off plan|bad day|binge|profile|setup|start|check in|injury|pain|hurt)/.test(input);
+}
+
 function buildMemoryLine(state: CoachState) {
   const notes = state.memory.notes.slice(-4).join(" ");
   const target = state.profile.calorieTarget || state.profile.proteinTarget
@@ -243,27 +251,53 @@ function addUniqueNote(notes: string[], note: string) {
   return [...notes.slice(-9), note];
 }
 
+function getNextOnboardingQuestion(profile: CoachProfile) {
+  if (!profile.currentWeightKg) return "Good. What do you weigh roughly at the moment?";
+  if (!profile.targetWeightKg && profile.goal === "fat-loss") return "And where would you like to get to eventually? A rough target is fine.";
+  if (!profile.trainingFocus) return "What training are you doing, or what do you want to start with?";
+  if (!profile.biggestStruggle) return "What normally knocks you off track — hunger, evenings, motivation, the scale, weekends, or something else?";
+  if (!profile.trackerApp || profile.trackerApp === "None yet") return "Are you using a tracking app for exact numbers, like NutriCheck, MyFitnessPal, Cronometer, Lose It, or something else?";
+  return "Perfect. I’ve got enough to start coaching you. Tell me what you need help with right now.";
+}
+
 function getIntroLine(state: CoachState) {
   if (!state.onboardingComplete || state.profile.profileStatus !== "complete") {
-    return "Hi, I’m George. Before I coach you properly, tell me what we’re working towards — fat loss, boxing, strength, running, or general health?";
+    return "Hi, I’m George. I’ll help you with food, training, motivation, and staying on track. First, what are we working towards — fat loss, boxing, strength, running, or general health?";
   }
   const name = state.profile.name ? ` ${state.profile.name}` : "";
-  return `Ready${name}. Current phase: ${GOAL_LABELS[state.activePhase.goal]}. Tell me what you need now — food, training, hunger, a bad day, weight panic, or the next move.`;
+  return `Ready${name}. Current phase: ${GOAL_LABELS[state.activePhase.goal]}. Tell me what’s going on and I’ll help with the next move.`;
 }
 
 function buildCoachReply(rawInput: string, state: CoachState) {
   const input = normalize(rawInput);
   const phase = state.activePhase;
-  const tracker = state.profile.trackerApp === "None yet" ? "your tracker" : state.profile.trackerApp;
+  const trackerPhrase = getTrackerPhrase(state);
   const protein = state.profile.proteinTarget ? `${state.profile.proteinTarget}g protein` : "protein";
   const calories = state.profile.calorieTarget ? `around ${state.profile.calorieTarget} calories` : "your calorie range";
 
+  if (!isInScope(input)) {
+    return "I’m Coach George, so I’m going to keep us focused on food, training, progress, motivation, and staying on track. Bring me something around your goal and I’ll help you make the next good move.";
+  }
+
+  if (/which tracker|what tracker|tracking app|what app/.test(input)) {
+    return "Use whichever tracker feels easiest for exact numbers — NutriCheck, MyFitnessPal, Cronometer, Lose It, or another one you already like. I’m here for the coaching: what to eat next, how to handle hunger, what the scale means, and how to stay on track.";
+  }
+
+  if (state.profile.profileStatus !== "complete" && /(fat loss|lose weight|lose fat|boxing|strength|running|run|general health|maintenance|muscle|just fat loss)/.test(input)) {
+    return getNextOnboardingQuestion(state.profile);
+  }
+
+  const clearCoachingRequest = /(what should i eat|what to eat|eat tonight|dinner|next meal|lunch|breakfast|i m hungry|im hungry|starving|craving|weight went up|scale went up|messed up|fell off|off plan|bad day|binge|training today|workout|reset|change goal|motivation|struggling|quit|give up)/.test(input);
+  if (state.profile.profileStatus !== "complete" && !clearCoachingRequest) {
+    return getNextOnboardingQuestion(state.profile);
+  }
+
   if (/set up|setup|profile|start/.test(input) && !/reset|again/.test(input)) {
-    return "Good. Give me the basics: your goal, current weight, target weight, training focus, biggest struggle, and whether you use NutriCheck or MyFitnessPal. You can type them or use the profile panel — I’ll use that to coach the next decision.";
+    return "Good. We’ll keep this simple. Tell me your goal, rough current weight, training focus, biggest struggle, and what tracker you use for exact numbers. I’ll turn that into practical coaching.";
   }
 
   if (/what should i eat|what to eat|eat tonight|dinner|next meal|lunch|breakfast/.test(input)) {
-    return `Keep it simple. Anchor the meal with protein first — chicken, lean mince, eggs, fish, Greek yogurt, tofu, or beans. Then add veg or salad. Add carbs based on training and what ${tracker} says you have left. I’m not here to guess exact grams — I’m here to point you at the right type of meal for ${GOAL_LABELS[phase.goal].toLowerCase()}.`;
+    return `Go protein first. Pick something like chicken, lean mince, eggs, fish, Greek yogurt, tofu, or beans. Add veg or salad. Add carbs if you’ve trained, you’re active, or your tracker says you’ve got room. Use ${trackerPhrase} for the exact grams — I’ll help you choose the right kind of meal.`;
   }
 
   if (/hungry|starving|craving|snack/.test(input)) {
@@ -279,7 +313,7 @@ function buildCoachReply(rawInput: string, state: CoachState) {
   }
 
   if (/calorie|macro|protein|target/.test(input)) {
-    return `Use ${tracker} for exact logging. My job is to help you use the numbers without panicking. For this phase, the big rocks are ${calories}, ${protein}, consistent meals, and training you can actually repeat. If you paste your totals, I’ll tell you what they mean and what to do next.`;
+    return `Use ${trackerPhrase} for exact logging. My job is to help you use the numbers calmly. For this phase, the big rocks are ${calories}, ${protein}, consistent meals, and training you can repeat. Paste your totals and I’ll tell you what they mean and what to do next.`;
   }
 
   if (/workout|training|gym|home|boxing|run|running|cardio|strength/.test(input)) {
@@ -304,11 +338,11 @@ function buildCoachReply(rawInput: string, state: CoachState) {
     return "Don’t try to win the whole transformation today. Win the next action. One meal. One walk. One workout. One honest check-in. You don’t need a perfect day — you need proof you’re still the kind of person who keeps going.";
   }
 
-  if (/nutricheck|myfitnesspal|fitness pal|tracker/.test(input)) {
-    return `Perfect — keep ${tracker} as the source of truth for exact calories and grams. Bring me the situation: what you’ve eaten, what’s left, how hungry you are, and what you’re tempted to do. I’ll turn the numbers into the next best move.`;
+  if (/nutricheck|myfitnesspal|fitness pal|cronometer|lose it|tracker/.test(input)) {
+    return `Perfect — use ${trackerPhrase} as the source of truth for exact calories and grams. Bring me the situation: what you’ve eaten, what’s left, how hungry you are, and what you’re tempted to do. I’ll coach the next move.`;
   }
 
-  return "I’m here for the next decision. Ask me what to eat, how to train, what your weight change means, how to recover from a bad day, or how to stay on track tonight. Keep the tracker for exact numbers — bring me the problem and I’ll coach the move.";
+  return "I’m here for the next decision. Ask me what to eat, how to train, what your weight change means, how to recover from a bad day, or how to stay on track tonight. Use a tracker for exact numbers — bring me the situation and I’ll coach the move.";
 }
 
 function extractProfileFromText(input: string, current: CoachProfile): CoachProfile {
@@ -330,6 +364,8 @@ function extractProfileFromText(input: string, current: CoachProfile): CoachProf
   if (targetMatch && !next.targetWeightKg) next.targetWeightKg = targetMatch[1];
   if (/nutricheck/.test(text)) next.trackerApp = "NutriCheck";
   if (/myfitnesspal|fitness pal/.test(text)) next.trackerApp = "MyFitnessPal";
+  if (/cronometer/.test(text)) next.trackerApp = "Cronometer";
+  if (/lose it/.test(text)) next.trackerApp = "Lose It";
   if (/late night|night eating|evening/.test(text)) next.biggestStruggle = "Late-night eating";
   if (/hunger|hungry|cravings/.test(text)) next.biggestStruggle = "Hunger and cravings";
   if (/motivation|consistency|fall off|quit/.test(text)) next.biggestStruggle = "Consistency";
@@ -468,7 +504,12 @@ export function CoachGeorgeLiveAssistant() {
 
     const nextProfile = extractProfileFromText(cleaned, stateRef.current.profile);
     const note = inferCoachingNote(cleaned);
-    const reply = buildCoachReply(cleaned, { ...stateRef.current, profile: nextProfile });
+    const nextStateForReply = {
+      ...stateRef.current,
+      profile: nextProfile,
+      activePhase: { ...stateRef.current.activePhase, goal: nextProfile.goal, title: GOAL_LABELS[nextProfile.goal] },
+    };
+    const reply = buildCoachReply(cleaned, nextStateForReply);
 
     setState((prev) => {
       const updatedProfile = extractProfileFromText(cleaned, prev.profile);
@@ -704,10 +745,10 @@ export function CoachGeorgeLiveAssistant() {
                 Meet Coach George
               </h1>
               <p className="mx-auto mt-4 max-w-[660px] text-lg leading-8 text-white/72 sm:text-xl">
-                Your coach for meals, training, daily guidance, and getting back on track when life happens.
+                Your coach for food, training, daily guidance, and getting back on track when life happens.
               </p>
               <p className="mx-auto mt-3 max-w-[620px] text-sm leading-6 text-white/52">
-                Keep NutriCheck or MyFitnessPal for exact calories. Bring George the situation — he’ll help you decide what to do next.
+                Use your favourite tracker for exact numbers. Use George for the next decision.
               </p>
             </div>
 
@@ -742,7 +783,7 @@ export function CoachGeorgeLiveAssistant() {
               </div>
             ) : null}
 
-            <div className="mt-8 grid gap-2 sm:grid-cols-3">
+            <div className="mx-auto mt-8 grid max-w-[720px] gap-2 sm:grid-cols-3">
               {QUICK_ACTIONS.map((prompt) => (
                 <button
                   key={prompt}
@@ -768,22 +809,10 @@ export function CoachGeorgeLiveAssistant() {
             ))}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <button onClick={() => saveProgressEntry({ weightKg: state.profile.currentWeightKg, note: "Weight/check-in logged from dashboard." })} className="rounded-[24px] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:bg-white/[0.09]">
-              <Weight className="mb-3 h-5 w-5 text-sky-200" />
-              <p className="font-semibold">Quick check-in</p>
-              <p className="mt-1 text-sm text-white/55">Save today’s context.</p>
-            </button>
-            <button onClick={() => handleQuickPrompt("Training today")} className="rounded-[24px] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:bg-white/[0.09]">
-              <Dumbbell className="mb-3 h-5 w-5 text-sky-200" />
-              <p className="font-semibold">Training today</p>
-              <p className="mt-1 text-sm text-white/55">Get a simple session.</p>
-            </button>
-            <button onClick={() => setShowChangePanel(true)} className="rounded-[24px] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:bg-white/[0.09]">
-              <RefreshCw className="mb-3 h-5 w-5 text-sky-200" />
-              <p className="font-semibold">Change or reset</p>
-              <p className="mt-1 text-sm text-white/55">Safe phase controls.</p>
-            </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 text-sm text-white/65">
+            <button onClick={() => saveProgressEntry({ weightKg: state.profile.currentWeightKg, note: "Quick check-in saved from dashboard." })} className="rounded-full border border-white/10 px-4 py-2 transition hover:bg-white/[0.08]">Save check-in</button>
+            <button onClick={() => handleQuickPrompt("Training today")} className="rounded-full border border-white/10 px-4 py-2 transition hover:bg-white/[0.08]">Training idea</button>
+            <button onClick={() => setShowChangePanel(true)} className="rounded-full border border-white/10 px-4 py-2 transition hover:bg-white/[0.08]">Change goal safely</button>
           </div>
         </div>
 
@@ -822,16 +851,11 @@ export function CoachGeorgeLiveAssistant() {
             </form>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[26px] border border-white/10 bg-white/[0.055] p-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4 text-sky-200" /> Memory</div>
-              <p className="mt-3 text-sm leading-6 text-white/60">{buildMemoryLine(state)}</p>
-            </div>
-            <div className="rounded-[26px] border border-white/10 bg-white/[0.055] p-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Activity className="h-4 w-4 text-sky-200" /> Latest check-in</div>
-              <p className="mt-3 text-sm leading-6 text-white/60">{latestProgress ? `${latestProgress.date}: ${latestProgress.note}` : "No check-in yet. Save one when you want George to remember today’s context."}</p>
-            </div>
-          </div>
+          <details className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 text-white/70">
+            <summary className="cursor-pointer text-sm font-semibold text-white/85">Coaching memory and latest check-in</summary>
+            <p className="mt-3 text-sm leading-6 text-white/58">{buildMemoryLine(state)}</p>
+            <p className="mt-3 text-sm leading-6 text-white/50">{latestProgress ? `${latestProgress.date}: ${latestProgress.note}` : "No check-in yet."}</p>
+          </details>
         </div>
       </div>
 
@@ -870,7 +894,7 @@ function ProfilePanel({
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-200/70">Coach profile</p>
             <h2 className="mt-1 text-2xl font-semibold text-white">Teach George how to coach you</h2>
-            <p className="mt-2 text-sm text-white/55">This replaces the old age/sex/macro popup. Keep it practical and editable.</p>
+            <p className="mt-2 text-sm text-white/55">Quick details George uses to keep the coaching personal. No long age/sex/macro form.</p>
           </div>
           <button onClick={onClose} className="rounded-full border border-white/10 bg-white/[0.06] p-2 text-white/70 hover:text-white"><X className="h-5 w-5" /></button>
         </div>
@@ -903,6 +927,8 @@ function ProfilePanel({
             <select value={profile.trackerApp} onChange={(e) => updateProfile({ trackerApp: e.target.value as TrackerApp })} className="field">
               <option>NutriCheck</option>
               <option>MyFitnessPal</option>
+              <option>Cronometer</option>
+              <option>Lose It</option>
               <option>Other</option>
               <option>None yet</option>
             </select>
